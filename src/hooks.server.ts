@@ -1,6 +1,9 @@
 import type { Handle } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
 import { getSessionUser } from '$lib/server/auth/session';
+import { startScheduler } from '$lib/server/scheduler';
+
+startScheduler();
 
 const PUBLIC_PATHS = ['/login', '/login/verify', '/manifest.json', '/service-worker.js'];
 
