@@ -1,0 +1,12 @@
+node_modules
+.env
+.env.*
+!.env.example
+.git
+build
+.svelte-kit
+data
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+.superpowers
