@@ -11,7 +11,7 @@ function isAllowed(email: string): boolean {
 	return allowed.includes(email.toLowerCase());
 }
 
-export const actions: Actions = {
+export const actions = {
 	request: async ({ request }) => {
 		const data = await request.formData();
 		const email = String(data.get('email') ?? '').trim();
@@ -43,4 +43,4 @@ export const actions: Actions = {
 		});
 		throw redirect(303, '/');
 	}
-};
+} satisfies Actions;

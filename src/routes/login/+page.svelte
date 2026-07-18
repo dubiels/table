@@ -1,6 +1,13 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	let { form } = $props();
+
+	type LoginFormResult = {
+		sent?: boolean;
+		email?: string;
+		error?: string;
+		codeError?: 'invalid' | 'expired' | 'used' | 'locked';
+	};
+	let { form }: { form: LoginFormResult | null } = $props();
 </script>
 
 <h1>Log in to Table</h1>
