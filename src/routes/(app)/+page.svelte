@@ -14,7 +14,21 @@
 	}
 </script>
 
-<h1>Table</h1>
-<a href="/inbox">Notifications</a>
-<button on:click={enableNotifications}>Enable notifications</button>
+<div class="toolbar">
+	<h1>On the table</h1>
+	<button class="btn btn-ghost" onclick={enableNotifications}>Enable notifications</button>
+</div>
 <Board topics={data.topics} tasksByTopic={data.tasksByTopic} />
+
+<style>
+	.toolbar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 1rem;
+	}
+
+	.toolbar h1 {
+		font-size: 1.4rem;
+	}
+</style>
