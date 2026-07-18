@@ -14,6 +14,9 @@ export function startScheduler() {
 	if (started) return;
 	started = true;
 
+	// node-cron schedules run in the process/container's local timezone, not necessarily the
+	// user's timezone — Fly machines default to UTC unless TZ is set in fly.toml, so
+	// "0 8 * * *" means 8am UTC there, not 8am wherever the user actually is.
 	const digestCron = env.DIGEST_CRON ?? '0 8 * * *';
 	const dueCheckCron = env.DUE_CHECK_CRON ?? '0 * * * *';
 	const leadHours = Number(env.DUE_ALERT_LEAD_HOURS ?? '24');

@@ -89,7 +89,8 @@ Because of this, the app must run as exactly one always-on machine. `fly.toml` s
 
 Task-creation and notification-content logic live in plain, route- and scheduler-independent functions:
 
-- `src/lib/server/tasks/service.ts` — creating, updating, and querying tasks and topics.
+- `src/lib/server/tasks/service.ts` — creating, updating, and querying tasks.
+- `src/lib/server/topics/service.ts` — creating, updating, and querying topics.
 - `src/lib/server/notifications/digest.ts`, `src/lib/server/notifications/due-alerts.ts`, `src/lib/server/notifications/push.ts`, `src/lib/server/notifications/log.ts` — building and sending digest/due-alert notifications and logging them.
 
 These are called the same way by the UI routes and by the in-process scheduler (`src/lib/server/scheduler/index.ts`). A future integration (for example, importing assignments from Canvas) can call these same functions directly to create tasks and trigger notifications, without going through HTTP routes or duplicating scheduling logic.
