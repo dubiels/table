@@ -4,18 +4,32 @@
 	let open = $state(false);
 </script>
 
-<form class="add" method="POST" action="?/createTask" use:enhance={() => async ({ update }) => { await update(); open = false; }}>
+<form
+	class="add"
+	method="POST"
+	action="?/createTask"
+	use:enhance={() =>
+		async ({ update }) => {
+			await update();
+			open = false;
+		}}
+>
 	<input type="hidden" name="x" value={x} />
 	<input type="hidden" name="y" value={y} />
 	<div class="row">
-		<input name="title" placeholder="Add something to the table…" required
-			onfocus={() => (open = true)} />
+		<input
+			name="title"
+			placeholder="Add something to the table…"
+			required
+			onfocus={() => (open = true)}
+		/>
 		<button class="btn btn-primary" type="submit">Add</button>
 	</div>
 	{#if open}
 		<div class="extra">
 			<label><span>Due</span><input type="date" name="dueDate" /></label>
-			<label><span>Priority</span>
+			<label
+				><span>Priority</span>
 				<select name="priority">
 					<option value="">None</option>
 					<option value="low">Low</option>
@@ -28,10 +42,29 @@
 </form>
 
 <style>
-	.add { display: flex; flex-direction: column; gap: 0.5rem; }
-	.row { display: flex; gap: 0.5rem; }
-	.row input { flex: 1; }
-	.extra { display: flex; gap: 0.75rem; }
-	.extra label { display: flex; flex-direction: column; gap: 0.2rem; }
-	.extra span { font-size: 0.72rem; color: var(--muted); }
+	.add {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+	.row {
+		display: flex;
+		gap: 0.5rem;
+	}
+	.row input {
+		flex: 1;
+	}
+	.extra {
+		display: flex;
+		gap: 0.75rem;
+	}
+	.extra label {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+	}
+	.extra span {
+		font-size: 0.72rem;
+		color: var(--muted);
+	}
 </style>

@@ -71,7 +71,10 @@ export async function updateTask(
 }
 
 export async function updateTaskPosition(id: string, x: number, y: number): Promise<void> {
-	await db.update(tasks).set({ x, y, sortOrder: await nextSortOrder() }).where(eq(tasks.id, id));
+	await db
+		.update(tasks)
+		.set({ x, y, sortOrder: await nextSortOrder() })
+		.where(eq(tasks.id, id));
 }
 
 export async function toggleTaskDone(id: string): Promise<Task> {

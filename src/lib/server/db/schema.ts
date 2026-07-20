@@ -8,7 +8,9 @@ export const users = sqliteTable('users', {
 
 export const sessions = sqliteTable('sessions', {
 	id: text('id').primaryKey(),
-	userId: text('user_id').notNull().references(() => users.id),
+	userId: text('user_id')
+		.notNull()
+		.references(() => users.id),
 	expiresAt: text('expires_at').notNull()
 });
 
@@ -39,7 +41,9 @@ export const tasks = sqliteTable('tasks', {
 
 export const pushSubscriptions = sqliteTable('push_subscriptions', {
 	id: text('id').primaryKey(),
-	userId: text('user_id').notNull().references(() => users.id),
+	userId: text('user_id')
+		.notNull()
+		.references(() => users.id),
 	endpoint: text('endpoint').notNull().unique(),
 	p256dh: text('p256dh').notNull(),
 	auth: text('auth').notNull(),
@@ -59,7 +63,9 @@ export const loginTokens = sqliteTable('login_tokens', {
 
 export const notifications = sqliteTable('notifications', {
 	id: text('id').primaryKey(),
-	userId: text('user_id').notNull().references(() => users.id),
+	userId: text('user_id')
+		.notNull()
+		.references(() => users.id),
 	type: text('type', { enum: ['morning_digest', 'due_alert'] }).notNull(),
 	content: text('content').notNull(),
 	sentAt: text('sent_at').notNull(),
