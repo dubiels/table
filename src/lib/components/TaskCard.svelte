@@ -7,50 +7,19 @@
 	} = $props();
 
 	let showModal = $state(false);
-
 	let today = new Date().toISOString().slice(0, 10);
 	let overdue = $derived(!!task.dueDate && task.dueDate < today && !task.done);
-
-	function openModal() {
-		showModal = true;
-	}
-
-	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Enter' || e.key === ' ') {
-			e.preventDefault();
-			openModal();
-		}
-	}
 </script>
 
-<div
-	class="card"
-	class:done={task.done}
-	role="button"
-	tabindex="0"
-	onclick={openModal}
-	onkeydown={handleKeydown}
->
-	<div class="row-move">
-		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<form method="POST" action="?/moveTask" use:enhance onclick={(e) => e.stopPropagation()} style="display:inline">
-			<input type="hidden" name="id" value={task.id} />
-			<button class="btn btn-ghost btn-icon" name="direction" value="up" type="submit">▲</button>
-			<button class="btn btn-ghost btn-icon" name="direction" value="down" type="submit">▼</button>
-		</form>
-	</div>
-
+<div class="card" class:done={task.done}>
 	<div class="row-main">
-		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<form method="POST" action="?/toggleTaskDone" use:enhance onclick={(e) => e.stopPropagation()}>
+		<form method="POST" action="?/toggleTaskDone" use:enhance>
 			<input type="hidden" name="id" value={task.id} />
 			<button class="done-toggle" class:checked={task.done} type="submit" aria-label="Toggle done">
 				{#if task.done}✓{/if}
 			</button>
 		</form>
-		<span class="title">{task.title}</span>
+		<button class="title" type="button" onclick={() => (showModal = true)}>{task.title}</button>
 	</div>
 
 	{#if task.priority || task.dueDate}
@@ -73,39 +42,17 @@
 
 <style>
 	.card {
-		position: relative;
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-s);
 		padding: 0.5rem 0.6rem;
 		box-shadow: var(--shadow-card);
-		cursor: pointer;
 	}
-
-	.card:hover {
-		border-color: var(--accent);
-	}
-
-	.row-move {
-		position: absolute;
-		top: 0.3rem;
-		right: 0.3rem;
-		opacity: 0;
-		transition: opacity 0.12s ease;
-	}
-
-	.card:hover .row-move,
-	.card:focus-within .row-move {
-		opacity: 1;
-	}
-
 	.row-main {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		padding-right: 2.5rem;
 	}
-
 	.done-toggle {
 		flex-shrink: 0;
 		width: 1.05rem;
@@ -121,21 +68,23 @@
 		line-height: 1;
 		cursor: pointer;
 	}
-
 	.done-toggle.checked {
 		color: var(--ok);
 		border-color: var(--ok);
 	}
-
 	.title {
 		flex: 1;
+		text-align: left;
+		background: transparent;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+		color: inherit;
 	}
-
 	.done .title {
 		text-decoration: line-through;
 		color: var(--muted);
 	}
-
 	.row-meta {
 		display: flex;
 		align-items: center;
