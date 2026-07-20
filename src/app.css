@@ -1,7 +1,6 @@
 /* Table — global design system */
 
 :root {
-	/* Apple uses one type family everywhere — SF via the system stack. */
 	--font-display:
 		-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue',
 		'Segoe UI', Roboto, Arial, sans-serif;
@@ -9,62 +8,33 @@
 		-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'Segoe UI', Roboto, Arial,
 		sans-serif;
 
-	--bg: #f5f5f7;
-	--surface: #ffffff;
-	--surface-2: #f5f5f7;
-	--ink: #1d1d1f;
-	--muted: #6e6e73;
-	--border: #e3e3e6;
-	--border-strong: #d2d2d7;
-	--accent: #0071e3;
-	--accent-hover: #0077ed;
-	--accent-soft: #e8f1fd;
-	--accent-ink: #ffffff;
-	--danger: #d70015;
-	--danger-soft: #fdecee;
-	--ok: #248a3d;
+	--bg: #f3efe6;
+	--surface: #fffdf9;
+	--surface-2: #ece7db;
+	--ink: #26231d;
+	--muted: #857f70;
+	--border: #e4ddcf;
+	--border-strong: #d5ccba;
+	--accent: #33302a;
+	--accent-hover: #201e19;
+	--accent-soft: #e7e1d3;
+	--accent-ink: #fffdf9;
+	--danger: #b4372b;
+	--danger-soft: #f4e0dc;
+	--ok: #5b7a3f;
 
-	--prio-high-bg: #fdecee;
-	--prio-high-fg: #d70015;
-	--prio-med-bg: #fff3e0;
-	--prio-med-fg: #b25000;
-	--prio-low-bg: #e7f6ec;
-	--prio-low-fg: #248a3d;
+	--prio-high-bg: #f4e0dc;
+	--prio-high-fg: #b4372b;
+	--prio-med-bg: #f5e7cc;
+	--prio-med-fg: #9a6512;
+	--prio-low-bg: #e6ead6;
+	--prio-low-fg: #5b7a3f;
 
 	--radius-s: 10px;
 	--radius-m: 14px;
 	--radius-l: 20px;
-	--shadow-card: 0 1px 1px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.05);
-	--shadow-raised: 0 8px 24px rgba(0, 0, 0, 0.12), 0 24px 60px rgba(0, 0, 0, 0.18);
-}
-
-@media (prefers-color-scheme: dark) {
-	:root {
-		--bg: #000000;
-		--surface: #1c1c1e;
-		--surface-2: #2c2c2e;
-		--ink: #f5f5f7;
-		--muted: #98989d;
-		--border: #38383a;
-		--border-strong: #48484a;
-		--accent: #0a84ff;
-		--accent-hover: #409cff;
-		--accent-soft: #10305a;
-		--accent-ink: #ffffff;
-		--danger: #ff453a;
-		--danger-soft: #3a1e1c;
-		--ok: #30d158;
-
-		--prio-high-bg: #3a1e1c;
-		--prio-high-fg: #ff6961;
-		--prio-med-bg: #3a2c14;
-		--prio-med-fg: #ff9f0a;
-		--prio-low-bg: #16301d;
-		--prio-low-fg: #30d158;
-
-		--shadow-card: 0 1px 1px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.4);
-		--shadow-raised: 0 8px 24px rgba(0, 0, 0, 0.55), 0 24px 60px rgba(0, 0, 0, 0.6);
-	}
+	--shadow-card: 0 1px 1px rgba(60, 50, 30, 0.04), 0 4px 14px rgba(60, 50, 30, 0.06);
+	--shadow-raised: 0 8px 24px rgba(60, 50, 30, 0.12), 0 24px 60px rgba(60, 50, 30, 0.16);
 }
 
 *,
