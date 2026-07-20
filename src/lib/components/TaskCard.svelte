@@ -1,25 +1,64 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import TaskDetailModal from './TaskDetailModal.svelte';
 
-	let { task }: {
-		task: { id: string; title: string; done: boolean; priority: string | null; dueDate: string | null };
+	let {
+		task,
+		zoneColor = null,
+		onclick
+	}: {
+		task: {
+			id: string;
+			title: string;
+			done: boolean;
+			priority: string | null;
+			dueDate: string | null;
+		};
+		zoneColor?: { fill: string; border: string } | null;
+		onclick?: () => void;
 	} = $props();
 
-	let showModal = $state(false);
 	let today = new Date().toISOString().slice(0, 10);
 	let overdue = $derived(!!task.dueDate && task.dueDate < today && !task.done);
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (!onclick) return;
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			onclick();
+		}
+	}
 </script>
 
-<div class="card" class:done={task.done}>
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<div
+	class="card"
+	class:done={task.done}
+	class:clickable={!!onclick}
+	role={onclick ? 'button' : undefined}
+	tabindex={onclick ? 0 : undefined}
+	onclick={() => onclick?.()}
+	onkeydown={handleKeydown}
+>
+	{#if zoneColor}
+		<span
+			class="zone-dot"
+			style="background:{zoneColor.fill}; border-color:{zoneColor.border};"
+			aria-hidden="true"
+		></span>
+	{/if}
 	<div class="row-main">
-		<form method="POST" action="?/toggleTaskDone" use:enhance>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<form method="POST" action="?/toggleTaskDone" use:enhance onclick={(e) => e.stopPropagation()}>
 			<input type="hidden" name="id" value={task.id} />
 			<button class="done-toggle" class:checked={task.done} type="submit" aria-label="Toggle done">
 				{#if task.done}✓{/if}
 			</button>
 		</form>
-		<button class="title" type="button" onclick={() => (showModal = true)}>{task.title}</button>
+		<span class="title">{task.title}</span>
 	</div>
 
 	{#if task.priority || task.dueDate}
@@ -36,22 +75,32 @@
 	{/if}
 </div>
 
-{#if showModal}
-	<TaskDetailModal {task} onclose={() => (showModal = false)} />
-{/if}
-
 <style>
 	.card {
+		position: relative;
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-s);
 		padding: 0.5rem 0.6rem;
 		box-shadow: var(--shadow-card);
 	}
+	.card.clickable {
+		cursor: pointer;
+	}
+	.zone-dot {
+		position: absolute;
+		top: 0.4rem;
+		right: 0.4rem;
+		width: 0.5rem;
+		height: 0.5rem;
+		border-radius: 50%;
+		border: 1px solid;
+	}
 	.row-main {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
+		padding-right: 0.9rem;
 	}
 	.done-toggle {
 		flex-shrink: 0;
@@ -74,12 +123,6 @@
 	}
 	.title {
 		flex: 1;
-		text-align: left;
-		background: transparent;
-		border: none;
-		padding: 0;
-		cursor: pointer;
-		color: inherit;
 	}
 	.done .title {
 		text-decoration: line-through;

@@ -1,8 +1,17 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 
-	let { task, onclose }: {
-		task: { id: string; title: string; notes?: string | null; dueDate?: string | null; priority?: string | null };
+	let {
+		task,
+		onclose
+	}: {
+		task: {
+			id: string;
+			title: string;
+			notes?: string | null;
+			dueDate?: string | null;
+			priority?: string | null;
+		};
 		onclose: () => void;
 	} = $props();
 
@@ -90,7 +99,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		z-index: 100;
+		z-index: 1000;
 	}
 
 	.modal {

@@ -3,6 +3,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import TaskCard from './TaskCard.svelte';
 	import AddTaskForm from './AddTaskForm.svelte';
+	import TaskDetailModal from './TaskDetailModal.svelte';
 	import { ZONE_COLORS, zoneForTask, taskCenter, DEFAULT_CARD, type ZoneColor } from '$lib/zones';
 	import { SvelteMap } from 'svelte/reactivity';
 
@@ -30,6 +31,8 @@
 
 	let { tasks, zones }: { tasks: Task[]; zones: Zone[] } = $props();
 
+	let canvasEl = $state<HTMLDivElement | undefined>();
+
 	// Position comes from the server-loaded props; a drag override holds the live
 	// position only for an item currently (or just) being dragged. This way newly
 	// created tasks/zones render immediately from props instead of waiting for a
@@ -47,8 +50,14 @@
 	let renamingZoneId = $state<string | null>(null);
 	let renameValue = $state('');
 
+	// A tap (vs. a drag) on a task opens its edit panel; every other card hides
+	// while it's open so nothing else competes for attention behind it.
+	let openTaskId = $state<string | null>(null);
+	let openTask = $derived(tasks.find((t) => t.id === openTaskId) ?? null);
+
 	const CLUSTER_GAP = 36; // px "closeness" that counts as wanting to cluster
 	const ZONE_PAD = 20; // padding added around a resized/created zone
+	const CLICK_MOVE_THRESHOLD = 6; // px of pointer travel below which a drag counts as a click
 
 	function taskXY(t: Task) {
 		return dragTask.get(t.id) ?? { x: t.x, y: t.y };
@@ -59,6 +68,16 @@
 
 	function colorOf(key: string) {
 		return ZONE_COLORS[key as ZoneColor] ?? ZONE_COLORS.sage;
+	}
+
+	function zoneDotFor(task: Task) {
+		const p = taskXY(task);
+		const zone = zoneForTask(
+			taskCenter(p),
+			zones.map((z) => ({ ...zoneXY(z), id: z.id }))
+		);
+		const owner = zone ? zones.find((z) => z.id === zone.id) : null;
+		return owner ? colorOf(owner.color) : null;
 	}
 
 	// Deterministic organic outline per zone (or a fixed one for the live preview)
@@ -99,6 +118,25 @@
 		return { x, y, width: right - x, height: bottom - y };
 	}
 
+	// Keeps every card/zone fully inside the visible canvas — nothing can be
+	// dragged off-screen or created outside the viewable area.
+	function clampPoint(x: number, y: number, width: number, height: number) {
+		const maxW = canvasEl?.clientWidth ?? Infinity;
+		const maxH = canvasEl?.clientHeight ?? Infinity;
+		return {
+			x: Math.min(Math.max(0, x), Math.max(0, maxW - width)),
+			y: Math.min(Math.max(0, y), Math.max(0, maxH - height))
+		};
+	}
+	function clampRect(rect: Rect): Rect {
+		const maxW = canvasEl?.clientWidth ?? Infinity;
+		const maxH = canvasEl?.clientHeight ?? Infinity;
+		const width = Math.min(rect.width, maxW);
+		const height = Math.min(rect.height, maxH);
+		const { x, y } = clampPoint(rect.x, rect.y, width, height);
+		return { x, y, width, height };
+	}
+
 	function updateClusterPreview(taskId: string, box: Rect) {
 		let best: ClusterTarget = null;
 		let bestArea = Infinity;
@@ -107,7 +145,7 @@
 			const zbox = zoneXY(zone);
 			if (contains(zbox, box)) continue; // already fully inside — no resize needed
 			if (!intersects(box, zbox, CLUSTER_GAP)) continue;
-			const rect = unionRect(box, zbox, ZONE_PAD);
+			const rect = clampRect(unionRect(box, zbox, ZONE_PAD));
 			const area = rect.width * rect.height;
 			if (area < bestArea) {
 				bestArea = area;
@@ -122,7 +160,7 @@
 				const p = taskXY(other);
 				const obox = { x: p.x, y: p.y, width: DEFAULT_CARD.width, height: DEFAULT_CARD.height };
 				if (!intersects(box, obox, CLUSTER_GAP)) continue;
-				const rect = unionRect(box, obox, ZONE_PAD);
+				const rect = clampRect(unionRect(box, obox, ZONE_PAD));
 				const area = rect.width * rect.height;
 				if (area < bestArea) {
 					bestArea = area;
@@ -187,7 +225,7 @@
 		kind: 'task' | 'zone',
 		id: string,
 		base: { x: number; y: number },
-		dims?: { width: number; height: number }
+		dims: { width: number; height: number }
 	) {
 		if ((e.target as HTMLElement).closest('button, input, select, a, form')) return;
 		e.preventDefault();
@@ -196,6 +234,7 @@
 		const baseX = base.x;
 		const baseY = base.y;
 		const pointerId = e.pointerId;
+		let traveled = 0;
 
 		function cleanup() {
 			window.removeEventListener('pointermove', move);
@@ -204,8 +243,9 @@
 		}
 		function move(ev: PointerEvent) {
 			if (ev.pointerId !== pointerId) return;
-			const nx = Math.max(0, baseX + (ev.clientX - originX));
-			const ny = Math.max(0, baseY + (ev.clientY - originY));
+			traveled = Math.max(traveled, Math.hypot(ev.clientX - originX, ev.clientY - originY));
+			const raw = { x: baseX + (ev.clientX - originX), y: baseY + (ev.clientY - originY) };
+			const { x: nx, y: ny } = clampPoint(raw.x, raw.y, dims.width, dims.height);
 			if (kind === 'task') {
 				dragTask.set(id, { x: nx, y: ny });
 				updateClusterPreview(id, {
@@ -215,12 +255,26 @@
 					height: DEFAULT_CARD.height
 				});
 			} else {
-				dragZone.set(id, { x: nx, y: ny, width: dims!.width, height: dims!.height });
+				dragZone.set(id, { x: nx, y: ny, width: dims.width, height: dims.height });
 			}
 		}
 		function up(ev: PointerEvent) {
 			if (ev.pointerId !== pointerId) return;
 			cleanup();
+
+			if (traveled < CLICK_MOVE_THRESHOLD) {
+				// A tap, not a drag: revert any micro-jitter and open the card instead.
+				clusterTarget = null;
+				previewRect = null;
+				if (kind === 'task') {
+					dragTask.set(id, base);
+					openTaskId = id;
+				} else {
+					dragZone.set(id, { ...base, width: dims.width, height: dims.height });
+				}
+				return;
+			}
+
 			if (kind === 'task') {
 				const final = dragTask.get(id) ?? base;
 				void persist('task', id, final.x, final.y);
@@ -241,7 +295,7 @@
 					void createZoneFromCluster(target.rect);
 				}
 			} else {
-				const final = dragZone.get(id) ?? { ...base, width: dims!.width, height: dims!.height };
+				const final = dragZone.get(id) ?? { ...base, width: dims.width, height: dims.height };
 				void persist('zone', id, final.x, final.y, final.width, final.height);
 			}
 		}
@@ -267,7 +321,7 @@
 	</form>
 </div>
 
-<div class="canvas">
+<div class="canvas" bind:this={canvasEl}>
 	{#each zones as zone (zone.id)}
 		{@const r = zoneXY(zone)}
 		{@const c = colorOf(zone.color)}
@@ -312,18 +366,28 @@
 		></div>
 	{/if}
 
-	{#each tasks as task (task.id)}
-		{@const p = taskXY(task)}
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div
-			class="floating"
-			style="left:{p.x}px; top:{p.y}px; z-index:{task.sortOrder};"
-			onpointerdown={(e) => startDrag(e, 'task', task.id, p)}
-		>
-			<TaskCard {task} />
-		</div>
-	{/each}
+	{#if !openTaskId}
+		{#each tasks as task (task.id)}
+			{@const p = taskXY(task)}
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="floating"
+				style="left:{p.x}px; top:{p.y}px; z-index:{Math.min(task.sortOrder, 900)};"
+				onpointerdown={(e) =>
+					startDrag(e, 'task', task.id, p, {
+						width: (e.currentTarget as HTMLElement).offsetWidth || DEFAULT_CARD.width,
+						height: (e.currentTarget as HTMLElement).offsetHeight || DEFAULT_CARD.height
+					})}
+			>
+				<TaskCard {task} zoneColor={zoneDotFor(task)} />
+			</div>
+		{/each}
+	{/if}
 </div>
+
+{#if openTask}
+	<TaskDetailModal task={openTask} onclose={() => (openTaskId = null)} />
+{/if}
 
 <style>
 	.toolbar {
@@ -337,7 +401,7 @@
 		position: relative;
 		min-height: 70vh;
 		width: 100%;
-		overflow: auto;
+		overflow: hidden;
 	}
 	.zone {
 		position: absolute;

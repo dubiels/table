@@ -1,6 +1,10 @@
 <script lang="ts">
 	import TaskCard from '$lib/components/TaskCard.svelte';
+	import TaskDetailModal from '$lib/components/TaskDetailModal.svelte';
 	let { data } = $props();
+
+	let openTaskId = $state<string | null>(null);
+	let openTask = $derived(data.tasks.find((t) => t.id === openTaskId) ?? null);
 
 	function formatCompletedAt(iso: string | null) {
 		if (!iso) return '';
@@ -25,12 +29,16 @@
 		{#each data.tasks as task (task.id)}
 			<div class="row">
 				<div class="card-wrap">
-					<TaskCard {task} />
+					<TaskCard {task} onclick={() => (openTaskId = task.id)} />
 				</div>
 				<span class="completed-at">Completed {formatCompletedAt(task.completedAt)}</span>
 			</div>
 		{/each}
 	</div>
+{/if}
+
+{#if openTask}
+	<TaskDetailModal task={openTask} onclose={() => (openTaskId = null)} />
 {/if}
 
 <style>
