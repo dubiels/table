@@ -117,7 +117,9 @@ zoneForTask(task, zones) -> zone | null
 
 Light mode only. The dark-mode `@media (prefers-color-scheme: dark)` block is
 removed. The look is calm, warm, and paper-like — reinforcing the physical-table
-metaphor: a warm oat/cream table you scatter white note-cards onto.
+metaphor: a warm oat/cream table you scatter white note-cards onto. The accent is
+a muted warm charcoal — all real color comes from the zone fills and priority
+tints, keeping the surface calm (closest to Granola's notes-app restraint).
 
 ### Core tokens (replace current `:root`)
 ```
@@ -128,10 +130,10 @@ metaphor: a warm oat/cream table you scatter white note-cards onto.
 --muted:         #857F70;  /* warm grey text */
 --border:        #E4DDCF;
 --border-strong: #D5CCBA;
---accent:        #C05C36;  /* warm clay/terracotta — primary actions */
---accent-hover:  #A94E2C;
---accent-soft:   #F3E1D8;
---accent-ink:    #FFFFFF;
+--accent:        #33302A;  /* warm charcoal — primary actions (muted/ink direction) */
+--accent-hover:  #201E19;
+--accent-soft:   #E7E1D3;  /* warm recessed tint for soft-accent surfaces */
+--accent-ink:    #FFFDF9;  /* warm white text on charcoal */
 --danger:        #B4372B;
 --danger-soft:   #F4E0DC;
 --ok:            #5B7A3F;  /* warm sage-green */
