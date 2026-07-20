@@ -3,6 +3,7 @@
 	import TaskCard from './TaskCard.svelte';
 	import AddTaskForm from './AddTaskForm.svelte';
 	import { ZONE_COLORS, type ZoneColor } from '$lib/zones';
+	import { SvelteMap } from 'svelte/reactivity';
 
 	type Task = { id: string; title: string; done: boolean; priority: string | null; dueDate: string | null; x: number; y: number; sortOrder: number };
 	type Zone = { id: string; name: string; color: string; x: number; y: number; width: number; height: number };
@@ -10,8 +11,8 @@
 	let { tasks, zones }: { tasks: Task[]; zones: Zone[] } = $props();
 
 	// Local mutable copies so drags feel instant before the server round-trip.
-	let taskPos = $state(new Map(tasks.map((t) => [t.id, { x: t.x, y: t.y }])));
-	let zonePos = $state(new Map(zones.map((z) => [z.id, { x: z.x, y: z.y, width: z.width, height: z.height }])));
+	let taskPos = new SvelteMap(tasks.map((t) => [t.id, { x: t.x, y: t.y }]));
+	let zonePos = new SvelteMap(zones.map((z) => [z.id, { x: z.x, y: z.y, width: z.width, height: z.height }]));
 
 	function colorOf(key: string) {
 		return ZONE_COLORS[(key as ZoneColor)] ?? ZONE_COLORS.sage;
@@ -34,20 +35,32 @@
 		const originY = e.clientY;
 		const baseX = start.x;
 		const baseY = start.y;
+		const pointerId = e.pointerId;
 
+		function cleanup() {
+			window.removeEventListener('pointermove', move);
+			window.removeEventListener('pointerup', up);
+			window.removeEventListener('pointercancel', cancel);
+		}
 		function move(ev: PointerEvent) {
+			if (ev.pointerId !== pointerId) return;
 			const nx = Math.max(0, baseX + (ev.clientX - originX));
 			const ny = Math.max(0, baseY + (ev.clientY - originY));
 			store.set(id, { ...store.get(id)!, x: nx, y: ny });
 		}
-		function up() {
-			window.removeEventListener('pointermove', move);
-			window.removeEventListener('pointerup', up);
+		function up(ev: PointerEvent) {
+			if (ev.pointerId !== pointerId) return;
+			cleanup();
 			const final = store.get(id)!;
 			persist(kind, id, final.x, final.y, (final as any).width, (final as any).height);
 		}
+		function cancel(ev: PointerEvent) {
+			if (ev.pointerId !== pointerId) return;
+			cleanup();
+		}
 		window.addEventListener('pointermove', move);
 		window.addEventListener('pointerup', up);
+		window.addEventListener('pointercancel', cancel);
 	}
 </script>
 
