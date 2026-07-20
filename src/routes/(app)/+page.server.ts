@@ -1,66 +1,41 @@
 import type { PageServerLoad, Actions } from './$types';
 import { z } from 'zod';
 import { fail } from '@sveltejs/kit';
-import * as topicsService from '$lib/server/topics/service';
+import * as zonesService from '$lib/server/zones/service';
 import * as tasksService from '$lib/server/tasks/service';
 
 export const load: PageServerLoad = async () => {
-	const topics = await topicsService.listTopics('active');
-	const tasksByTopic: Record<string, tasksService.Task[]> = {};
-	for (const topic of topics) {
-		tasksByTopic[topic.id] = await tasksService.listTasksForTopic(topic.id);
-	}
-	return { topics, tasksByTopic };
+	const [tasks, zones] = await Promise.all([tasksService.listTasks(), zonesService.listZones()]);
+	return { tasks, zones };
 };
 
-const newTopicSchema = z.object({ name: z.string().min(1) });
 const newTaskSchema = z.object({
-	topicId: z.string().min(1),
 	title: z.string().min(1),
-	notes: z.string().optional(),
 	dueDate: z.string().optional(),
-	priority: z.enum(['low', 'med', 'high']).optional()
+	priority: z.enum(['low', 'med', 'high']).optional(),
+	x: z.coerce.number().optional(),
+	y: z.coerce.number().optional()
 });
 
+const zoneColor = z.enum(['sage', 'sky', 'butter', 'blush', 'lilac', 'clay']);
+
 export const actions: Actions = {
-	createTopic: async ({ request }) => {
-		const data = Object.fromEntries(await request.formData());
-		const parsed = newTopicSchema.safeParse(data);
-		if (!parsed.success) return fail(400, { error: 'Name required' });
-		await topicsService.createTopic(parsed.data.name);
-	},
-
-	archiveTopic: async ({ request }) => {
-		const data = await request.formData();
-		await topicsService.archiveTopic(String(data.get('id')));
-	},
-
-	moveTopic: async ({ request }) => {
-		const data = await request.formData();
-		await topicsService.moveTopic(String(data.get('id')), data.get('direction') === 'up' ? 'up' : 'down');
-	},
-
 	createTask: async ({ request }) => {
 		const data = Object.fromEntries(await request.formData());
 		const parsed = newTaskSchema.safeParse(data);
 		if (!parsed.success) return fail(400, { error: 'Invalid task' });
-		await tasksService.createTask(parsed.data);
-	},
-
-	toggleTaskDone: async ({ request }) => {
-		const data = await request.formData();
-		await tasksService.toggleTaskDone(String(data.get('id')));
-	},
-
-	moveTask: async ({ request }) => {
-		const data = await request.formData();
-		await tasksService.moveTask(String(data.get('id')), data.get('direction') === 'up' ? 'up' : 'down');
+		await tasksService.createTask({
+			title: parsed.data.title,
+			dueDate: parsed.data.dueDate || undefined,
+			priority: parsed.data.priority,
+			x: parsed.data.x,
+			y: parsed.data.y
+		});
 	},
 
 	updateTask: async ({ request }) => {
 		const data = Object.fromEntries(await request.formData());
-		const id = String(data.id);
-		await tasksService.updateTask(id, {
+		await tasksService.updateTask(String(data.id), {
 			title: data.title ? String(data.title) : undefined,
 			notes: data.notes ? String(data.notes) : null,
 			dueDate: data.dueDate ? String(data.dueDate) : null,
@@ -68,8 +43,36 @@ export const actions: Actions = {
 		});
 	},
 
+	toggleTaskDone: async ({ request }) => {
+		const data = await request.formData();
+		await tasksService.toggleTaskDone(String(data.get('id')));
+	},
+
 	deleteTask: async ({ request }) => {
 		const data = await request.formData();
 		await tasksService.deleteTask(String(data.get('id')));
+	},
+
+	createZone: async ({ request }) => {
+		const data = Object.fromEntries(await request.formData());
+		const name = String(data.name ?? '').trim();
+		if (!name) return fail(400, { error: 'Name required' });
+		const color = zoneColor.safeParse(data.color);
+		await zonesService.createZone({
+			name,
+			color: color.success ? color.data : undefined,
+			x: data.x ? Number(data.x) : undefined,
+			y: data.y ? Number(data.y) : undefined
+		});
+	},
+
+	renameZone: async ({ request }) => {
+		const data = await request.formData();
+		await zonesService.renameZone(String(data.get('id')), String(data.get('name')));
+	},
+
+	deleteZone: async ({ request }) => {
+		const data = await request.formData();
+		await zonesService.deleteZone(String(data.get('id')));
 	}
 };
