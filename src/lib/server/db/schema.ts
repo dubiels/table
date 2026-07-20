@@ -12,22 +12,26 @@ export const sessions = sqliteTable('sessions', {
 	expiresAt: text('expires_at').notNull()
 });
 
-export const topics = sqliteTable('topics', {
+export const zones = sqliteTable('zones', {
 	id: text('id').primaryKey(),
 	name: text('name').notNull(),
-	status: text('status', { enum: ['active', 'archived'] }).notNull().default('active'),
-	sortOrder: integer('sort_order').notNull().default(0),
+	color: text('color').notNull().default('sage'),
+	x: integer('x').notNull().default(0),
+	y: integer('y').notNull().default(0),
+	width: integer('width').notNull().default(320),
+	height: integer('height').notNull().default(320),
 	createdAt: text('created_at').notNull()
 });
 
 export const tasks = sqliteTable('tasks', {
 	id: text('id').primaryKey(),
-	topicId: text('topic_id').notNull().references(() => topics.id),
 	title: text('title').notNull(),
 	notes: text('notes'),
 	dueDate: text('due_date'),
 	priority: text('priority', { enum: ['low', 'med', 'high'] }),
 	done: integer('done', { mode: 'boolean' }).notNull().default(false),
+	x: integer('x').notNull().default(0),
+	y: integer('y').notNull().default(0),
 	sortOrder: integer('sort_order').notNull().default(0),
 	createdAt: text('created_at').notNull()
 });

@@ -15,6 +15,13 @@
       "when": 1784409456815,
       "tag": "0001_bizarre_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784586796912,
+      "tag": "0002_outstanding_warstar",
+      "breakpoints": true
     }
   ]
 }
