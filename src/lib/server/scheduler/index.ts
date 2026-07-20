@@ -2,7 +2,7 @@ import cron from 'node-cron';
 import { env } from '$env/dynamic/private';
 import { db } from '../db';
 import { users, notifications } from '../db/schema';
-import { listAllActiveTasksWithTopics } from '../tasks/service';
+import { listActiveTasks } from '../tasks/service';
 import { buildMorningDigestContent } from '../notifications/digest';
 import { findTasksNeedingDueAlert } from '../notifications/due-alerts';
 import { sendPushToUser } from '../notifications/push';
@@ -27,7 +27,7 @@ export function startScheduler() {
 
 export async function runMorningDigest() {
 	const allUsers = await db.query.users.findMany();
-	const tasks = await listAllActiveTasksWithTopics();
+	const tasks = await listActiveTasks();
 	const digest = buildMorningDigestContent(tasks, new Date());
 
 	for (const user of allUsers) {
@@ -38,7 +38,7 @@ export async function runMorningDigest() {
 
 export async function runDueAlertCheck(leadHours: number) {
 	const allUsers = await db.query.users.findMany();
-	const tasks = await listAllActiveTasksWithTopics();
+	const tasks = await listActiveTasks();
 
 	for (const user of allUsers) {
 		const priorNotifications = await db.query.notifications.findMany({

@@ -6,9 +6,9 @@ describe('buildMorningDigestContent', () => {
 
 	it('summarizes counts of overdue, due today, and total open tasks', () => {
 		const tasks = [
-			{ id: '1', title: 'Overdue thing', topicName: 'Work', dueDate: '2026-07-17', done: false },
-			{ id: '2', title: 'Due today thing', topicName: 'Work', dueDate: '2026-07-18', done: false },
-			{ id: '3', title: 'No due date', topicName: 'Home', dueDate: null, done: false }
+			{ id: '1', title: 'Overdue thing', dueDate: '2026-07-17', done: false },
+			{ id: '2', title: 'Due today thing', dueDate: '2026-07-18', done: false },
+			{ id: '3', title: 'No due date', dueDate: null, done: false }
 		];
 		const result = buildMorningDigestContent(tasks, today);
 		expect(result.text).toContain('3 open task');

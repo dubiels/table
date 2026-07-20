@@ -1,7 +1,6 @@
 export interface DigestTask {
 	id: string;
 	title: string;
-	topicName: string;
 	dueDate: string | null;
 	done: boolean;
 }
