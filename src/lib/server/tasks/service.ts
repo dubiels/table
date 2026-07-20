@@ -27,6 +27,7 @@ export async function createTask(input: {
 		dueDate: input.dueDate ?? null,
 		priority: input.priority ?? null,
 		done: false,
+		completedAt: null,
 		x: input.x ?? 60,
 		y: input.y ?? 60,
 		sortOrder: await nextSortOrder(),
@@ -44,6 +45,13 @@ export async function listActiveTasks(): Promise<Task[]> {
 	return db.query.tasks.findMany({
 		where: eq(tasks.done, false),
 		orderBy: (t, { asc }) => [asc(t.sortOrder)]
+	});
+}
+
+export async function listCompletedTasks(): Promise<Task[]> {
+	return db.query.tasks.findMany({
+		where: eq(tasks.done, true),
+		orderBy: (t, { desc }) => [desc(t.completedAt)]
 	});
 }
 
@@ -69,7 +77,11 @@ export async function updateTaskPosition(id: string, x: number, y: number): Prom
 export async function toggleTaskDone(id: string): Promise<Task> {
 	const existing = await db.query.tasks.findFirst({ where: eq(tasks.id, id) });
 	if (!existing) throw new Error(`Task ${id} not found`);
-	await db.update(tasks).set({ done: !existing.done }).where(eq(tasks.id, id));
+	const done = !existing.done;
+	await db
+		.update(tasks)
+		.set({ done, completedAt: done ? new Date().toISOString() : null })
+		.where(eq(tasks.id, id));
 	const updated = await db.query.tasks.findFirst({ where: eq(tasks.id, id) });
 	return updated!;
 }

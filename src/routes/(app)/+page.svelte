@@ -26,7 +26,10 @@
 
 <div class="toolbar">
 	<h1>On the table</h1>
-	<button class="btn btn-ghost" onclick={enableNotifications}>Enable notifications</button>
+	<div class="toolbar-actions">
+		<a class="btn btn-ghost" href="/history">History</a>
+		<button class="btn btn-ghost" onclick={enableNotifications}>Enable notifications</button>
+	</div>
 </div>
 
 {#if isMobile}
@@ -44,5 +47,10 @@
 	}
 	.toolbar h1 {
 		font-size: 1.4rem;
+	}
+	.toolbar-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
 	}
 </style>

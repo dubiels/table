@@ -30,6 +30,7 @@ export const tasks = sqliteTable('tasks', {
 	dueDate: text('due_date'),
 	priority: text('priority', { enum: ['low', 'med', 'high'] }),
 	done: integer('done', { mode: 'boolean' }).notNull().default(false),
+	completedAt: text('completed_at'),
 	x: integer('x').notNull().default(0),
 	y: integer('y').notNull().default(0),
 	sortOrder: integer('sort_order').notNull().default(0),

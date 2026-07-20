@@ -5,7 +5,10 @@ import * as zonesService from '$lib/server/zones/service';
 import * as tasksService from '$lib/server/tasks/service';
 
 export const load: PageServerLoad = async () => {
-	const [tasks, zones] = await Promise.all([tasksService.listTasks(), zonesService.listZones()]);
+	const [tasks, zones] = await Promise.all([
+		tasksService.listActiveTasks(),
+		zonesService.listZones()
+	]);
 	return { tasks, zones };
 };
 
