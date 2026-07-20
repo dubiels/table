@@ -220,6 +220,53 @@
 		await invalidateAll();
 	}
 
+	const MIN_ZONE_WIDTH = 140;
+	const MIN_ZONE_HEIGHT = 110;
+
+	function startResize(e: PointerEvent, zone: Zone) {
+		e.preventDefault();
+		e.stopPropagation();
+		const start = zoneXY(zone);
+		const originX = e.clientX;
+		const originY = e.clientY;
+		const baseWidth = start.width;
+		const baseHeight = start.height;
+		const pointerId = e.pointerId;
+
+		function cleanup() {
+			window.removeEventListener('pointermove', move);
+			window.removeEventListener('pointerup', up);
+			window.removeEventListener('pointercancel', cancel);
+		}
+		function move(ev: PointerEvent) {
+			if (ev.pointerId !== pointerId) return;
+			const maxWidth = Math.max(MIN_ZONE_WIDTH, (canvasEl?.clientWidth ?? Infinity) - start.x);
+			const maxHeight = Math.max(MIN_ZONE_HEIGHT, (canvasEl?.clientHeight ?? Infinity) - start.y);
+			const width = Math.min(
+				Math.max(MIN_ZONE_WIDTH, baseWidth + (ev.clientX - originX)),
+				maxWidth
+			);
+			const height = Math.min(
+				Math.max(MIN_ZONE_HEIGHT, baseHeight + (ev.clientY - originY)),
+				maxHeight
+			);
+			dragZone.set(zone.id, { x: start.x, y: start.y, width, height });
+		}
+		function up(ev: PointerEvent) {
+			if (ev.pointerId !== pointerId) return;
+			cleanup();
+			const final = dragZone.get(zone.id) ?? { ...start };
+			void persist('zone', zone.id, final.x, final.y, final.width, final.height);
+		}
+		function cancel(ev: PointerEvent) {
+			if (ev.pointerId !== pointerId) return;
+			cleanup();
+		}
+		window.addEventListener('pointermove', move);
+		window.addEventListener('pointerup', up);
+		window.addEventListener('pointercancel', cancel);
+	}
+
 	function startDrag(
 		e: PointerEvent,
 		kind: 'task' | 'zone',
@@ -354,6 +401,13 @@
 					<button class="btn btn-ghost btn-icon" type="submit" aria-label="Delete zone">×</button>
 				</form>
 			</div>
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="zone-resize-handle"
+				title="Resize {zone.name}"
+				aria-hidden="true"
+				onpointerdown={(e) => startResize(e, zone)}
+			></div>
 		</div>
 	{/each}
 
@@ -424,6 +478,27 @@
 		padding: 0;
 		cursor: text;
 		color: inherit;
+	}
+	.zone-resize-handle {
+		position: absolute;
+		right: 2px;
+		bottom: 2px;
+		width: 16px;
+		height: 16px;
+		cursor: nwse-resize;
+		touch-action: none;
+		background: linear-gradient(
+			135deg,
+			transparent 0%,
+			transparent 40%,
+			var(--border-strong) 40%,
+			var(--border-strong) 48%,
+			transparent 48%,
+			transparent 60%,
+			var(--border-strong) 60%,
+			var(--border-strong) 68%,
+			transparent 68%
+		);
 	}
 	.zone-name-input {
 		font-family: var(--font-display);
