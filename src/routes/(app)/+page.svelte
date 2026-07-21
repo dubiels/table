@@ -1,10 +1,12 @@
 <script lang="ts">
 	import TableCanvas from '$lib/components/TableCanvas.svelte';
 	import MobileColumns from '$lib/components/MobileColumns.svelte';
+	import ListView from '$lib/components/ListView.svelte';
 	import { subscribeToPush } from '$lib/client/push';
 	import { env } from '$env/dynamic/public';
 	let { data } = $props();
 
+	let view = $state<'table' | 'list'>('table');
 	let isMobile = $state(false);
 	$effect(() => {
 		const mq = window.matchMedia('(max-width: 720px)');
@@ -27,8 +29,9 @@
 <div class="toolbar">
 	<h1>On the table</h1>
 	<div class="toolbar-actions">
-		<select class="btn btn-ghost view-select">
-			<option>Table view</option>
+		<select class="btn btn-ghost view-select" bind:value={view}>
+			<option value="table">Table view</option>
+			<option value="list">List view</option>
 		</select>
 		<a class="btn btn-ghost" href="/history">History</a>
 		<a class="btn btn-ghost" href="/inbox">Inbox</a>
@@ -42,7 +45,9 @@
 	</div>
 </div>
 
-{#if isMobile}
+{#if view === 'list'}
+	<ListView tasks={data.tasks} zones={data.zones} />
+{:else if isMobile}
 	<MobileColumns tasks={data.tasks} zones={data.zones} />
 {:else}
 	<TableCanvas tasks={data.tasks} zones={data.zones} />
