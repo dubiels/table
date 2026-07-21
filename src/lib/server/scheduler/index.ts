@@ -7,6 +7,7 @@ import { buildMorningDigestContent } from '../notifications/digest';
 import { findTasksNeedingDueAlert } from '../notifications/due-alerts';
 import { sendPushToUser } from '../notifications/push';
 import { logNotification } from '../notifications/log';
+import { syncCanvasAssignments } from '../canvas/sync';
 
 let started = false;
 
@@ -19,10 +20,12 @@ export function startScheduler() {
 	// "0 8 * * *" means 8am UTC there, not 8am wherever the user actually is.
 	const digestCron = env.DIGEST_CRON ?? '0 8 * * *';
 	const dueCheckCron = env.DUE_CHECK_CRON ?? '0 * * * *';
+	const canvasSyncCron = env.CANVAS_SYNC_CRON ?? '0 */6 * * *';
 	const leadHours = Number(env.DUE_ALERT_LEAD_HOURS ?? '24');
 
 	cron.schedule(digestCron, () => runMorningDigest().catch((err) => console.error('Digest job failed', err)));
 	cron.schedule(dueCheckCron, () => runDueAlertCheck(leadHours).catch((err) => console.error('Due-alert job failed', err)));
+	cron.schedule(canvasSyncCron, () => syncCanvasAssignments().catch((err) => console.error('Canvas sync job failed', err)));
 }
 
 export async function runMorningDigest() {

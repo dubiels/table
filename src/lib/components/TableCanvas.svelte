@@ -57,6 +57,7 @@
 
 	const CLUSTER_GAP = 36; // px "closeness" that counts as wanting to cluster
 	const ZONE_PAD = 20; // padding added around a resized/created zone
+	const ZONE_HEAD_CLEARANCE = 34; // top space reserved for the zone-head row so its name/rename input never overlaps clustered tasks
 	const CLICK_MOVE_THRESHOLD = 6; // px of pointer travel below which a drag counts as a click
 
 	function taskXY(t: Task) {
@@ -117,6 +118,12 @@
 		const bottom = Math.max(a.y + a.height, b.y + b.height) + padding;
 		return { x, y, width: right - x, height: bottom - y };
 	}
+	// Extends a rect's top edge so the zone-head row has room above the tasks
+	// it wraps, instead of eating into ZONE_PAD and overlapping the top task.
+	function withHeadClearance(rect: Rect): Rect {
+		const extra = Math.max(0, ZONE_HEAD_CLEARANCE - ZONE_PAD);
+		return { x: rect.x, y: rect.y - extra, width: rect.width, height: rect.height + extra };
+	}
 
 	// Keeps every card/zone fully inside the visible canvas — nothing can be
 	// dragged off-screen or created outside the viewable area.
@@ -145,7 +152,7 @@
 			const zbox = zoneXY(zone);
 			if (contains(zbox, box)) continue; // already fully inside — no resize needed
 			if (!intersects(box, zbox, CLUSTER_GAP)) continue;
-			const rect = clampRect(unionRect(box, zbox, ZONE_PAD));
+			const rect = clampRect(withHeadClearance(unionRect(box, zbox, ZONE_PAD)));
 			const area = rect.width * rect.height;
 			if (area < bestArea) {
 				bestArea = area;
@@ -160,7 +167,7 @@
 				const p = taskXY(other);
 				const obox = { x: p.x, y: p.y, width: DEFAULT_CARD.width, height: DEFAULT_CARD.height };
 				if (!intersects(box, obox, CLUSTER_GAP)) continue;
-				const rect = clampRect(unionRect(box, obox, ZONE_PAD));
+				const rect = clampRect(withHeadClearance(unionRect(box, obox, ZONE_PAD)));
 				const area = rect.width * rect.height;
 				if (area < bestArea) {
 					bestArea = area;
@@ -302,7 +309,23 @@
 					height: DEFAULT_CARD.height
 				});
 			} else {
+				const delta = { x: nx - baseX, y: ny - baseY };
 				dragZone.set(id, { x: nx, y: ny, width: dims.width, height: dims.height });
+
+				// Move all tasks inside this zone along with it
+				const draggedZone = { id, x: nx, y: ny, width: dims.width, height: dims.height };
+				for (const task of tasks) {
+					const taskPos = taskXY(task);
+					const taskBox = {
+						x: taskPos.x,
+						y: taskPos.y,
+						width: DEFAULT_CARD.width,
+						height: DEFAULT_CARD.height
+					};
+					if (contains(draggedZone, taskBox)) {
+						dragTask.set(task.id, { x: taskPos.x + delta.x, y: taskPos.y + delta.y });
+					}
+				}
 			}
 		}
 		function up(ev: PointerEvent) {
@@ -344,6 +367,22 @@
 			} else {
 				const final = dragZone.get(id) ?? { ...base, width: dims.width, height: dims.height };
 				void persist('zone', id, final.x, final.y, final.width, final.height);
+
+				// Persist all tasks that are inside this zone
+				for (const task of tasks) {
+					const finalTaskPos = dragTask.get(task.id);
+					if (finalTaskPos) {
+						const taskBox = {
+							x: finalTaskPos.x,
+							y: finalTaskPos.y,
+							width: DEFAULT_CARD.width,
+							height: DEFAULT_CARD.height
+						};
+						if (contains(final, taskBox)) {
+							void persist('task', task.id, finalTaskPos.x, finalTaskPos.y);
+						}
+					}
+				}
 			}
 		}
 		function cancel(ev: PointerEvent) {
