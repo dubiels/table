@@ -4,6 +4,7 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import {
 		categoryNameFor,
+		categoryColorFor,
 		sortTasks,
 		filterTasks,
 		NO_CATEGORY,
@@ -14,6 +15,11 @@
 		type DueFilter,
 		type PriorityFilter
 	} from '$lib/listView';
+	import { ZONE_COLORS, type ZoneColor } from '$lib/zones';
+
+	function dotColor(color: string): string {
+		return (ZONE_COLORS[color as ZoneColor] ?? ZONE_COLORS.sage).border;
+	}
 
 	let { tasks, zones }: { tasks: ListTask[]; zones: ListZone[] } = $props();
 
@@ -98,6 +104,7 @@
 						checked={!deselectedCategories.has(zone.name)}
 						onchange={() => toggleCategory(zone.name)}
 					/>
+					<span class="category-dot" style:background={dotColor(zone.color)}></span>
 					{zone.name}
 				</label>
 			{/each}
@@ -141,6 +148,7 @@
 			<tbody>
 				{#each sorted as task (task.id)}
 					{@const overdue = !!task.dueDate && task.dueDate < today}
+					{@const categoryColor = categoryColorFor(task, zones)}
 					<tr
 						class:done={task.done}
 						role="button"
@@ -162,7 +170,12 @@
 							</form>
 						</td>
 						<td class="title-cell">{task.title}</td>
-						<td>{categoryNameFor(task, zones)}</td>
+						<td class="category-cell">
+							{#if categoryColor}
+								<span class="category-dot" style:background={dotColor(categoryColor)}></span>
+							{/if}
+							{categoryNameFor(task, zones)}
+						</td>
 						<td class="due-cell" class:overdue>{task.dueDate ?? ''}</td>
 						<td>
 							{#if task.priority}
@@ -285,5 +298,16 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+	.category-dot {
+		display: inline-block;
+		width: 0.6rem;
+		height: 0.6rem;
+		border-radius: 50%;
+		margin-right: 0.4rem;
+		flex-shrink: 0;
+	}
+	.category-cell {
+		white-space: nowrap;
 	}
 </style>

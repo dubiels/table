@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
 	categoryNameFor,
 	categoryKeyFor,
+	categoryColorFor,
 	filterTasks,
 	sortTasks,
 	NO_CATEGORY,
@@ -9,8 +10,24 @@ import {
 	type ListZone
 } from './listView';
 
-const work: ListZone = { id: 'work', name: 'Work', x: 0, y: 0, width: 400, height: 400 };
-const home: ListZone = { id: 'home', name: 'Home', x: 500, y: 0, width: 200, height: 200 };
+const work: ListZone = {
+	id: 'work',
+	name: 'Work',
+	color: 'sky',
+	x: 0,
+	y: 0,
+	width: 400,
+	height: 400
+};
+const home: ListZone = {
+	id: 'home',
+	name: 'Home',
+	color: 'blush',
+	x: 500,
+	y: 0,
+	width: 200,
+	height: 200
+};
 
 function task(overrides: Partial<ListTask> & { id: string }): ListTask {
 	return {
@@ -36,6 +53,18 @@ describe('categoryNameFor / categoryKeyFor', () => {
 		const t = task({ id: '1', x: -1000, y: -1000 });
 		expect(categoryNameFor(t, [work, home])).toBe('—');
 		expect(categoryKeyFor(t, [work, home])).toBe(NO_CATEGORY);
+	});
+});
+
+describe('categoryColorFor', () => {
+	it("returns the owning zone's color for a task inside its bounds", () => {
+		const t = task({ id: '1', x: 100, y: 100 });
+		expect(categoryColorFor(t, [work, home])).toBe('sky');
+	});
+
+	it('returns null for a loose task', () => {
+		const t = task({ id: '1', x: -1000, y: -1000 });
+		expect(categoryColorFor(t, [work, home])).toBeNull();
 	});
 });
 

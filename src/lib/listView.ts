@@ -11,7 +11,7 @@ export type ListTask = {
 	y: number;
 };
 
-export type ListZone = ZoneBounds & { name: string };
+export type ListZone = ZoneBounds & { name: string; color: string };
 
 export type SortField = 'done' | 'title' | 'category' | 'dueDate' | 'priority' | 'notes';
 export type SortDirection = 'asc' | 'desc';
@@ -33,6 +33,13 @@ export function categoryNameFor(task: Pick<ListTask, 'x' | 'y'>, zones: ListZone
 export function categoryKeyFor(task: Pick<ListTask, 'x' | 'y'>, zones: ListZone[]): string {
 	const name = categoryNameFor(task, zones);
 	return name === '—' ? NO_CATEGORY : name;
+}
+
+/** The owning zone's color for a task, or null for a loose task. */
+export function categoryColorFor(task: Pick<ListTask, 'x' | 'y'>, zones: ListZone[]): string | null {
+	const hit = zoneForTask(taskCenter(task), zones);
+	if (!hit) return null;
+	return zones.find((z) => z.id === hit.id)?.color ?? null;
 }
 
 function addDays(dateStr: string, days: number): string {
