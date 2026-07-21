@@ -1,26 +1,48 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import TaskDetailModal from './TaskDetailModal.svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import {
 		categoryNameFor,
 		sortTasks,
+		filterTasks,
+		NO_CATEGORY,
 		type ListTask,
 		type ListZone,
 		type SortField,
-		type SortDirection
+		type SortDirection,
+		type DueFilter,
+		type PriorityFilter
 	} from '$lib/listView';
 
 	let { tasks, zones }: { tasks: ListTask[]; zones: ListZone[] } = $props();
 
+	let today = new Date().toISOString().slice(0, 10);
+
 	let sortField = $state<SortField>('dueDate');
 	let sortDirection = $state<SortDirection>('asc');
 
-	let sorted = $derived(sortTasks(tasks, zones, sortField, sortDirection));
+	let deselectedCategories = new SvelteSet<string>();
+	let dueFilter = $state<DueFilter>('all');
+	let priorityFilter = $state<PriorityFilter>('all');
+
+	let filtered = $derived(
+		filterTasks(
+			tasks,
+			zones,
+			{ deselectedCategories, due: dueFilter, priority: priorityFilter },
+			today
+		)
+	);
+	let sorted = $derived(sortTasks(filtered, zones, sortField, sortDirection));
+
+	function toggleCategory(key: string) {
+		if (deselectedCategories.has(key)) deselectedCategories.delete(key);
+		else deselectedCategories.add(key);
+	}
 
 	let openTaskId = $state<string | null>(null);
 	let openTask = $derived(tasks.find((t) => t.id === openTaskId) ?? null);
-
-	let today = new Date().toISOString().slice(0, 10);
 
 	function toggleSort(field: SortField) {
 		if (sortField === field) {
@@ -58,6 +80,51 @@
 </script>
 
 <div class="list-view">
+	<div class="filters">
+		<fieldset class="filter-group">
+			<legend>Category</legend>
+			<label>
+				<input
+					type="checkbox"
+					checked={!deselectedCategories.has(NO_CATEGORY)}
+					onchange={() => toggleCategory(NO_CATEGORY)}
+				/>
+				No category
+			</label>
+			{#each zones as zone (zone.id)}
+				<label>
+					<input
+						type="checkbox"
+						checked={!deselectedCategories.has(zone.name)}
+						onchange={() => toggleCategory(zone.name)}
+					/>
+					{zone.name}
+				</label>
+			{/each}
+		</fieldset>
+
+		<label class="filter-select">
+			<span>Due date</span>
+			<select bind:value={dueFilter}>
+				<option value="all">All</option>
+				<option value="overdue">Overdue</option>
+				<option value="today">Today</option>
+				<option value="week">This week</option>
+				<option value="none">No date</option>
+			</select>
+		</label>
+
+		<label class="filter-select">
+			<span>Priority</span>
+			<select bind:value={priorityFilter}>
+				<option value="all">All</option>
+				<option value="low">Low</option>
+				<option value="med">Med</option>
+				<option value="high">High</option>
+			</select>
+		</label>
+	</div>
+
 	<div class="table-wrap">
 		<table>
 			<thead>
@@ -115,6 +182,40 @@
 {/if}
 
 <style>
+	.filters {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-start;
+		gap: 1.25rem;
+		margin-bottom: 1rem;
+	}
+	.filter-group {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.6rem;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-s);
+		padding: 0.4rem 0.7rem;
+	}
+	.filter-group legend {
+		font-size: 0.78rem;
+		color: var(--muted);
+		padding: 0 0.3rem;
+	}
+	.filter-group label {
+		display: flex;
+		align-items: center;
+		gap: 0.3rem;
+		font-size: 0.85rem;
+		white-space: nowrap;
+	}
+	.filter-select {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		font-size: 0.78rem;
+		color: var(--muted);
+	}
 	.table-wrap {
 		overflow-x: auto;
 		width: 100%;
