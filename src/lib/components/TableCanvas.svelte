@@ -313,17 +313,13 @@
 				const delta = { x: nx - prevZonePos.x, y: ny - prevZonePos.y };
 				dragZone.set(id, { x: nx, y: ny, width: dims.width, height: dims.height });
 
-				// Move all tasks inside this zone along with it
-				const draggedZone = { id, x: nx, y: ny, width: dims.width, height: dims.height };
+				// Move all tasks that visually belong to this zone along with it — same
+				// center-point ownership test the zone-color dot uses, so a task never
+				// shows as "in" the zone without also being dragged with it.
+				const liveZones = zones.map((z) => ({ ...zoneXY(z), id: z.id }));
 				for (const task of tasks) {
 					const taskPos = taskXY(task);
-					const taskBox = {
-						x: taskPos.x,
-						y: taskPos.y,
-						width: DEFAULT_CARD.width,
-						height: DEFAULT_CARD.height
-					};
-					if (contains(draggedZone, taskBox)) {
+					if (zoneForTask(taskCenter(taskPos), liveZones)?.id === id) {
 						dragTask.set(task.id, { x: taskPos.x + delta.x, y: taskPos.y + delta.y });
 					}
 				}
@@ -369,17 +365,12 @@
 				const final = dragZone.get(id) ?? { ...base, width: dims.width, height: dims.height };
 				void persist('zone', id, final.x, final.y, final.width, final.height);
 
-				// Persist all tasks that are inside this zone
+				// Persist all tasks that belong to this zone (same test as above)
+				const liveZoneBounds = zones.map((z) => ({ ...zoneXY(z), id: z.id }));
 				for (const task of tasks) {
 					const finalTaskPos = dragTask.get(task.id);
 					if (finalTaskPos) {
-						const taskBox = {
-							x: finalTaskPos.x,
-							y: finalTaskPos.y,
-							width: DEFAULT_CARD.width,
-							height: DEFAULT_CARD.height
-						};
-						if (contains(final, taskBox)) {
+						if (zoneForTask(taskCenter(finalTaskPos), liveZoneBounds)?.id === id) {
 							void persist('task', task.id, finalTaskPos.x, finalTaskPos.y);
 						}
 					}

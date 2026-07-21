@@ -27,8 +27,18 @@
 <div class="toolbar">
 	<h1>On the table</h1>
 	<div class="toolbar-actions">
+		<select class="btn btn-ghost view-select">
+			<option>Table view</option>
+		</select>
 		<a class="btn btn-ghost" href="/history">History</a>
+		<a class="btn btn-ghost" href="/inbox">Inbox</a>
 		<button class="btn btn-ghost" onclick={enableNotifications}>Enable notifications</button>
+		{#if data.user}
+			<span class="user-email">{data.user.email}</span>
+		{/if}
+		<form method="POST" action="/logout">
+			<button class="btn btn-ghost" type="submit">Log Out</button>
+		</form>
 	</div>
 </div>
 
@@ -52,5 +62,13 @@
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
+	}
+	.view-select {
+		appearance: none;
+		padding-right: 1.6rem;
+	}
+	.user-email {
+		color: var(--muted);
+		font-size: 0.85rem;
 	}
 </style>

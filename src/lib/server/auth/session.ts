@@ -5,7 +5,9 @@ import { users, sessions } from '../db/schema';
 
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
-export async function createSession(email: string): Promise<{ sessionId: string; expiresAt: Date }> {
+export async function createSession(
+	email: string
+): Promise<{ sessionId: string; expiresAt: Date }> {
 	let user = await db.query.users.findFirst({ where: eq(users.email, email) });
 	if (!user) {
 		const id = randomUUID();
@@ -24,7 +26,13 @@ export async function createSession(email: string): Promise<{ sessionId: string;
 	return { sessionId, expiresAt };
 }
 
-export async function getSessionUser(sessionId: string): Promise<{ id: string; email: string } | null> {
+export async function deleteSession(sessionId: string): Promise<void> {
+	await db.delete(sessions).where(eq(sessions.id, sessionId));
+}
+
+export async function getSessionUser(
+	sessionId: string
+): Promise<{ id: string; email: string } | null> {
 	const session = await db.query.sessions.findFirst({ where: eq(sessions.id, sessionId) });
 	if (!session) return null;
 	if (new Date(session.expiresAt) < new Date()) return null;
