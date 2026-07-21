@@ -309,7 +309,8 @@
 					height: DEFAULT_CARD.height
 				});
 			} else {
-				const delta = { x: nx - baseX, y: ny - baseY };
+				const prevZonePos = dragZone.get(id) ?? { x: baseX, y: baseY };
+				const delta = { x: nx - prevZonePos.x, y: ny - prevZonePos.y };
 				dragZone.set(id, { x: nx, y: ny, width: dims.width, height: dims.height });
 
 				// Move all tasks inside this zone along with it
