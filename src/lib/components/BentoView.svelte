@@ -47,6 +47,8 @@
 
 	let openTaskId = $state<string | null>(null);
 	let openTask = $derived(tasks.find((t) => t.id === openTaskId) ?? null);
+
+	let openAddId = $state<string | null>(null);
 </script>
 
 <div class="bento" bind:clientWidth={containerWidth} bind:clientHeight={containerHeight}>
@@ -75,7 +77,28 @@
 					{/if}
 				</div>
 				<div class="box-foot">
-					<AddTaskForm x={point.x} y={point.y} />
+					{#if openAddId === group.id}
+						<div class="add-form-row">
+							<AddTaskForm x={point.x} y={point.y} />
+							<button
+								type="button"
+								class="btn btn-ghost btn-icon"
+								onclick={() => (openAddId = null)}
+								aria-label="Close add task"
+							>
+								×
+							</button>
+						</div>
+					{:else}
+						<button
+							type="button"
+							class="add-plus"
+							onclick={() => (openAddId = group.id)}
+							aria-label="Add task to {group.name}"
+						>
+							+
+						</button>
+					{/if}
 				</div>
 			</div>
 		{/if}
@@ -136,5 +159,38 @@
 	}
 	.box-foot {
 		flex-shrink: 0;
+		display: flex;
+		justify-content: flex-end;
+	}
+	.add-form-row {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.35rem;
+		width: 100%;
+	}
+	.add-form-row :global(.add) {
+		flex: 1;
+		min-width: 0;
+	}
+	.add-plus {
+		flex-shrink: 0;
+		width: 1.6rem;
+		height: 1.6rem;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		border: 1.5px solid var(--border-strong);
+		border-radius: 50%;
+		background: var(--surface-2);
+		color: var(--muted);
+		font-size: 1rem;
+		line-height: 1;
+		padding: 0;
+		cursor: pointer;
+	}
+	.add-plus:hover {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: var(--accent-ink);
 	}
 </style>
