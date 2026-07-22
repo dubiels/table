@@ -2,11 +2,12 @@
 	import BlobView from '$lib/components/BlobView.svelte';
 	import MobileColumns from '$lib/components/MobileColumns.svelte';
 	import ListView from '$lib/components/ListView.svelte';
+	import BentoView from '$lib/components/BentoView.svelte';
 	import { subscribeToPush } from '$lib/client/push';
 	import { env } from '$env/dynamic/public';
 	let { data } = $props();
 
-	let view = $state<'blob' | 'list'>('blob');
+	let view = $state<'blob' | 'list' | 'bento'>('blob');
 	let isMobile = $state(false);
 	$effect(() => {
 		const mq = window.matchMedia('(max-width: 720px)');
@@ -32,6 +33,7 @@
 		<select class="btn btn-ghost view-select" bind:value={view}>
 			<option value="blob">Blob view</option>
 			<option value="list">List view</option>
+			<option value="bento">Bento view</option>
 		</select>
 		<a class="btn btn-ghost" href="/history">History</a>
 		<a class="btn btn-ghost" href="/inbox">Inbox</a>
@@ -47,6 +49,8 @@
 
 {#if view === 'list'}
 	<ListView tasks={data.tasks} zones={data.zones} />
+{:else if view === 'bento'}
+	<BentoView tasks={data.tasks} zones={data.zones} />
 {:else if isMobile}
 	<MobileColumns tasks={data.tasks} zones={data.zones} />
 {:else}
