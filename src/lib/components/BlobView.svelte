@@ -1,10 +1,18 @@
 <script lang="ts">
 	import { enhance, deserialize } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
+	import { tick } from 'svelte';
 	import TaskCard from './TaskCard.svelte';
-	import AddTaskForm from './AddTaskForm.svelte';
 	import TaskDetailModal from './TaskDetailModal.svelte';
-	import { ZONE_COLORS, zoneForTask, taskCenter, DEFAULT_CARD, type ZoneColor } from '$lib/zones';
+	import ZoneColorPicker from './ZoneColorPicker.svelte';
+	import {
+		ZONE_COLORS,
+		ZONE_COLOR_KEYS,
+		zoneForTask,
+		taskCenter,
+		DEFAULT_CARD,
+		type ZoneColor
+	} from '$lib/zones';
 	import { SvelteMap } from 'svelte/reactivity';
 
 	type Task = {
@@ -32,6 +40,7 @@
 	let { tasks, zones }: { tasks: Task[]; zones: Zone[] } = $props();
 
 	let canvasEl = $state<HTMLDivElement | undefined>();
+	let canvasWorldEl = $state<HTMLDivElement | undefined>();
 
 	// Position comes from the server-loaded props; a drag override holds the live
 	// position only for an item currently (or just) being dragged. This way newly
@@ -50,15 +59,106 @@
 	let renamingZoneId = $state<string | null>(null);
 	let renameValue = $state('');
 
+	// Ctrl/Cmd-click on a zone name opens this popover instead of renaming.
+	let colorPickerZoneId = $state<string | null>(null);
+	let colorPickerPos = $state<{ x: number; y: number }>({ x: 0, y: 0 });
+
 	// A tap (vs. a drag) on a task opens its edit panel; every other card hides
 	// while it's open so nothing else competes for attention behind it.
 	let openTaskId = $state<string | null>(null);
 	let openTask = $derived(tasks.find((t) => t.id === openTaskId) ?? null);
 
+	type ComposerState = {
+		x: number;
+		y: number;
+		mode: 'task' | 'zone';
+		title: string;
+		dueDate: string;
+		priority: string;
+		color: ZoneColor;
+	};
+	// The click-to-place composer for creating a new task or zone. Toggling
+	// mode swaps the fields row below but keeps whatever title/name is typed.
+	let composer = $state<ComposerState | null>(null);
+	let composerInputEl = $state<HTMLInputElement | undefined>();
+
+	// Whether clicking empty canvas/zone space opens the composer. Off just
+	// disables new-item creation — drag, resize, rename, delete, and
+	// tap-to-edit-task all keep working regardless.
+	let addMode = $state(false);
+
 	const CLUSTER_GAP = 36; // px "closeness" that counts as wanting to cluster
 	const ZONE_PAD = 20; // padding added around a resized/created zone
 	const ZONE_HEAD_CLEARANCE = 34; // top space reserved for the zone-head row so its name/rename input never overlaps clustered tasks
 	const CLICK_MOVE_THRESHOLD = 6; // px of pointer travel below which a drag counts as a click
+	const COMPOSER_WIDTH = 240; // approximate rendered size, used to keep the composer on-canvas
+	const COMPOSER_HEIGHT = 190;
+	const WORLD_PAD = 40; // px padding around content when computing the growable "world" bounds
+	const ZOOM_STEP = 0.1;
+	const ZOOM_MIN_FLOOR = 0.5;
+
+	// The growable canvas world: starts at the natural viewport size and only
+	// grows once committed (non-drag) zone/task positions spread past its
+	// edge. Positions clamp to this instead of the raw viewport, so zooming
+	// out has something to reveal.
+	let worldSize = $derived.by(() => {
+		const naturalW = canvasEl?.clientWidth ?? 0;
+		const naturalH = canvasEl?.clientHeight ?? 0;
+		let maxX = 0;
+		let maxY = 0;
+		for (const t of tasks) {
+			maxX = Math.max(maxX, t.x + DEFAULT_CARD.width);
+			maxY = Math.max(maxY, t.y + DEFAULT_CARD.height);
+		}
+		for (const z of zones) {
+			maxX = Math.max(maxX, z.x + z.width);
+			maxY = Math.max(maxY, z.y + z.height);
+		}
+		return {
+			width: Math.max(naturalW, maxX + WORLD_PAD),
+			height: Math.max(naturalH, maxY + WORLD_PAD)
+		};
+	});
+
+	// Zoom is a view-only lens: 100% is the max (today's normal, unscaled
+	// view). The min is a fixed floor, not content-driven — zooming out past
+	// what's needed to see everything is harmless (it just adds margin), so
+	// tying the floor to how far content currently spreads only starved the
+	// common case (modest content) of any usable zoom-out range at all.
+	let zoom = $state(1);
+	const zoomMin = ZOOM_MIN_FLOOR;
+
+	function roundZoom(z: number) {
+		return Math.round(z * 100) / 100;
+	}
+	function zoomIn() {
+		zoom = Math.min(1, roundZoom(zoom + ZOOM_STEP));
+	}
+	function zoomOut() {
+		zoom = Math.max(zoomMin, roundZoom(zoom - ZOOM_STEP));
+	}
+
+	// Ignore the shortcut while the user is typing anywhere (composer,
+	// zone-rename input, etc.) so +/- don't hijack normal text entry.
+	function isTypingTarget(el: EventTarget | null): boolean {
+		if (!(el instanceof HTMLElement)) return false;
+		if (el.isContentEditable) return true;
+		return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT';
+	}
+	function handleZoomKeydown(e: KeyboardEvent) {
+		if (isTypingTarget(e.target)) return;
+		if (e.key === '+' || e.key === '=') {
+			e.preventDefault();
+			zoomIn();
+		} else if (e.key === '-' || e.key === '_') {
+			e.preventDefault();
+			zoomOut();
+		}
+	}
+	$effect(() => {
+		window.addEventListener('keydown', handleZoomKeydown);
+		return () => window.removeEventListener('keydown', handleZoomKeydown);
+	});
 
 	function taskXY(t: Task) {
 		return dragTask.get(t.id) ?? { x: t.x, y: t.y };
@@ -125,23 +225,90 @@
 		return { x: rect.x, y: rect.y - extra, width: rect.width, height: rect.height + extra };
 	}
 
-	// Keeps every card/zone fully inside the visible canvas — nothing can be
-	// dragged off-screen or created outside the viewable area.
-	function clampPoint(x: number, y: number, width: number, height: number) {
-		const maxW = canvasEl?.clientWidth ?? Infinity;
-		const maxH = canvasEl?.clientHeight ?? Infinity;
+	// The region of the world actually visible right now, given the current
+	// zoom (the world can be bigger, but only its zoomed-out-enough portion
+	// is on screen — see the zoom design spec for why .canvas-world scales
+	// around the natural canvas center). Bounds every drag/resize/composer
+	// placement so nothing can end up somewhere the user can't see; zooming
+	// out is what makes more of the world reachable.
+	let viewportBounds = $derived.by(() => {
+		const natW = canvasEl?.clientWidth ?? 0;
+		const natH = canvasEl?.clientHeight ?? 0;
+		const halfW = natW / (2 * zoom);
+		const halfH = natH / (2 * zoom);
+		const cx = natW / 2;
+		const cy = natH / 2;
 		return {
-			x: Math.min(Math.max(0, x), Math.max(0, maxW - width)),
-			y: Math.min(Math.max(0, y), Math.max(0, maxH - height))
+			minX: Math.max(0, cx - halfW),
+			minY: Math.max(0, cy - halfH),
+			maxX: Math.min(worldSize.width, cx + halfW),
+			maxY: Math.min(worldSize.height, cy + halfH)
+		};
+	});
+
+	function clampPoint(x: number, y: number, width: number, height: number) {
+		const { minX, minY, maxX, maxY } = viewportBounds;
+		return {
+			x: Math.min(Math.max(minX, x), Math.max(minX, maxX - width)),
+			y: Math.min(Math.max(minY, y), Math.max(minY, maxY - height))
 		};
 	}
 	function clampRect(rect: Rect): Rect {
-		const maxW = canvasEl?.clientWidth ?? Infinity;
-		const maxH = canvasEl?.clientHeight ?? Infinity;
-		const width = Math.min(rect.width, maxW);
-		const height = Math.min(rect.height, maxH);
+		const { minX, minY, maxX, maxY } = viewportBounds;
+		const width = Math.min(rect.width, maxX - minX);
+		const height = Math.min(rect.height, maxY - minY);
 		const { x, y } = clampPoint(rect.x, rect.y, width, height);
 		return { x, y, width, height };
+	}
+
+	// Blocks a zone drag/resize from ever overlapping a sibling zone. Tries
+	// the full candidate move first, then each axis independently (so
+	// hitting a neighbor on one axis doesn't also freeze the other), and
+	// only falls all the way back to the last valid rect if every option
+	// still overlaps.
+	function zoneOverlapsOthers(id: string, rect: Rect): boolean {
+		for (const z of zones) {
+			if (z.id === id) continue;
+			if (intersects(rect, zoneXY(z))) return true;
+		}
+		return false;
+	}
+	function resolveZoneRect(id: string, candidate: Rect, fallback: Rect): Rect {
+		if (!zoneOverlapsOthers(id, candidate)) return candidate;
+		const xOnly = { ...fallback, x: candidate.x, width: candidate.width };
+		if (!zoneOverlapsOthers(id, xOnly)) return xOnly;
+		const yOnly = { ...fallback, y: candidate.y, height: candidate.height };
+		if (!zoneOverlapsOthers(id, yOnly)) return yOnly;
+		return fallback;
+	}
+
+	// Same idea as resolveZoneRect, but for a dragged task against every other
+	// task's card footprint — keeps cards from ever landing on top of each
+	// other while still allowing the near-miss cluster preview (which
+	// triggers at CLUSTER_GAP, well before actual overlap). Uses a strict
+	// (not intersects()'s inclusive) edge test so cards can butt up flush
+	// against each other with zero gap — only actual overlap is blocked.
+	function taskOverlapsOthers(id: string, rect: Rect): boolean {
+		for (const t of tasks) {
+			if (t.id === id) continue;
+			const p = taskXY(t);
+			const obox = { x: p.x, y: p.y, width: DEFAULT_CARD.width, height: DEFAULT_CARD.height };
+			const touchingOrApart =
+				rect.x + rect.width <= obox.x ||
+				obox.x + obox.width <= rect.x ||
+				rect.y + rect.height <= obox.y ||
+				obox.y + obox.height <= rect.y;
+			if (!touchingOrApart) return true;
+		}
+		return false;
+	}
+	function resolveTaskRect(id: string, candidate: Rect, fallback: Rect): Rect {
+		if (!taskOverlapsOthers(id, candidate)) return candidate;
+		const xOnly = { ...fallback, x: candidate.x };
+		if (!taskOverlapsOthers(id, xOnly)) return xOnly;
+		const yOnly = { ...fallback, y: candidate.y };
+		if (!taskOverlapsOthers(id, yOnly)) return yOnly;
+		return fallback;
 	}
 
 	function updateClusterPreview(taskId: string, box: Rect) {
@@ -216,6 +383,15 @@
 		renameValue = zone.name;
 	}
 
+	function handleZoneNameClick(e: MouseEvent, zone: Zone) {
+		if (!addMode) {
+			colorPickerZoneId = zone.id;
+			colorPickerPos = { x: e.clientX, y: e.clientY };
+		} else {
+			startRename(zone);
+		}
+	}
+
 	async function commitRename(id: string) {
 		const name = renameValue.trim();
 		renamingZoneId = null;
@@ -225,6 +401,114 @@
 		fd.set('name', name);
 		await fetch('?/renameZone', { method: 'POST', body: fd });
 		await invalidateAll();
+	}
+
+	async function submitComposerTask(c: ComposerState) {
+		const fd = new FormData();
+		fd.set('title', c.title.trim());
+		fd.set('x', String(Math.round(c.x)));
+		fd.set('y', String(Math.round(c.y)));
+		if (c.dueDate) fd.set('dueDate', c.dueDate);
+		if (c.priority) fd.set('priority', c.priority);
+		await fetch('?/createTask', { method: 'POST', body: fd });
+		await invalidateAll();
+	}
+
+	async function submitComposerZone(c: ComposerState) {
+		const fd = new FormData();
+		fd.set('name', c.title.trim());
+		fd.set('color', c.color);
+		fd.set('x', String(Math.round(c.x)));
+		fd.set('y', String(Math.round(c.y)));
+		await fetch('?/createZone', { method: 'POST', body: fd });
+		await invalidateAll();
+	}
+
+	// Commits if a title/name was typed, otherwise discards silently — the
+	// same commit-on-blur-if-non-empty pattern commitRename above uses.
+	function resolveComposer() {
+		if (!composer) return;
+		const c = composer;
+		composer = null;
+		const title = c.title.trim();
+		if (!title) return;
+		if (c.mode === 'task') {
+			void submitComposerTask(c);
+		} else {
+			void submitComposerZone(c);
+		}
+	}
+
+	function cancelComposer() {
+		composer = null;
+	}
+
+	function toggleAddMode() {
+		addMode = !addMode;
+		if (!addMode) resolveComposer();
+	}
+
+	async function openComposerAt(clientX: number, clientY: number) {
+		resolveComposer(); // resolve whatever composer was already open first
+		const rect = canvasEl?.getBoundingClientRect();
+		if (!rect || !canvasEl) return;
+		// .canvas-world scales from its center, so undoing the scale to land
+		// back in world units is "distance from center, divided by zoom" —
+		// not a flat subtract of rect.left/top.
+		const cx = canvasEl.clientWidth / 2;
+		const cy = canvasEl.clientHeight / 2;
+		const sx = clientX - rect.left;
+		const sy = clientY - rect.top;
+		const { x, y } = clampPoint(
+			cx + (sx - cx) / zoom,
+			cy + (sy - cy) / zoom,
+			COMPOSER_WIDTH,
+			COMPOSER_HEIGHT
+		);
+		composer = { x, y, mode: 'task', title: '', dueDate: '', priority: '', color: 'sage' };
+		await tick();
+		composerInputEl?.focus();
+	}
+
+	function handleCanvasClick(e: MouseEvent) {
+		if (!addMode) return;
+		if (e.target !== canvasEl && e.target !== canvasWorldEl) return;
+		void openComposerAt(e.clientX, e.clientY);
+	}
+
+	function handleComposerKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			resolveComposer();
+		} else if (e.key === 'Escape') {
+			e.preventDefault();
+			cancelComposer();
+		}
+	}
+
+	// Fields inside the composer (due date, priority, swatches) move focus
+	// around within the same container — only resolve once focus actually
+	// leaves the whole composer, not between its own fields.
+	function handleComposerFocusOut(e: FocusEvent) {
+		const container = e.currentTarget as HTMLElement;
+		const next = e.relatedTarget as Node | null;
+		if (next && container.contains(next)) return;
+		resolveComposer();
+	}
+
+	// Mode/swatch buttons are one-click actions — keep focus on the text
+	// input instead of moving it, so picking one never triggers the
+	// focus-out commit/cancel logic above.
+	function keepFocus(e: MouseEvent) {
+		e.preventDefault();
+	}
+
+	function setComposerMode(mode: 'task' | 'zone') {
+		if (composer) composer.mode = mode;
+	}
+
+	function setComposerColor(color: ZoneColor) {
+		if (composer) composer.color = color;
 	}
 
 	const MIN_ZONE_WIDTH = 140;
@@ -247,17 +531,24 @@
 		}
 		function move(ev: PointerEvent) {
 			if (ev.pointerId !== pointerId) return;
-			const maxWidth = Math.max(MIN_ZONE_WIDTH, (canvasEl?.clientWidth ?? Infinity) - start.x);
-			const maxHeight = Math.max(MIN_ZONE_HEIGHT, (canvasEl?.clientHeight ?? Infinity) - start.y);
+			const maxWidth = Math.max(MIN_ZONE_WIDTH, viewportBounds.maxX - start.x);
+			const maxHeight = Math.max(MIN_ZONE_HEIGHT, viewportBounds.maxY - start.y);
 			const width = Math.min(
-				Math.max(MIN_ZONE_WIDTH, baseWidth + (ev.clientX - originX)),
+				Math.max(MIN_ZONE_WIDTH, baseWidth + (ev.clientX - originX) / zoom),
 				maxWidth
 			);
 			const height = Math.min(
-				Math.max(MIN_ZONE_HEIGHT, baseHeight + (ev.clientY - originY)),
+				Math.max(MIN_ZONE_HEIGHT, baseHeight + (ev.clientY - originY) / zoom),
 				maxHeight
 			);
-			dragZone.set(zone.id, { x: start.x, y: start.y, width, height });
+			const candidate = { x: start.x, y: start.y, width, height };
+			const fallback = dragZone.get(zone.id) ?? {
+				x: start.x,
+				y: start.y,
+				width: baseWidth,
+				height: baseHeight
+			};
+			dragZone.set(zone.id, resolveZoneRect(zone.id, candidate, fallback));
 		}
 		function up(ev: PointerEvent) {
 			if (ev.pointerId !== pointerId) return;
@@ -298,20 +589,34 @@
 		function move(ev: PointerEvent) {
 			if (ev.pointerId !== pointerId) return;
 			traveled = Math.max(traveled, Math.hypot(ev.clientX - originX, ev.clientY - originY));
-			const raw = { x: baseX + (ev.clientX - originX), y: baseY + (ev.clientY - originY) };
+			const raw = {
+				x: baseX + (ev.clientX - originX) / zoom,
+				y: baseY + (ev.clientY - originY) / zoom
+			};
 			const { x: nx, y: ny } = clampPoint(raw.x, raw.y, dims.width, dims.height);
 			if (kind === 'task') {
-				dragTask.set(id, { x: nx, y: ny });
+				const prevTaskPos = dragTask.get(id) ?? { x: baseX, y: baseY };
+				const candidate = { x: nx, y: ny, width: dims.width, height: dims.height };
+				const fallback = { ...prevTaskPos, width: dims.width, height: dims.height };
+				const resolved = resolveTaskRect(id, candidate, fallback);
+				dragTask.set(id, { x: resolved.x, y: resolved.y });
 				updateClusterPreview(id, {
-					x: nx,
-					y: ny,
+					x: resolved.x,
+					y: resolved.y,
 					width: DEFAULT_CARD.width,
 					height: DEFAULT_CARD.height
 				});
 			} else {
-				const prevZonePos = dragZone.get(id) ?? { x: baseX, y: baseY };
-				const delta = { x: nx - prevZonePos.x, y: ny - prevZonePos.y };
-				dragZone.set(id, { x: nx, y: ny, width: dims.width, height: dims.height });
+				const prevZonePos = dragZone.get(id) ?? {
+					x: baseX,
+					y: baseY,
+					width: dims.width,
+					height: dims.height
+				};
+				const candidate = { x: nx, y: ny, width: dims.width, height: dims.height };
+				const resolved = resolveZoneRect(id, candidate, prevZonePos);
+				const delta = { x: resolved.x - prevZonePos.x, y: resolved.y - prevZonePos.y };
+				dragZone.set(id, resolved);
 
 				// Move all tasks that visually belong to this zone along with it — same
 				// center-point ownership test the zone-color dot uses, so a task never
@@ -330,14 +635,17 @@
 			cleanup();
 
 			if (traveled < CLICK_MOVE_THRESHOLD) {
-				// A tap, not a drag: revert any micro-jitter and open the card instead.
+				// A tap, not a drag: revert any micro-jitter.
 				clusterTarget = null;
 				previewRect = null;
 				if (kind === 'task') {
 					dragTask.set(id, base);
 					openTaskId = id;
 				} else {
+					// Tapping empty space inside a zone opens the composer there,
+					// same as tapping empty canvas (when add mode is on).
 					dragZone.set(id, { ...base, width: dims.width, height: dims.height });
+					if (addMode) void openComposerAt(ev.clientX, ev.clientY);
 				}
 				return;
 			}
@@ -391,102 +699,283 @@
 	}
 </script>
 
-<div class="toolbar">
-	<AddTaskForm />
-	<form method="POST" action="?/createZone" use:enhance style="display:flex; gap:0.5rem;">
-		<input name="name" placeholder="New zone name" required />
-		<button class="btn" type="submit">Add zone</button>
-	</form>
+<div class="canvas-toolbar">
+	<div class="toolbar-label">
+		<button
+			type="button"
+			class="add-mode-toggle"
+			class:active={addMode}
+			onclick={toggleAddMode}
+			aria-pressed={addMode}
+		>
+			Add
+		</button>
+		<p class="hint">
+			{addMode ? 'Click anywhere to add a task' : 'Add mode off — drag to rearrange'}
+		</p>
+	</div>
+	<div class="toolbar-controls">
+		<div class="zoom-control">
+			<button
+			type="button"
+			class="zoom-btn"
+			onclick={zoomOut}
+			disabled={zoom <= zoomMin}
+			aria-label="Zoom out">−</button
+		>
+		<span class="zoom-readout">{Math.round(zoom * 100)}%</span>
+		<button
+			type="button"
+			class="zoom-btn"
+			onclick={zoomIn}
+			disabled={zoom >= 1}
+			aria-label="Zoom in">+</button
+		>
+		</div>
+	</div>
 </div>
 
-<div class="canvas" bind:this={canvasEl}>
-	{#each zones as zone (zone.id)}
-		{@const r = zoneXY(zone)}
-		{@const c = colorOf(zone.color)}
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div
-			class="zone"
-			style="left:{r.x}px; top:{r.y}px; width:{r.width}px; height:{r.height}px; background:{c.fill}; border-color:{c.border}; border-radius:{blobRadius(
-				zone.id
-			)};"
-			onpointerdown={(e) => startDrag(e, 'zone', zone.id, r, { width: r.width, height: r.height })}
-		>
-			<div class="zone-head">
-				{#if renamingZoneId === zone.id}
-					<input
-						class="zone-name-input"
-						bind:value={renameValue}
-						onblur={() => commitRename(zone.id)}
-						onkeydown={(e) => {
-							if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
-							if (e.key === 'Escape') renamingZoneId = null;
-						}}
-					/>
-				{:else}
-					<button class="zone-name" type="button" onclick={() => startRename(zone)}
-						>{zone.name}</button
-					>
-				{/if}
-				<form method="POST" action="?/deleteZone" use:enhance>
-					<input type="hidden" name="id" value={zone.id} />
-					<button class="btn btn-ghost btn-icon" type="submit" aria-label="Delete zone">×</button>
-				</form>
-			</div>
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="canvas" bind:this={canvasEl} onclick={handleCanvasClick}>
+	<div class="canvas-world" bind:this={canvasWorldEl} style="transform: scale({zoom});">
+		{#each zones as zone (zone.id)}
+			{@const r = zoneXY(zone)}
+			{@const c = colorOf(zone.color)}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
-				class="zone-resize-handle"
-				title="Resize {zone.name}"
-				aria-hidden="true"
-				onpointerdown={(e) => startResize(e, zone)}
-			></div>
-		</div>
-	{/each}
-
-	{#if previewRect}
-		<div
-			class="cluster-preview"
-			style="left:{previewRect.x}px; top:{previewRect.y}px; width:{previewRect.width}px; height:{previewRect.height}px; border-radius:{blobRadius(
-				'preview'
-			)};"
-		></div>
-	{/if}
-
-	{#if !openTaskId}
-		{#each tasks as task (task.id)}
-			{@const p = taskXY(task)}
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div
-				class="floating"
-				style="left:{p.x}px; top:{p.y}px; z-index:{Math.min(task.sortOrder, 900)};"
+				class="zone"
+				style="left:{r.x}px; top:{r.y}px; width:{r.width}px; height:{r.height}px; background:{c.fill}; border-color:{c.border}; border-radius:{blobRadius(
+					zone.id
+				)};"
 				onpointerdown={(e) =>
-					startDrag(e, 'task', task.id, p, {
-						width: (e.currentTarget as HTMLElement).offsetWidth || DEFAULT_CARD.width,
-						height: (e.currentTarget as HTMLElement).offsetHeight || DEFAULT_CARD.height
-					})}
+					startDrag(e, 'zone', zone.id, r, { width: r.width, height: r.height })}
 			>
-				<TaskCard {task} zoneColor={zoneDotFor(task)} />
+				<div class="zone-head">
+					{#if renamingZoneId === zone.id}
+						<input
+							class="zone-name-input"
+							bind:value={renameValue}
+							onblur={() => commitRename(zone.id)}
+							onkeydown={(e) => {
+								if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
+								if (e.key === 'Escape') renamingZoneId = null;
+							}}
+						/>
+					{:else}
+						<button
+							class="zone-name"
+							type="button"
+							title={addMode ? 'Click to rename' : 'Click to change color'}
+							onclick={(e) => handleZoneNameClick(e, zone)}>{zone.name}</button
+						>
+					{/if}
+					<form method="POST" action="?/deleteZone" use:enhance>
+						<input type="hidden" name="id" value={zone.id} />
+						<button class="btn btn-ghost btn-icon" type="submit" aria-label="Delete zone">×</button>
+					</form>
+				</div>
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div
+					class="zone-resize-handle"
+					title="Resize {zone.name}"
+					aria-hidden="true"
+					onpointerdown={(e) => startResize(e, zone)}
+				></div>
 			</div>
 		{/each}
-	{/if}
+
+		{#if previewRect}
+			<div
+				class="cluster-preview"
+				style="left:{previewRect.x}px; top:{previewRect.y}px; width:{previewRect.width}px; height:{previewRect.height}px; border-radius:{blobRadius(
+					'preview'
+				)};"
+			></div>
+		{/if}
+
+		{#if !openTaskId}
+			{#each tasks as task (task.id)}
+				{@const p = taskXY(task)}
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div
+					class="floating"
+					style="left:{p.x}px; top:{p.y}px; z-index:{Math.min(task.sortOrder, 900)};"
+					onpointerdown={(e) =>
+						startDrag(e, 'task', task.id, p, {
+							width: (e.currentTarget as HTMLElement).offsetWidth || DEFAULT_CARD.width,
+							height: (e.currentTarget as HTMLElement).offsetHeight || DEFAULT_CARD.height
+						})}
+				>
+					<TaskCard {task} zoneColor={zoneDotFor(task)} />
+				</div>
+			{/each}
+		{/if}
+
+		{#if composer}
+			<div
+				class="composer"
+				style="left:{composer.x}px; top:{composer.y}px;"
+				onfocusout={handleComposerFocusOut}
+			>
+				<div class="composer-toggle" role="group" aria-label="Item type">
+					<button
+						type="button"
+						class="composer-toggle-btn"
+						class:active={composer.mode === 'task'}
+						onmousedown={keepFocus}
+						onclick={() => setComposerMode('task')}>Task</button
+					>
+					<button
+						type="button"
+						class="composer-toggle-btn"
+						class:active={composer.mode === 'zone'}
+						onmousedown={keepFocus}
+						onclick={() => setComposerMode('zone')}>Zone</button
+					>
+				</div>
+				<input
+					class="composer-input"
+					bind:this={composerInputEl}
+					bind:value={composer.title}
+					placeholder={composer.mode === 'task' ? 'Task title…' : 'Zone name…'}
+					onkeydown={handleComposerKeydown}
+				/>
+				{#if composer.mode === 'task'}
+					<div class="composer-fields">
+						<label><span>Due</span><input type="date" bind:value={composer.dueDate} /></label>
+						<label
+							><span>Priority</span>
+							<select bind:value={composer.priority}>
+								<option value="">None</option>
+								<option value="low">Low</option>
+								<option value="med">Medium</option>
+								<option value="high">High</option>
+							</select>
+						</label>
+					</div>
+				{:else}
+					<div class="composer-swatches">
+						{#each ZONE_COLOR_KEYS as key (key)}
+							<button
+								type="button"
+								class="composer-swatch"
+								class:selected={composer.color === key}
+								style="background:{ZONE_COLORS[key].fill}; border-color:{ZONE_COLORS[key].border};"
+								aria-label={key}
+								onmousedown={keepFocus}
+								onclick={() => setComposerColor(key)}
+							></button>
+						{/each}
+					</div>
+				{/if}
+			</div>
+		{/if}
+	</div>
 </div>
 
 {#if openTask}
 	<TaskDetailModal task={openTask} onclose={() => (openTaskId = null)} />
 {/if}
 
+{#if colorPickerZoneId}
+	<ZoneColorPicker
+		zoneId={colorPickerZoneId}
+		x={colorPickerPos.x}
+		y={colorPickerPos.y}
+		onclose={() => (colorPickerZoneId = null)}
+	/>
+{/if}
+
 <style>
-	.toolbar {
+	.canvas-toolbar {
 		display: flex;
-		flex-wrap: wrap;
-		gap: 1rem;
-		align-items: flex-start;
-		margin-bottom: 1rem;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		margin: 0 0 0.75rem;
+		flex-shrink: 0;
+	}
+	.hint {
+		margin: 0;
+		color: var(--muted);
+		font-size: 0.85rem;
+	}
+	.toolbar-label {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		min-width: 0;
 	}
 	.canvas {
 		position: relative;
-		min-height: 70vh;
+		flex: 1;
+		min-height: 0;
 		width: 100%;
 		overflow: hidden;
+	}
+	.canvas-world {
+		position: absolute;
+		inset: 0;
+		transform-origin: center center;
+		transition: transform 150ms ease;
+	}
+	.toolbar-controls {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		flex-shrink: 0;
+	}
+	.add-mode-toggle {
+		flex-shrink: 0;
+		padding: 0.3rem 0.85rem;
+		border: 1px solid var(--border-strong);
+		border-radius: 999px;
+		background: var(--surface-2);
+		color: var(--muted);
+		font-size: 0.78rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.add-mode-toggle.active {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: var(--accent-ink);
+	}
+	.zoom-control {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		padding: 0.25rem 0.4rem;
+		background: var(--surface);
+		border: 1px solid var(--border-strong);
+		border-radius: 999px;
+		box-shadow: var(--shadow-raised);
+	}
+	.zoom-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 22px;
+		height: 22px;
+		border: none;
+		border-radius: 999px;
+		background: var(--surface-2);
+		color: inherit;
+		font-size: 0.95rem;
+		line-height: 1;
+		cursor: pointer;
+	}
+	.zoom-btn:disabled {
+		opacity: 0.4;
+		cursor: default;
+	}
+	.zoom-readout {
+		min-width: 2.6rem;
+		text-align: center;
+		font-size: 0.78rem;
+		color: var(--muted);
+		font-variant-numeric: tabular-nums;
 	}
 	.zone {
 		position: absolute;
@@ -557,5 +1046,78 @@
 	}
 	.floating:active {
 		cursor: grabbing;
+	}
+	.composer {
+		position: absolute;
+		z-index: 950;
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+		width: 220px;
+		padding: 0.6rem;
+		background: var(--surface);
+		border: 1px solid var(--border-strong);
+		border-radius: var(--radius-m);
+		box-shadow: var(--shadow-raised);
+	}
+	.composer-toggle {
+		display: flex;
+		gap: 0.25rem;
+		align-self: flex-start;
+		padding: 0.15rem;
+		background: var(--surface-2);
+		border-radius: 999px;
+	}
+	.composer-toggle-btn {
+		padding: 0.2rem 0.7rem;
+		border: none;
+		border-radius: 999px;
+		background: transparent;
+		color: var(--muted);
+		font-size: 0.78rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.composer-toggle-btn.active {
+		background: var(--accent);
+		color: var(--accent-ink);
+	}
+	.composer-input {
+		width: 100%;
+	}
+	.composer-fields {
+		display: flex;
+		gap: 0.6rem;
+	}
+	.composer-fields label {
+		display: flex;
+		flex: 1;
+		min-width: 0;
+		flex-direction: column;
+		gap: 0.2rem;
+	}
+	.composer-fields span {
+		font-size: 0.72rem;
+		color: var(--muted);
+	}
+	.composer-fields input,
+	.composer-fields select {
+		width: 100%;
+	}
+	.composer-swatches {
+		display: flex;
+		gap: 0.4rem;
+	}
+	.composer-swatch {
+		width: 24px;
+		height: 24px;
+		border: 1.5px solid;
+		border-radius: 999px;
+		padding: 0;
+		cursor: pointer;
+	}
+	.composer-swatch.selected {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
 	}
 </style>

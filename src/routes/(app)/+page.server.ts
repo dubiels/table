@@ -89,6 +89,13 @@ export const actions: Actions = {
 		await zonesService.renameZone(String(data.get('id')), String(data.get('name')));
 	},
 
+	updateZoneColor: async ({ request }) => {
+		const data = Object.fromEntries(await request.formData());
+		const parsed = zoneColor.safeParse(data.color);
+		if (!parsed.success) return fail(400, { error: 'Invalid color' });
+		await zonesService.updateZoneColor(String(data.id), parsed.data);
+	},
+
 	deleteZone: async ({ request }) => {
 		const data = await request.formData();
 		await zonesService.deleteZone(String(data.get('id')));

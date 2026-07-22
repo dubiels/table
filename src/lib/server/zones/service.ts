@@ -36,6 +36,10 @@ export async function renameZone(id: string, name: string): Promise<void> {
 	await db.update(zones).set({ name }).where(eq(zones.id, id));
 }
 
+export async function updateZoneColor(id: string, color: ZoneColor): Promise<void> {
+	await db.update(zones).set({ color }).where(eq(zones.id, id));
+}
+
 export async function updateZoneGeometry(
 	id: string,
 	geo: { x: number; y: number; width: number; height: number }

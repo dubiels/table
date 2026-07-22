@@ -1,12 +1,12 @@
 <script lang="ts">
-	import TableCanvas from '$lib/components/TableCanvas.svelte';
+	import BlobView from '$lib/components/BlobView.svelte';
 	import MobileColumns from '$lib/components/MobileColumns.svelte';
 	import ListView from '$lib/components/ListView.svelte';
 	import { subscribeToPush } from '$lib/client/push';
 	import { env } from '$env/dynamic/public';
 	let { data } = $props();
 
-	let view = $state<'table' | 'list'>('table');
+	let view = $state<'blob' | 'list'>('blob');
 	let isMobile = $state(false);
 	$effect(() => {
 		const mq = window.matchMedia('(max-width: 720px)');
@@ -30,7 +30,7 @@
 	<h1>On the table</h1>
 	<div class="toolbar-actions">
 		<select class="btn btn-ghost view-select" bind:value={view}>
-			<option value="table">Table view</option>
+			<option value="blob">Blob view</option>
 			<option value="list">List view</option>
 		</select>
 		<a class="btn btn-ghost" href="/history">History</a>
@@ -50,7 +50,7 @@
 {:else if isMobile}
 	<MobileColumns tasks={data.tasks} zones={data.zones} />
 {:else}
-	<TableCanvas tasks={data.tasks} zones={data.zones} />
+	<BlobView tasks={data.tasks} zones={data.zones} />
 {/if}
 
 <style>
@@ -59,6 +59,7 @@
 		align-items: center;
 		justify-content: space-between;
 		margin-bottom: 1rem;
+		flex-shrink: 0;
 	}
 	.toolbar h1 {
 		font-size: 1.4rem;
