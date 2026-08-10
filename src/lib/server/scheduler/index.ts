@@ -1,7 +1,6 @@
 import cron from 'node-cron';
 import { env } from '$env/dynamic/private';
 import { db } from '../db';
-import { users, notifications } from '../db/schema';
 import { listActiveTasks } from '../tasks/service';
 import { buildMorningDigestContent } from '../notifications/digest';
 import { findTasksNeedingDueAlert } from '../notifications/due-alerts';

@@ -1,17 +1,18 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { Zone } from './service';
 
-const rows: any[] = [];
+const rows: Zone[] = [];
 vi.mock('../db', () => ({
 	db: {
 		insert: () => ({
-			values: (r: any) => {
+			values: (r: Zone) => {
 				rows.push(r);
 				return Promise.resolve();
 			}
 		}),
 		query: { zones: { findMany: () => Promise.resolve([...rows]) } },
 		update: () => ({
-			set: (patch: any) => ({
+			set: (patch: Partial<Zone>) => ({
 				where: () => {
 					Object.assign(rows[0], patch);
 					return Promise.resolve();

@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { Task } from './service';
 
-let rows: any[] = [];
-let maxOrder = 0;
+let rows: Task[] = [];
 vi.mock('../db', () => ({
 	db: {
 		insert: () => ({
-			values: (r: any) => {
+			values: (r: Task) => {
 				rows.push(r);
 				return Promise.resolve();
 			}
@@ -17,7 +17,7 @@ vi.mock('../db', () => ({
 			}
 		},
 		update: () => ({
-			set: (patch: any) => ({
+			set: (patch: Partial<Task>) => ({
 				where: () => {
 					Object.assign(rows[0], patch);
 					return Promise.resolve();
@@ -38,7 +38,6 @@ import * as tasksService from './service';
 describe('tasks service', () => {
 	beforeEach(() => {
 		rows = [];
-		maxOrder = 0;
 	});
 
 	it('creates a standalone task with a position and no topic', async () => {

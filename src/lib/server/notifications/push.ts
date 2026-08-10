@@ -36,8 +36,9 @@ export async function sendPushToUser(
 				{ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
 				JSON.stringify(payload)
 			);
-		} catch (err: any) {
-			if (err?.statusCode === 404 || err?.statusCode === 410) {
+		} catch (err) {
+			const statusCode = err instanceof webpush.WebPushError ? err.statusCode : undefined;
+			if (statusCode === 404 || statusCode === 410) {
 				await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id));
 			} else {
 				console.error('Push send failed', err);
