@@ -5,6 +5,7 @@ import {
 	zoneCenterPoint,
 	findUncategorizedPoint,
 	insetRect,
+	MAX_WEIGHT_RATIO,
 	UNCATEGORIZED_ID,
 	type BentoTask,
 	type BentoZone
@@ -71,6 +72,26 @@ describe('groupTasksByZone', () => {
 		const tasks = [1, 2, 3].map((n) => task({ id: String(n), x: 100, y: 100 }));
 		const groups = groupTasksByZone(tasks, [work]);
 		expect(groups.find((g) => g.id === 'work')?.weight).toBe(3);
+	});
+
+	it('floors a quiet group so a busy board cannot squeeze it below a readable size', () => {
+		const busy = Array.from({ length: 40 }, (_, i) => task({ id: `w${i}`, x: 100, y: 100 }));
+		const quiet = [task({ id: 'h1', x: 550, y: 50 })];
+		const groups = groupTasksByZone([...busy, ...quiet], [work, home]);
+		const byId = Object.fromEntries(groups.map((g) => [g.id, g]));
+
+		expect(byId.work.weight).toBe(40);
+		expect(byId.home.weight).toBeGreaterThan(1);
+		expect(byId.work.weight / byId.home.weight).toBeLessThanOrEqual(MAX_WEIGHT_RATIO);
+	});
+
+	it('keeps the busiest group the heaviest', () => {
+		const busy = Array.from({ length: 40 }, (_, i) => task({ id: `w${i}`, x: 100, y: 100 }));
+		const quiet = [task({ id: 'h1', x: 550, y: 50 })];
+		const groups = groupTasksByZone([...busy, ...quiet], [work, home]);
+		const byId = Object.fromEntries(groups.map((g) => [g.id, g]));
+		expect(byId.work.weight).toBeGreaterThan(byId.home.weight);
+		expect(byId.home.weight).toBeGreaterThan(byId[UNCATEGORIZED_ID].weight - 0.001);
 	});
 });
 

@@ -23,6 +23,16 @@ export interface BentoGroup {
 	weight: number;
 }
 
+/**
+ * Ceiling on how much bigger the busiest group's box may be than the quietest.
+ *
+ * Raw task counts are a fine ordering but a bad area scale: one zone holding
+ * most of the board drives every other group's cell below the size of its own
+ * header, so the boxes that most need a glance are the ones that cannot be
+ * read. Bounding the ratio keeps the visual ranking while guaranteeing a floor.
+ */
+export const MAX_WEIGHT_RATIO = 6;
+
 export function groupTasksByZone(tasks: BentoTask[], zones: BentoZone[]): BentoGroup[] {
 	const byZone = new Map<string, BentoTask[]>(zones.map((z) => [z.id, []]));
 	const uncategorized: BentoTask[] = [];
@@ -51,6 +61,9 @@ export function groupTasksByZone(tasks: BentoTask[], zones: BentoZone[]): BentoG
 		tasks: uncategorized,
 		weight: Math.max(uncategorized.length, 1)
 	});
+
+	const floor = Math.max(...groups.map((g) => g.weight)) / MAX_WEIGHT_RATIO;
+	for (const group of groups) group.weight = Math.max(group.weight, floor);
 
 	return groups;
 }
