@@ -7,6 +7,7 @@
 		computeTreemap,
 		zoneCenterPoint,
 		findUncategorizedPoint,
+		insetRect,
 		UNCATEGORIZED_ID,
 		type BentoTask,
 		type BentoZone
@@ -57,10 +58,10 @@
 		{#if rect}
 			{@const c = colorOf(group.color)}
 			{@const point = addPointFor(group.id)}
+			{@const box = insetRect(rect, GUTTER)}
 			<div
 				class="box"
-				style="left:{rect.x + GUTTER}px; top:{rect.y + GUTTER}px; width:{rect.width -
-					GUTTER * 2}px; height:{rect.height - GUTTER * 2}px; background:{c?.fill ??
+				style="left:{box.x}px; top:{box.y}px; width:{box.width}px; height:{box.height}px; background:{c?.fill ??
 					'var(--surface)'}; border-color:{c?.border ?? 'var(--border)'};"
 			>
 				<div class="box-head">

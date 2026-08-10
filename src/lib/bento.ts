@@ -146,16 +146,53 @@ function layoutRow(
 	for (let i = 0; i < row.length; i++) {
 		const extent = areas[i] / thickness;
 		if (horizontal) {
-			rects.push({ id: row[i].id, x: container.x + offset, y: container.y, width: extent, height: thickness });
+			rects.push({
+				id: row[i].id,
+				x: container.x + offset,
+				y: container.y,
+				width: extent,
+				height: thickness
+			});
 		} else {
-			rects.push({ id: row[i].id, x: container.x, y: container.y + offset, width: thickness, height: extent });
+			rects.push({
+				id: row[i].id,
+				x: container.x,
+				y: container.y + offset,
+				width: thickness,
+				height: extent
+			});
 		}
 		offset += extent;
 	}
 
 	return horizontal
-		? { x: container.x, y: container.y + thickness, width: container.width, height: container.height - thickness }
-		: { x: container.x + thickness, y: container.y, width: container.width - thickness, height: container.height };
+		? {
+				x: container.x,
+				y: container.y + thickness,
+				width: container.width,
+				height: container.height - thickness
+			}
+		: {
+				x: container.x + thickness,
+				y: container.y,
+				width: container.width - thickness,
+				height: container.height
+			};
+}
+
+/**
+ * A treemap cell shrunk by `gutter` on every side, for the rendered box.
+ * Clamped at zero: a cell narrower than two gutters would otherwise yield a
+ * negative CSS width, which browsers discard — leaving a box at its natural
+ * size, spilling over its neighbours.
+ */
+export function insetRect(rect: TreemapRect, gutter: number): Rect {
+	return {
+		x: rect.x + gutter,
+		y: rect.y + gutter,
+		width: Math.max(0, rect.width - gutter * 2),
+		height: Math.max(0, rect.height - gutter * 2)
+	};
 }
 
 /** Top-left point whose `taskCenter` lands exactly on the zone's geometric center. */

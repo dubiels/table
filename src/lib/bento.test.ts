@@ -4,6 +4,7 @@ import {
 	computeTreemap,
 	zoneCenterPoint,
 	findUncategorizedPoint,
+	insetRect,
 	UNCATEGORIZED_ID,
 	type BentoTask,
 	type BentoZone
@@ -23,8 +24,24 @@ function task(overrides: Partial<BentoTask> & { id: string }): BentoTask {
 	};
 }
 
-const work: BentoZone = { id: 'work', name: 'Work', color: 'sky', x: 0, y: 0, width: 400, height: 400 };
-const home: BentoZone = { id: 'home', name: 'Home', color: 'blush', x: 500, y: 0, width: 200, height: 200 };
+const work: BentoZone = {
+	id: 'work',
+	name: 'Work',
+	color: 'sky',
+	x: 0,
+	y: 0,
+	width: 400,
+	height: 400
+};
+const home: BentoZone = {
+	id: 'home',
+	name: 'Home',
+	color: 'blush',
+	x: 500,
+	y: 0,
+	width: 200,
+	height: 200
+};
 
 describe('groupTasksByZone', () => {
 	it('buckets tasks into their owning zone, matching zoneForTask/taskCenter', () => {
@@ -111,6 +128,28 @@ describe('computeTreemap', () => {
 	});
 });
 
+describe('insetRect', () => {
+	it('shrinks a roomy rect by the gutter on every side', () => {
+		expect(insetRect({ id: 'a', x: 100, y: 40, width: 300, height: 200 }, 8)).toEqual({
+			x: 108,
+			y: 48,
+			width: 284,
+			height: 184
+		});
+	});
+
+	it('never returns a negative size for a cell narrower than two gutters', () => {
+		// A treemap cell under 2 * GUTTER used to render as a negative CSS width.
+		const inset = insetRect({ id: 'a', x: 0, y: 0, width: 9, height: 4 }, 8);
+		expect(inset.width).toBe(0);
+		expect(inset.height).toBe(0);
+	});
+
+	it('collapses exactly to zero at twice the gutter', () => {
+		expect(insetRect({ id: 'a', x: 0, y: 0, width: 16, height: 16 }, 8).width).toBe(0);
+	});
+});
+
 describe('zoneCenterPoint', () => {
 	it("returns a top-left point whose taskCenter is the zone's geometric center", () => {
 		const zone: ZoneBounds = { id: 'z', x: 100, y: 200, width: 300, height: 150 };
@@ -123,7 +162,7 @@ describe('zoneCenterPoint', () => {
 });
 
 describe('findUncategorizedPoint', () => {
-	it("returns a point whose taskCenter is outside every given zone", () => {
+	it('returns a point whose taskCenter is outside every given zone', () => {
 		const zones: ZoneBounds[] = [work, home];
 		const point = findUncategorizedPoint(zones);
 		expect(zoneForTask(taskCenter(point), zones)).toBeNull();
