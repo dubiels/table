@@ -5,6 +5,8 @@
 	import { toast } from '$lib/toast.svelte';
 	import type { AgendaEvent } from '$lib/server/gcal/agenda';
 
+	type PanelTab = 'today' | 'canvas';
+
 	type PanelTask = {
 		id: string;
 		title: string;
@@ -29,7 +31,7 @@
 		/** Docked beside the board on wide screens; a slide-over drawer below 1100px. */
 		mode: 'docked' | 'overlay';
 		open: boolean;
-		tab: 'today' | 'canvas';
+		tab: PanelTab;
 		agenda: AgendaEvent[];
 		gcalConfigured: boolean;
 		lmsConfigured: boolean;
@@ -44,6 +46,31 @@
 	let syncing = $state(false);
 
 	const today = localDateString();
+
+	// ---- Tabs ------------------------------------------------------------------
+
+	const TABS: { id: PanelTab; label: string }[] = [
+		{ id: 'today', label: 'Today' },
+		{ id: 'canvas', label: 'Canvas' }
+	];
+
+	let activeTitle = $derived(
+		tab === 'today' ? 'Today' : lmsConfigured ? 'Canvas assignments' : 'Connect Canvas'
+	);
+
+	/**
+	 * One gesture for both jobs: a tab that is not showing opens the panel onto
+	 * itself, and the tab that is showing closes it again — the way pulling on
+	 * the folder already sticking out pushes it back in.
+	 */
+	function selectTab(next: PanelTab) {
+		if (open && tab === next) {
+			onclose();
+			return;
+		}
+		tab = next;
+		if (!open) onopen();
+	}
 
 	// ---- Today tab -------------------------------------------------------------
 
@@ -233,68 +260,61 @@
 
 <svelte:window onkeydown={onWindowKeydown} />
 
-{#if mode === 'docked' && !open}
-	<!-- No aria-controls: the panel it would name is not in the DOM while the strip
-	     is showing, and a dangling reference is worse than none. -->
-	<button
-		type="button"
-		class="edge-strip"
-		aria-expanded="false"
-		title="Show Today and Canvas"
-		onclick={onopen}
-	>
-		<span class="edge-text">Today · Canvas</span>
-	</button>
-{:else}
-	<aside
-		class="side-panel"
-		class:overlay={mode === 'overlay'}
-		class:open
-		id="side-panel"
-		bind:this={panelEl}
-		aria-label="Today and Canvas"
-		aria-hidden={mode === 'overlay' && !open}
-	>
-		<div class="panel-head">
-			<div class="tabs" role="tablist" aria-label="Side panel">
-				<button
-					type="button"
-					role="tab"
-					aria-selected={tab === 'today'}
-					class="tab"
-					class:active={tab === 'today'}
-					onclick={() => (tab = 'today')}
-				>
-					Today
-				</button>
-				<button
-					type="button"
-					role="tab"
-					aria-selected={tab === 'canvas'}
-					class="tab"
-					class:active={tab === 'canvas'}
-					onclick={() => (tab = 'canvas')}
-				>
-					Canvas
-					{#if assignmentCount > 0}<span class="count">{assignmentCount}</span>{/if}
-				</button>
-			</div>
+<div
+	class="panel-dock"
+	class:overlay={mode === 'overlay'}
+	class:open
+	class:collapsed={mode === 'docked' && !open}
+	bind:this={panelEl}
+	aria-hidden={mode === 'overlay' && !open}
+>
+	<!-- Not a tablist: these buttons also close the panel, which is disclosure
+	     rather than tab behaviour, and role="tab" would promise arrow-key
+	     navigation between panels that are not both present. -->
+	<div class="tab-rail">
+		{#each TABS as t (t.id)}
 			<button
 				type="button"
-				class="btn btn-ghost btn-icon collapse"
-				aria-label={mode === 'overlay' ? 'Close panel' : 'Collapse panel'}
-				onclick={() => onclose(true)}
+				class="folder-tab"
+				class:active={open && tab === t.id}
+				aria-expanded={open && tab === t.id}
+				title={open && tab === t.id ? `Hide ${t.label}` : `Show ${t.label}`}
+				onclick={() => selectTab(t.id)}
 			>
-				{mode === 'overlay' ? '×' : '›'}
+				<span class="tab-label">{t.label}</span>
 			</button>
-		</div>
+		{/each}
+	</div>
 
-		<div class="panel-body">
-			{#if tab === 'today'}
-				<section class="today">
-					<h2 class="today-title">Today</h2>
-					<p class="today-date">{todayHeading}</p>
+	<!-- The drawer keeps its panel mounted while closed: it slides out as one
+	     piece, and a dock holding nothing but the rail would only travel its own
+	     30px and leave the tabs stranded at the screen edge. -->
+	{#if open || mode === 'overlay'}
+		<aside class="side-panel" id="side-panel" aria-label={activeTitle}>
+			<header class="panel-head">
+				<div class="head-text">
+					<h2>
+						{activeTitle}
+						{#if tab === 'canvas' && assignmentCount > 0}
+							<span class="count">{assignmentCount}</span>
+						{/if}
+					</h2>
+					{#if tab === 'today'}<p class="head-sub">{todayHeading}</p>{/if}
+				</div>
+				{#if mode === 'overlay'}
+					<button
+						type="button"
+						class="btn btn-ghost btn-icon close"
+						aria-label="Close panel"
+						onclick={() => onclose(true)}
+					>
+						×
+					</button>
+				{/if}
+			</header>
 
+			<div class="panel-body">
+				{#if tab === 'today'}
 					{#if !gcalConfigured}
 						<div class="empty">
 							<Mascot mood="sleepy" />
@@ -328,98 +348,98 @@
 							{/each}
 						</ul>
 					{/if}
-				</section>
 
-				{#if upcomingGroups.length > 0}
-					<section class="upcoming">
-						<h3>Upcoming</h3>
-						{#each upcomingGroups as group (group.label)}
-							<div class="group">
-								<div class="day">{group.label}</div>
-								{#each group.items as event (event.id)}
-									<div class="event">
-										<span class="time">{timeLabel(event)}</span>
-										<span class="detail">
-											<span class="title">{event.title}</span>
-											{#if event.location}<span class="location">{event.location}</span>{/if}
-										</span>
-									</div>
-								{/each}
-							</div>
-						{/each}
-					</section>
-				{/if}
-			{:else if lmsConfigured}
-				<button type="button" class="btn btn-primary sync-btn" disabled={syncing} onclick={syncNow}>
-					{syncing ? 'Syncing…' : 'Sync now'}
-				</button>
-
-				{#if assignmentCount === 0}
-					<div class="empty">
-						<Mascot mood="sleepy" />
-						<p>No assignments synced yet.</p>
-					</div>
-				{:else}
-					{#each groups as group (group.course)}
-						<section class="course">
-							<h3>{group.course}</h3>
-							<ul>
-								{#each group.tasks as task (task.id)}
-									<li class="row" class:done={task.done}>
-										<span class="row-title">{task.title}</span>
-										{#if task.dueDate}
-											<span class="row-due" class:overdue={!task.done && task.dueDate < today}>
-												Due {formatDue(task.dueDate)}
+					{#if upcomingGroups.length > 0}
+						<section class="upcoming">
+							<h3>Upcoming</h3>
+							{#each upcomingGroups as group (group.label)}
+								<div class="group">
+									<div class="day">{group.label}</div>
+									{#each group.items as event (event.id)}
+										<div class="event">
+											<span class="time">{timeLabel(event)}</span>
+											<span class="detail">
+												<span class="title">{event.title}</span>
+												{#if event.location}<span class="location">{event.location}</span>{/if}
 											</span>
-										{:else}
-											<span class="row-due">No due date</span>
-										{/if}
-									</li>
-								{/each}
-							</ul>
+										</div>
+									{/each}
+								</div>
+							{/each}
 						</section>
-					{/each}
+					{/if}
+				{:else if lmsConfigured}
+					<button
+						type="button"
+						class="btn btn-primary sync-btn"
+						disabled={syncing}
+						onclick={syncNow}
+					>
+						{syncing ? 'Syncing…' : 'Sync now'}
+					</button>
+
+					{#if assignmentCount === 0}
+						<div class="empty">
+							<Mascot mood="sleepy" />
+							<p>No assignments synced yet.</p>
+						</div>
+					{:else}
+						{#each groups as group (group.course)}
+							<section class="course">
+								<h3>{group.course}</h3>
+								<ul>
+									{#each group.tasks as task (task.id)}
+										<li class="row" class:done={task.done}>
+											<span class="row-title">{task.title}</span>
+											{#if task.dueDate}
+												<span class="row-due" class:overdue={!task.done && task.dueDate < today}>
+													Due {formatDue(task.dueDate)}
+												</span>
+											{:else}
+												<span class="row-due">No due date</span>
+											{/if}
+										</li>
+									{/each}
+								</ul>
+							</section>
+						{/each}
+					{/if}
+				{:else}
+					<ol class="setup">
+						<li>
+							In Canvas, open <strong>Calendar → Calendar Feed</strong> and copy the .ics URL.
+						</li>
+						<li>
+							Add <code>LMS_ICAL_URL=&lt;url&gt;</code> to <code>.env</code>, or
+							<code>flyctl secrets set LMS_ICAL_URL=…</code> on a deployed app. Restart to pick it up.
+						</li>
+						<li>Assignments due in the next two weeks show up here and in the list view.</li>
+					</ol>
 				{/if}
-			{:else}
-				<h3 class="setup-title">Connect Canvas</h3>
-				<ol class="setup">
-					<li>In Canvas, open <strong>Calendar → Calendar Feed</strong> and copy the .ics URL.</li>
-					<li>
-						Add <code>LMS_ICAL_URL=&lt;url&gt;</code> to <code>.env</code>, or
-						<code>flyctl secrets set LMS_ICAL_URL=…</code> on a deployed app. Restart to pick it up.
-					</li>
-					<li>Assignments due in the next two weeks show up here and in the list view.</li>
-				</ol>
-			{/if}
-		</div>
-	</aside>
-{/if}
+			</div>
+		</aside>
+	{/if}
+</div>
 
 <style>
-	.side-panel {
-		width: 320px;
-		flex-shrink: 0;
+	/* The panel and the tabs sticking out of its left edge travel together: one
+	   dock, so the drawer slides as a single piece and the docked column keeps
+	   the rail's width whether the panel beside it is showing or not. */
+	.panel-dock {
 		display: flex;
-		flex-direction: column;
+		align-items: stretch;
+		flex-shrink: 0;
 		min-height: 0;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-m);
-		overflow: hidden;
 	}
 
 	/* Below 1100px the panel stops being furniture and becomes a drawer: fixed to
 	   the right edge, starting where the shell's header ends. */
-	.side-panel.overlay {
+	.panel-dock.overlay {
 		position: fixed;
 		top: var(--topbar-height);
 		right: 0;
 		bottom: 0;
 		width: min(340px, 100vw);
-		border: none;
-		border-left: 1px solid var(--border-strong);
-		border-radius: 0;
-		box-shadow: var(--shadow-raised);
 		/* Above the canvas (cards reach 900, the composer 950) and above the board
 		   mascot at 960, but under the topbar's 999 and the task modal's 1000. */
 		z-index: 980;
@@ -430,7 +450,7 @@
 			visibility 200ms;
 	}
 
-	.side-panel.overlay.open {
+	.panel-dock.overlay.open {
 		transform: translateX(0);
 		visibility: visible;
 	}
@@ -438,23 +458,34 @@
 	/* The drawer is still a drawer without the slide; motion is the part that is
 	   optional. */
 	@media (prefers-reduced-motion: reduce) {
-		.side-panel.overlay {
+		.panel-dock.overlay {
 			transition: none;
 		}
 	}
 
-	/* Collapsed: a 28px spine that keeps the panel's place in the row and says
-	   what comes back when it is clicked. */
-	.edge-strip {
+	/* Near the top rather than centred: file folders are found by their tabs, and
+	   a tab that moves with the panel's height is a tab you have to look for. */
+	.tab-rail {
+		align-self: flex-start;
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		padding-top: 0.75rem;
 		flex-shrink: 0;
-		width: 28px;
+	}
+
+	.folder-tab {
+		position: relative;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		padding: 0.6rem 0;
+		padding: 0.85rem 0.3rem;
 		border: 1px solid var(--border);
-		border-radius: var(--radius-m);
-		background: var(--surface);
+		/* Open on the right so the panel's own edge closes it — a folder tab, not
+		   a floating pill. The collapsed rule below seals it again. */
+		border-right: none;
+		border-radius: var(--radius-m) 0 0 var(--radius-m);
+		background: var(--surface-2);
 		color: var(--muted);
 		cursor: pointer;
 		transition:
@@ -462,78 +493,95 @@
 			color 0.15s ease;
 	}
 
-	.edge-strip:hover {
-		background: var(--surface-2);
+	.folder-tab:hover {
 		color: var(--ink);
 	}
 
-	.edge-text {
+	/* The showing tab is the same sheet of paper as the panel: same surface, and
+	   pulled 1px right so its border swallows the panel's left edge instead of
+	   drawing a seam between the two. */
+	.folder-tab.active {
+		background: var(--surface);
+		color: var(--ink);
+		margin-right: -1px;
+		padding-right: calc(0.3rem + 1px);
+		z-index: 1;
+	}
+
+	/* Collapsed, there is no panel to close the tabs against, so they become a
+	   pair of quiet pills instead of two boxes missing a side. */
+	.panel-dock.collapsed .folder-tab {
+		border-right: 1px solid var(--border);
+		border-radius: var(--radius-m);
+	}
+
+	.tab-label {
 		writing-mode: vertical-rl;
-		font-size: 0.75rem;
+		/* Bottom-to-top, the way a spine reads on a shelf. */
+		transform: rotate(180deg);
+		font-size: 0.74rem;
 		font-weight: 600;
 		letter-spacing: 0.06em;
 		white-space: nowrap;
 	}
 
+	.side-panel {
+		width: 320px;
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		/* Square on the left, where the tabs meet it. */
+		border-radius: 0 var(--radius-m) var(--radius-m) 0;
+		overflow: hidden;
+	}
+
+	.panel-dock.overlay .side-panel {
+		width: auto;
+		flex: 1;
+		min-width: 0;
+		border: none;
+		border-left: 1px solid var(--border-strong);
+		border-radius: 0;
+		box-shadow: var(--shadow-raised);
+	}
+
 	.panel-head {
 		flex-shrink: 0;
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		justify-content: space-between;
 		gap: 0.4rem;
-		padding: 0.5rem 0.55rem;
+		padding: 0.7rem 0.8rem;
 		border-bottom: 1px solid var(--border);
 	}
 
-	/* The same pill-in-a-tray shape as ViewSwitcher, so the two segmented controls
-	   on this page read as one family. */
-	.tabs {
-		display: inline-flex;
-		gap: 2px;
-		padding: 3px;
-		background: var(--surface-2);
-		border-radius: 999px;
+	.panel-head h2 {
+		font-size: 1.05rem;
 	}
 
-	.tab {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.3rem;
-		border: none;
-		background: transparent;
+	.head-sub {
+		margin: 0.1rem 0 0;
+		font-size: 0.78rem;
 		color: var(--muted);
-		font-size: 0.82rem;
-		font-weight: 600;
-		padding: 0.28rem 0.8rem;
-		border-radius: 999px;
-		cursor: pointer;
-		transition:
-			background 0.15s ease,
-			color 0.15s ease,
-			box-shadow 0.15s ease;
-	}
-
-	.tab:hover {
-		color: var(--ink);
-	}
-
-	.tab.active {
-		background: var(--surface);
-		color: var(--ink);
-		box-shadow: var(--shadow-card);
 	}
 
 	.count {
-		font-size: 0.7rem;
-		font-weight: 700;
+		font-size: 0.78rem;
+		font-weight: 400;
 		color: var(--muted);
 		font-variant-numeric: tabular-nums;
 	}
 
-	.collapse {
+	.close {
 		flex-shrink: 0;
 		font-size: 1rem;
 	}
+
+	/* The segmented pill-in-a-tray this panel used to switch tabs with lived here.
+	   It is kept in ViewSwitcher.svelte and is the pattern to reach for on a future
+	   settings surface — it reads well for choices that sit inside a page. */
 
 	.panel-body {
 		flex: 1;
@@ -543,17 +591,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 1.1rem;
-	}
-
-	.today-title {
-		font-size: 1.15rem;
-		font-weight: 700;
-	}
-
-	.today-date {
-		margin: 0.1rem 0 0.7rem;
-		font-size: 0.78rem;
-		color: var(--muted);
 	}
 
 	.today-events {
@@ -673,10 +710,6 @@
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
 		color: var(--muted);
-	}
-
-	.setup-title {
-		font-size: 0.98rem;
 	}
 
 	ul,
