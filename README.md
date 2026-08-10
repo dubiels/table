@@ -71,6 +71,8 @@ Table can also publish its own tasks as an `.ics` feed so you can subscribe to t
 
 Active tasks with a due date show up as all-day events. As with the dashboard token below, leaving `TASKS_FEED_TOKEN` unset disables the route entirely (404) — no config means no exposure.
 
+Note that the token travels in the URL, so it lands in server access logs and browser history like any other query string. Rotate `TASKS_FEED_TOKEN` if you share those logs or hand the URL to someone you didn't mean to give your task list to.
+
 ## Dashboard API
 
 `GET /api/dashboard` returns active tasks and zones as JSON. It's meant for an external always-on display — Table's companion Raspberry Pi wall panel, for example — not for the SPA itself.

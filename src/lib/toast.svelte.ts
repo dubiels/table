@@ -4,6 +4,8 @@ export interface Toast {
 	tone: 'info' | 'success' | 'error';
 }
 
+// Client-only: this is module-level state, so on the server it would be shared
+// by every request. Nothing here may be imported into server code.
 let nextId = 1;
 export const toasts = $state<Toast[]>([]);
 

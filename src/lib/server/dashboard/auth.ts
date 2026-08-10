@@ -13,7 +13,7 @@ function tokensMatch(a: string, b: string): boolean {
  * DASHBOARD_TOKEN unset/empty means the route is disabled (404) — absence of
  * config must never mean absence of auth. A session cookie also grants access
  * so the endpoint is inspectable in a logged-in browser. Token comparison is
- * timing-safe (hashboth, then timingSafeEqual, so lengths always match).
+ * timing-safe (hash both, then timingSafeEqual, so lengths always match).
  */
 export function decideDashboardAuth(
 	configuredToken: string | undefined,
