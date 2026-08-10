@@ -59,6 +59,13 @@ describe('planLmsSync', () => {
 		const plan = planLmsSync([event()], [], bounds, [{ x: 0, y: 0 }]);
 		expect(plan.creates[0]).not.toMatchObject({ x: 0, y: 0 });
 	});
+
+	it('dedupes repeated event ids within a single feed: first occurrence wins', () => {
+		const events = [event(), event({ title: 'cross-listed duplicate' })];
+		const plan = planLmsSync(events, [], bounds, []);
+		expect(plan.creates).toHaveLength(1);
+		expect(plan.creates[0]).toMatchObject({ externalId: 'ev-1', title: 'PS3' });
+	});
 });
 
 describe('zoneInnerBounds', () => {

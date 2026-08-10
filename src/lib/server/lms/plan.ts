@@ -44,6 +44,10 @@ export function planLmsSync(
 	const creates: LmsSyncPlan['creates'] = [];
 	const dueDateUpdates: LmsSyncPlan['dueDateUpdates'] = [];
 	const taken = [...occupied];
+	// Seeded from existing tasks so a feed entry matching a prior sync is
+	// still treated as "seen"; also grows as we create, so a duplicated
+	// feed entry (cross-listed assignment) only ever creates once.
+	const seen = new Set(byExternalId.keys());
 
 	for (const event of events) {
 		const match = byExternalId.get(event.eventId);
@@ -53,6 +57,8 @@ export function planLmsSync(
 			}
 			continue;
 		}
+		if (seen.has(event.eventId)) continue;
+		seen.add(event.eventId);
 		const slot = nextFreeSlot(taken, bounds);
 		taken.push(slot);
 		creates.push({
