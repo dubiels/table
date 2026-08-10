@@ -25,6 +25,9 @@ export default defineConfig({
 				test: {
 					name: 'server',
 					environment: 'node',
+					// Date math is local-time by design (fly.toml sets the same zone).
+					// Pin it so "today" assertions mean the same thing on every machine.
+					env: { TZ: 'America/New_York' },
 					include: ['src/**/*.{test,spec}.{js,ts}'],
 					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}']
 				}

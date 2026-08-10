@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { findTasksNeedingDueAlert } from './due-alerts';
 
 describe('findTasksNeedingDueAlert', () => {
-	const now = new Date('2026-07-18T08:00:00Z');
+	// Constructed in local time on purpose: due dates are local YYYY-MM-DD, and
+	// the suite pins TZ so these instants mean the same thing everywhere.
+	const now = new Date(2026, 6, 18, 8, 0); // 08:00 local, 2026-07-18
 
 	it('includes a task due within the lead window', () => {
 		const tasks = [{ id: '1', dueDate: '2026-07-19', done: false }];
@@ -27,11 +29,28 @@ describe('findTasksNeedingDueAlert', () => {
 		const sent = [
 			{
 				type: 'due_alert',
-				sentAt: '2026-07-18T07:00:00Z',
+				sentAt: new Date(2026, 6, 18, 3, 0).toISOString(), // 03:00 local, same day
 				content: JSON.stringify({ text: 'x', taskIds: ['1'] })
 			}
 		];
 		const result = findTasksNeedingDueAlert(tasks, sent, now, 24);
+		expect(result).toEqual([]);
+	});
+
+	it('still counts this morning’s alert as "today" late in the evening', () => {
+		// 23:30 local is already tomorrow in UTC. Slicing ISO strings put "now"
+		// and the morning's alert on different calendar days, so the task was
+		// alerted a second time before midnight.
+		const lateEvening = new Date(2026, 6, 18, 23, 30);
+		const tasks = [{ id: '1', dueDate: '2026-07-18', done: false }];
+		const sent = [
+			{
+				type: 'due_alert',
+				sentAt: new Date(2026, 6, 18, 9, 0).toISOString(), // 09:00 local, same day
+				content: JSON.stringify({ text: 'x', taskIds: ['1'] })
+			}
+		];
+		const result = findTasksNeedingDueAlert(tasks, sent, lateEvening, 24);
 		expect(result).toEqual([]);
 	});
 

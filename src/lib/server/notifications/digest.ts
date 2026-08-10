@@ -1,3 +1,5 @@
+import { localDateString } from '$lib/listView';
+
 export interface DigestTask {
 	id: string;
 	title: string;
@@ -14,7 +16,9 @@ export function buildMorningDigestContent(
 		return { text: "There's nothing on the table today.", taskIds: [] };
 	}
 
-	const todayStr = today.toISOString().slice(0, 10);
+	// Due dates are local YYYY-MM-DD; toISOString() would answer for the UTC
+	// calendar and roll the digest over to tomorrow during the evening.
+	const todayStr = localDateString(today);
 	const overdue = open.filter((t) => t.dueDate && t.dueDate < todayStr);
 	const dueToday = open.filter((t) => t.dueDate === todayStr);
 
