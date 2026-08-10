@@ -40,6 +40,8 @@ function foldLine(line: string): string {
 	return chunks.join(CRLF + ' ');
 }
 
+const DUE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
 function toBasicDate(dateStr: string): string {
 	return dateStr.replace(/-/g, '');
 }
@@ -64,6 +66,10 @@ export function buildTasksIcs(tasks: IcsTask[], now: Date): string {
 
 	for (const task of tasks) {
 		if (task.done || !task.dueDate) continue;
+		if (!DUE_DATE_PATTERN.test(task.dueDate)) {
+			console.warn(`buildTasksIcs: skipping task ${task.id} with malformed dueDate`, task.dueDate);
+			continue;
+		}
 
 		const summary = task.courseName ? `[${task.courseName}] ${task.title}` : task.title;
 

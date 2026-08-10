@@ -50,4 +50,27 @@ describe('buildTasksIcs', () => {
 		expect(ics).toContain('\r\n');
 		expect(ics.split('\r\n').every((l) => Buffer.byteLength(l) <= 75)).toBe(true);
 	});
+
+	it('skips tasks whose dueDate is not a well-formed YYYY-MM-DD', () => {
+		const ics = buildTasksIcs(
+			[task({ id: 'bad-1', dueDate: '2026-8-2' }), task({ id: 'bad-2', dueDate: 'garbage' })],
+			now
+		);
+		expect(ics).not.toContain('bad-1');
+		expect(ics).not.toContain('bad-2');
+	});
+
+	it('folds a long multi-byte SUMMARY on octet boundaries and round-trips losslessly', () => {
+		const title = 'é'.repeat(60);
+		const ics = buildTasksIcs([task({ title })], now);
+
+		const lines = ics.split('\r\n');
+		expect(lines.every((l) => Buffer.byteLength(l) <= 75)).toBe(true);
+		// Folding must actually have happened for this case to be a meaningful regression test.
+		expect(lines.some((l) => l.startsWith(' '))).toBe(true);
+
+		const unfolded = ics.replace(/\r\n /g, '');
+		const summaryLine = unfolded.split('\r\n').find((l) => l.startsWith('SUMMARY:'));
+		expect(summaryLine).toBe(`SUMMARY:${title}`);
+	});
 });
