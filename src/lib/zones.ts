@@ -24,11 +24,7 @@ export function taskCenter(task: Point, card = DEFAULT_CARD): Point {
  */
 export function zoneForTask(point: Point, zones: ZoneBounds[]): ZoneBounds | null {
 	const containing = zones.filter(
-		(z) =>
-			point.x >= z.x &&
-			point.x <= z.x + z.width &&
-			point.y >= z.y &&
-			point.y <= z.y + z.height
+		(z) => point.x >= z.x && point.x <= z.x + z.width && point.y >= z.y && point.y <= z.y + z.height
 	);
 	if (containing.length === 0) return null;
 	return containing.reduce((smallest, z) =>

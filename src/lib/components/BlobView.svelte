@@ -680,20 +680,20 @@
 	<div class="toolbar-controls">
 		<div class="zoom-control">
 			<button
-			type="button"
-			class="zoom-btn"
-			onclick={zoomOut}
-			disabled={zoom <= zoomMin}
-			aria-label="Zoom out">−</button
-		>
-		<span class="zoom-readout">{Math.round(zoom * 100)}%</span>
-		<button
-			type="button"
-			class="zoom-btn"
-			onclick={zoomIn}
-			disabled={zoom >= 1}
-			aria-label="Zoom in">+</button
-		>
+				type="button"
+				class="zoom-btn"
+				onclick={zoomOut}
+				disabled={zoom <= zoomMin}
+				aria-label="Zoom out">−</button
+			>
+			<span class="zoom-readout">{Math.round(zoom * 100)}%</span>
+			<button
+				type="button"
+				class="zoom-btn"
+				onclick={zoomIn}
+				disabled={zoom >= 1}
+				aria-label="Zoom in">+</button
+			>
 		</div>
 	</div>
 </div>
