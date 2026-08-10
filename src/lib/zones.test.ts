@@ -4,6 +4,7 @@ import {
 	taskCenter,
 	ZONE_COLOR_KEYS,
 	visibleWorldBounds,
+	boundsIncluding,
 	type ZoneBounds
 } from './zones';
 
@@ -58,5 +59,42 @@ describe('visibleWorldBounds', () => {
 		const z2 = visibleWorldBounds(1000, 600, 0.6);
 		expect(z2.maxX).toBeGreaterThan(z1.maxX);
 		expect(z2.maxY).toBeGreaterThan(z1.maxY);
+	});
+});
+
+describe('boundsIncluding', () => {
+	it('leaves bounds untouched for a rect that already fits', () => {
+		const bounds = visibleWorldBounds(1000, 600, 1);
+		expect(boundsIncluding(bounds, { x: 10, y: 10, width: 100, height: 50 })).toEqual(bounds);
+	});
+
+	it('widens to the far edge of a rect that sticks out past the viewport', () => {
+		// A zone grown to 1500 wide while zoomed out, now seen back at zoom 1.
+		const bounds = visibleWorldBounds(1000, 600, 1);
+		expect(boundsIncluding(bounds, { x: 0, y: 0, width: 1500, height: 900 })).toEqual({
+			minX: 0,
+			minY: 0,
+			maxX: 1500,
+			maxY: 900
+		});
+	});
+
+	it('never shrinks a rect that is already out of view', () => {
+		// The bug: at zoom 1 a resize clamped `width` to `maxX - x`, snapping an
+		// oversized zone back to the natural canvas on the first pointermove.
+		const zone = { x: 200, y: 100, width: 1200, height: 700 };
+		const widened = boundsIncluding(visibleWorldBounds(1000, 600, 1), zone);
+		expect(widened.maxX - zone.x).toBeGreaterThanOrEqual(zone.width);
+		expect(widened.maxY - zone.y).toBeGreaterThanOrEqual(zone.height);
+	});
+
+	it('widens the minimum edges for a rect with a negative anchor', () => {
+		const bounds = visibleWorldBounds(1000, 600, 1);
+		expect(boundsIncluding(bounds, { x: -50, y: -20, width: 100, height: 40 })).toEqual({
+			minX: -50,
+			minY: -20,
+			maxX: 1000,
+			maxY: 600
+		});
 	});
 });

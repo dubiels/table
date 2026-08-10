@@ -12,6 +12,7 @@
 		taskCenter,
 		DEFAULT_CARD,
 		visibleWorldBounds,
+		boundsIncluding,
 		type ZoneColor
 	} from '$lib/zones';
 	import { SvelteMap } from 'svelte/reactivity';
@@ -209,18 +210,28 @@
 		visibleWorldBounds(canvasEl?.clientWidth ?? 0, canvasEl?.clientHeight ?? 0, zoom)
 	);
 
-	function clampPoint(x: number, y: number, width: number, height: number) {
-		const { minX, minY, maxX, maxY } = viewportBounds;
+	// Every clamp takes the bounds explicitly so a caller can widen them by the
+	// footprint an item already occupies (see boundsIncluding) — otherwise a
+	// zone grown while zoomed out gets snapped back to the natural canvas the
+	// moment it is touched again at zoom 1.
+	function clampPoint(
+		x: number,
+		y: number,
+		width: number,
+		height: number,
+		bounds = viewportBounds
+	) {
+		const { minX, minY, maxX, maxY } = bounds;
 		return {
 			x: Math.min(Math.max(minX, x), Math.max(minX, maxX - width)),
 			y: Math.min(Math.max(minY, y), Math.max(minY, maxY - height))
 		};
 	}
-	function clampRect(rect: Rect): Rect {
-		const { minX, minY, maxX, maxY } = viewportBounds;
+	function clampRect(rect: Rect, bounds = viewportBounds): Rect {
+		const { minX, minY, maxX, maxY } = bounds;
 		const width = Math.min(rect.width, maxX - minX);
 		const height = Math.min(rect.height, maxY - minY);
-		const { x, y } = clampPoint(rect.x, rect.y, width, height);
+		const { x, y } = clampPoint(rect.x, rect.y, width, height, bounds);
 		return { x, y, width, height };
 	}
 
@@ -282,7 +293,10 @@
 			const zbox = zoneXY(zone);
 			if (contains(zbox, box)) continue; // already fully inside — no resize needed
 			if (!intersects(box, zbox, CLUSTER_GAP)) continue;
-			const rect = clampRect(withHeadClearance(unionRect(box, zbox, ZONE_PAD)));
+			const rect = clampRect(
+				withHeadClearance(unionRect(box, zbox, ZONE_PAD)),
+				boundsIncluding(viewportBounds, zbox)
+			);
 			const area = rect.width * rect.height;
 			if (area < bestArea) {
 				bestArea = area;
@@ -297,7 +311,10 @@
 				const p = taskXY(other);
 				const obox = { x: p.x, y: p.y, width: DEFAULT_CARD.width, height: DEFAULT_CARD.height };
 				if (!intersects(box, obox, CLUSTER_GAP)) continue;
-				const rect = clampRect(withHeadClearance(unionRect(box, obox, ZONE_PAD)));
+				const rect = clampRect(
+					withHeadClearance(unionRect(box, obox, ZONE_PAD)),
+					boundsIncluding(viewportBounds, obox)
+				);
 				const area = rect.width * rect.height;
 				if (area < bestArea) {
 					bestArea = area;
@@ -494,8 +511,11 @@
 		}
 		function move(ev: PointerEvent) {
 			if (ev.pointerId !== pointerId) return;
-			const maxWidth = Math.max(MIN_ZONE_WIDTH, viewportBounds.maxX - start.x);
-			const maxHeight = Math.max(MIN_ZONE_HEIGHT, viewportBounds.maxY - start.y);
+			// Widened by the zone's own starting rect: a zone that already runs
+			// past the visible edge keeps its size instead of being clipped to it.
+			const bounds = boundsIncluding(viewportBounds, start);
+			const maxWidth = Math.max(MIN_ZONE_WIDTH, bounds.maxX - start.x);
+			const maxHeight = Math.max(MIN_ZONE_HEIGHT, bounds.maxY - start.y);
 			const width = Math.min(
 				Math.max(MIN_ZONE_WIDTH, baseWidth + (ev.clientX - originX) / zoom),
 				maxWidth
@@ -556,7 +576,15 @@
 				x: baseX + (ev.clientX - originX) / zoom,
 				y: baseY + (ev.clientY - originY) / zoom
 			};
-			const { x: nx, y: ny } = clampPoint(raw.x, raw.y, dims.width, dims.height);
+			// Same widening as startResize: an item that starts out of view can be
+			// dragged back in, but never pushed further out.
+			const bounds = boundsIncluding(viewportBounds, {
+				x: baseX,
+				y: baseY,
+				width: dims.width,
+				height: dims.height
+			});
+			const { x: nx, y: ny } = clampPoint(raw.x, raw.y, dims.width, dims.height, bounds);
 			if (kind === 'task') {
 				const prevTaskPos = dragTask.get(id) ?? { x: baseX, y: baseY };
 				const candidate = { x: nx, y: ny, width: dims.width, height: dims.height };
@@ -738,7 +766,6 @@
 						<button class="btn btn-ghost btn-icon" type="submit" aria-label="Delete zone">×</button>
 					</form>
 				</div>
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
 					class="zone-resize-handle"
 					title="Resize {zone.name}"

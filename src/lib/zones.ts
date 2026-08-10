@@ -74,3 +74,25 @@ export function visibleWorldBounds(
 		maxY: cy + halfH
 	};
 }
+
+/**
+ * `bounds` widened so it also contains `rect`.
+ *
+ * The visible region is the right limit for *new* reach, but a wrong one for
+ * something that already sits outside it — an item placed or grown while zoomed
+ * out is out of view again at zoom 1 (the state after every reload), and
+ * clamping it there would silently pull it in or shrink it on the next
+ * pointermove. Widening by the item's own footprint keeps the "can't push it
+ * further out of sight" guarantee while leaving what already exists alone.
+ */
+export function boundsIncluding(
+	bounds: ViewportBounds,
+	rect: { x: number; y: number; width: number; height: number }
+): ViewportBounds {
+	return {
+		minX: Math.min(bounds.minX, rect.x),
+		minY: Math.min(bounds.minY, rect.y),
+		maxX: Math.max(bounds.maxX, rect.x + rect.width),
+		maxY: Math.max(bounds.maxY, rect.y + rect.height)
+	};
+}
