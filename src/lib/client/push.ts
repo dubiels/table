@@ -12,9 +12,15 @@ export async function subscribeToPush(vapidPublicKey: string): Promise<void> {
 		applicationServerKey: vapidPublicKey
 	});
 
-	await fetch('/api/push-subscriptions', {
+	const res = await fetch('/api/push-subscriptions', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(subscription.toJSON())
 	});
+	// An expired session redirects to the login page, which answers 200 with
+	// HTML — so a bare res.ok would report success for a subscription that was
+	// never stored. Demand JSON as well.
+	if (!res.ok || !res.headers.get('content-type')?.includes('application/json')) {
+		throw new Error('Could not save the subscription');
+	}
 }

@@ -41,7 +41,11 @@
 	async function enableNotifications() {
 		closeMenu();
 		try {
-			await subscribeToPush(env.PUBLIC_VAPID_PUBLIC_KEY ?? '');
+			// Without this the empty key reaches pushManager.subscribe(), which
+			// fails base64 decoding and reports a bare InvalidCharacterError.
+			const vapidKey = env.PUBLIC_VAPID_PUBLIC_KEY ?? '';
+			if (!vapidKey) throw new Error('Push is not configured on this server');
+			await subscribeToPush(vapidKey);
 			toast('Notifications enabled', 'success');
 		} catch (err) {
 			toast(`Could not enable notifications: ${(err as Error).message}`, 'error');
