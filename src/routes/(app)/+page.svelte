@@ -24,7 +24,10 @@
 	});
 
 	const VIEW_KEY = 'table:view';
-	let view = $state<'blob' | 'list' | 'bento'>('blob');
+	// Bento is the opening view for anyone who has not picked one: it reads at a
+	// glance and needs no dragging to be useful. The $effect below still lets a
+	// stored choice win, so this only ever decides a first visit.
+	let view = $state<'blob' | 'list' | 'bento'>('bento');
 	// Safari in private mode throws on both of these; an uncaught throw inside an
 	// $effect takes the whole page down over a remembered dropdown.
 	function readSavedView(): string | null {
