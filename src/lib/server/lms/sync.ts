@@ -19,7 +19,7 @@ export async function syncLmsAssignments(): Promise<LmsSyncResult> {
 		return { created: 0, updated: 0, placedLoose: false };
 	}
 
-	const response = await fetch(url);
+	const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
 	if (!response.ok) throw new Error(`LMS feed fetch failed: HTTP ${response.status}`);
 	const events = parseLmsIcal(await response.text());
 
@@ -69,6 +69,8 @@ export async function syncLmsAssignments(): Promise<LmsSyncResult> {
 		updated: plan.dueDateUpdates.length,
 		placedLoose: !zone && plan.creates.length > 0
 	};
-	console.log(`LMS sync complete: ${result.created} created, ${result.updated} updated`);
+	console.log(
+		`LMS sync complete: ${result.created} created, ${result.updated} updated, placedLoose=${result.placedLoose}`
+	);
 	return result;
 }

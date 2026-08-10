@@ -29,7 +29,7 @@ export async function getAgenda(): Promise<AgendaEvent[]> {
 	let anySucceeded = false;
 	for (const url of urls) {
 		try {
-			const res = await fetch(url);
+			const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
 			all.push(...upcomingEvents(await res.text(), now, AGENDA_DAYS));
 			anySucceeded = true;
