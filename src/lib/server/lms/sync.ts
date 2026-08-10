@@ -2,41 +2,41 @@ import { env } from '$env/dynamic/private';
 import { db } from '../db';
 import { tasks, zones } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
-import { parseCanvasIcal } from './ical-parser';
+import { parseLmsIcal } from './ical-parser';
 import { randomUUID } from 'node:crypto';
 
 const CANVAS_ZONE_NAME = 'Canvas';
 
-export async function syncCanvasAssignments(): Promise<{ added: number; updated: number }> {
-	const canvasUrl = env.CANVAS_ICAL_URL;
-	if (!canvasUrl) {
-		console.warn('CANVAS_ICAL_URL not set, skipping Canvas sync');
+export async function syncLmsAssignments(): Promise<{ added: number; updated: number }> {
+	const icalUrl = env.LMS_ICAL_URL ?? env.CANVAS_ICAL_URL;
+	if (!icalUrl) {
+		console.warn('LMS_ICAL_URL not set, skipping LMS sync');
 		return { added: 0, updated: 0 };
 	}
 
 	// Fetch iCal
 	let icsText: string;
 	try {
-		const response = await fetch(canvasUrl);
+		const response = await fetch(icalUrl);
 		if (!response.ok) throw new Error(`HTTP ${response.status}`);
 		icsText = await response.text();
 	} catch (err) {
-		console.error('Failed to fetch Canvas iCal:', err);
+		console.error('Failed to fetch LMS iCal:', err);
 		throw err;
 	}
 
 	// Parse events
-	const events = parseCanvasIcal(icsText);
-	console.log(`Canvas sync: parsed ${events.length} events`);
+	const events = parseLmsIcal(icsText);
+	console.log(`LMS sync: parsed ${events.length} events`);
 
 	let added = 0;
 	let updated = 0;
 
 	// Get Canvas zone
-	const canvasZone = await db.query.zones.findFirst({
+	const lmsZone = await db.query.zones.findFirst({
 		where: (z, { eq }) => eq(z.name, CANVAS_ZONE_NAME)
 	});
-	if (!canvasZone) {
+	if (!lmsZone) {
 		throw new Error(`Canvas zone not found. Please create a zone named "${CANVAS_ZONE_NAME}"`);
 	}
 
@@ -57,7 +57,7 @@ export async function syncCanvasAssignments(): Promise<{ added: number; updated:
 					.set({ dueDate: event.dueDate })
 					.where(eq(tasks.id, existing.id));
 				updated++;
-				console.log(`Canvas sync: updated due date for "${event.title}"`);
+				console.log(`LMS sync: updated due date for "${event.title}"`);
 			}
 		} else {
 			// Create new task
@@ -72,16 +72,16 @@ export async function syncCanvasAssignments(): Promise<{ added: number; updated:
 				source: 'canvas',
 				externalId: event.eventId,
 				courseName: event.courseName,
-				x: canvasZone.x + 20,
-				y: canvasZone.y + 20,
+				x: lmsZone.x + 20,
+				y: lmsZone.y + 20,
 				sortOrder: 0,
 				createdAt: new Date().toISOString()
 			});
 			added++;
-			console.log(`Canvas sync: added "${event.title}" from ${event.courseName}`);
+			console.log(`LMS sync: added "${event.title}" from ${event.courseName}`);
 		}
 	}
 
-	console.log(`Canvas sync complete: added ${added}, updated ${updated}`);
+	console.log(`LMS sync complete: added ${added}, updated ${updated}`);
 	return { added, updated };
 }

@@ -1,6 +1,6 @@
 import ical from 'ical';
 
-export interface CanvasEvent {
+export interface LmsEvent {
 	title: string;
 	dueDate: string;
 	courseId: string;
@@ -8,10 +8,10 @@ export interface CanvasEvent {
 	eventId: string;
 }
 
-export function parseCanvasIcal(icsText: string): CanvasEvent[] {
+export function parseLmsIcal(icsText: string): LmsEvent[] {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const cal = ical.parseICS(icsText) as any;
-	const events: CanvasEvent[] = [];
+	const events: LmsEvent[] = [];
 	const now = new Date();
 	const sevenDaysOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
