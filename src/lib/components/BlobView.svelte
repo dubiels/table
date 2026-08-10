@@ -43,6 +43,12 @@
 
 	let canvasEl = $state<HTMLDivElement | undefined>();
 	let canvasWorldEl = $state<HTMLDivElement | undefined>();
+	// Bound rather than read off canvasEl: clientWidth/clientHeight are plain DOM
+	// reads, so a $derived over them only ever refreshes when some *other* signal
+	// happens to invalidate it. bind: is ResizeObserver-backed, so the bounds
+	// below track window resizes and layout shifts too.
+	let canvasWidth = $state(0);
+	let canvasHeight = $state(0);
 
 	// Position comes from the server-loaded props; a drag override holds the live
 	// position only for an item currently (or just) being dragged. This way newly
@@ -206,9 +212,7 @@
 	// The region of the world visible right now at the current zoom. Every
 	// drag/resize/composer placement is clamped to this — so zooming out is
 	// exactly what makes more space reachable.
-	let viewportBounds = $derived(
-		visibleWorldBounds(canvasEl?.clientWidth ?? 0, canvasEl?.clientHeight ?? 0, zoom)
-	);
+	let viewportBounds = $derived(visibleWorldBounds(canvasWidth, canvasHeight, zoom));
 
 	// Every clamp takes the bounds explicitly so a caller can widen them by the
 	// footprint an item already occupies (see boundsIncluding) — otherwise a
@@ -435,8 +439,8 @@
 		// .canvas-world scales from its center, so undoing the scale to land
 		// back in world units is "distance from center, divided by zoom" —
 		// not a flat subtract of rect.left/top.
-		const cx = canvasEl.clientWidth / 2;
-		const cy = canvasEl.clientHeight / 2;
+		const cx = canvasWidth / 2;
+		const cy = canvasHeight / 2;
 		const sx = clientX - rect.left;
 		const sy = clientY - rect.top;
 		const { x, y } = clampPoint(
@@ -728,7 +732,13 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="canvas" bind:this={canvasEl} onclick={handleCanvasClick}>
+<div
+	class="canvas"
+	bind:this={canvasEl}
+	bind:clientWidth={canvasWidth}
+	bind:clientHeight={canvasHeight}
+	onclick={handleCanvasClick}
+>
 	<div class="canvas-world" bind:this={canvasWorldEl} style="transform: scale({zoom});">
 		{#each zones as zone (zone.id)}
 			{@const r = zoneXY(zone)}
