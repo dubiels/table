@@ -3,6 +3,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
 
 :root {
+	color-scheme: light;
+
 	--font-display:
 		'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Segoe UI', Roboto, Arial,
 		sans-serif;
@@ -32,11 +34,79 @@
 	--prio-low-bg: #e6ead6;
 	--prio-low-fg: #5b7a3f;
 
+	/* Zone palette. Light values mirror ZONE_COLORS in src/lib/zones.ts, which is
+	   the source of truth; components reach them through zoneColorVars() so a
+	   theme switch repaints zones without re-rendering anything. */
+	--zone-sage-fill: #e7ebda;
+	--zone-sage-border: #cbd3b4;
+	--zone-sky-fill: #dee7ec;
+	--zone-sky-border: #bacbd6;
+	--zone-butter-fill: #f2e8cb;
+	--zone-butter-border: #e1d09b;
+	--zone-blush-fill: #eeddd8;
+	--zone-blush-border: #dcbeb6;
+	--zone-lilac-fill: #e6e1ec;
+	--zone-lilac-border: #c9bfd6;
+	--zone-clay-fill: #efddd3;
+	--zone-clay-border: #ddbba6;
+
 	--radius-s: 10px;
 	--radius-m: 14px;
 	--radius-l: 20px;
+	--overlay: rgba(50, 42, 28, 0.45);
 	--shadow-card: 0 1px 1px rgba(60, 50, 30, 0.04), 0 4px 14px rgba(60, 50, 30, 0.06);
 	--shadow-raised: 0 8px 24px rgba(60, 50, 30, 0.12), 0 24px 60px rgba(60, 50, 30, 0.16);
+}
+
+/* Night. The same room with the lights low: warm charcoal instead of paper,
+   never pure black, and zone pastels deepened rather than desaturated so a
+   sage zone still reads as sage. Opt-in only — set by the pre-paint script in
+   app.html from localStorage, so there is no flash of the light theme. */
+:root[data-theme='dark'] {
+	color-scheme: dark;
+
+	--bg: #1c1915;
+	--surface: #262219;
+	--surface-2: #322d24;
+	--ink: #f0e9dc;
+	/* Lighter than a straight inversion of the light theme's muted: secondary text
+	   also lands on the tinted zone fills, where 4.5:1 needs the extra step. */
+	--muted: #a89e8d;
+	--border: #3a342a;
+	--border-strong: #4d4436;
+	--accent: #e9e2d2;
+	--accent-hover: #f7f1e4;
+	--accent-soft: #383226;
+	--accent-ink: #26231d;
+	--danger: #e07a6c;
+	--danger-soft: #46271f;
+	--ok: #a3bd85;
+
+	--prio-high-bg: #4a2820;
+	--prio-high-fg: #f0a294;
+	--prio-med-bg: #45351d;
+	--prio-med-fg: #e8bf79;
+	--prio-low-bg: #2f3d24;
+	--prio-low-fg: #b3cf90;
+
+	--zone-sage-fill: #2f3626;
+	--zone-sage-border: #4b5638;
+	--zone-sky-fill: #273239;
+	--zone-sky-border: #3d4f5a;
+	--zone-butter-fill: #3a3322;
+	--zone-butter-border: #5a4e30;
+	--zone-blush-fill: #40302c;
+	--zone-blush-border: #5c4640;
+	--zone-lilac-fill: #373140;
+	--zone-lilac-border: #4f4760;
+	--zone-clay-fill: #3e3128;
+	--zone-clay-border: #5b473b;
+
+	--overlay: rgba(8, 6, 4, 0.62);
+	/* Cards sit on tinted zone fills that are lighter than the card itself, so
+	   the dark theme leans on shadow rather than fill contrast for their edge. */
+	--shadow-card: 0 1px 2px rgba(0, 0, 0, 0.34), 0 4px 14px rgba(0, 0, 0, 0.3);
+	--shadow-raised: 0 8px 24px rgba(0, 0, 0, 0.45), 0 24px 60px rgba(0, 0, 0, 0.5);
 }
 
 *,
@@ -58,6 +128,9 @@ body {
 	font-size: 15px;
 	line-height: 1.5;
 	-webkit-font-smoothing: antialiased;
+	transition:
+		background 0.2s ease,
+		color 0.2s ease;
 }
 
 h1,

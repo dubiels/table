@@ -94,7 +94,7 @@
 	.overlay {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.45);
+		background: var(--overlay);
 		backdrop-filter: blur(2px);
 		display: flex;
 		align-items: center;

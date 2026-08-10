@@ -16,10 +16,10 @@
 		type DueFilter,
 		type PriorityFilter
 	} from '$lib/listView';
-	import { ZONE_COLORS, type ZoneColor } from '$lib/zones';
+	import { zoneColorVars } from '$lib/zones';
 
 	function dotColor(color: string): string {
-		return (ZONE_COLORS[color as ZoneColor] ?? ZONE_COLORS.sage).border;
+		return zoneColorVars(color).border;
 	}
 
 	let { tasks, zones }: { tasks: ListTask[]; zones: ListZone[] } = $props();

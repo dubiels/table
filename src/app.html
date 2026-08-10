@@ -5,6 +5,16 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
 		<link rel="manifest" href="/manifest.json" />
+		<!-- Runs before first paint so a dark-theme user never sees the light theme
+		     flash. Light is the default; only an explicit dark choice is stored. -->
+		<script>
+			try {
+				var t = localStorage.getItem('table:theme');
+				if (t === 'dark') document.documentElement.dataset.theme = 'dark';
+			} catch (e) {
+				/* private mode / blocked storage — stay light */
+			}
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

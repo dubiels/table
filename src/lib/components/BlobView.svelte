@@ -6,8 +6,8 @@
 	import TaskDetailModal from './TaskDetailModal.svelte';
 	import ZoneColorPicker from './ZoneColorPicker.svelte';
 	import {
-		ZONE_COLORS,
 		ZONE_COLOR_KEYS,
+		zoneColorVars,
 		zoneForTask,
 		taskCenter,
 		DEFAULT_CARD,
@@ -233,7 +233,7 @@
 	}
 
 	function colorOf(key: string) {
-		return ZONE_COLORS[key as ZoneColor] ?? ZONE_COLORS.sage;
+		return zoneColorVars(key);
 	}
 
 	function zoneDotFor(task: Task) {
@@ -995,11 +995,12 @@
 				{:else}
 					<div class="composer-swatches">
 						{#each ZONE_COLOR_KEYS as key (key)}
+							{@const c = zoneColorVars(key)}
 							<button
 								type="button"
 								class="composer-swatch"
 								class:selected={composer.color === key}
-								style="background:{ZONE_COLORS[key].fill}; border-color:{ZONE_COLORS[key].border};"
+								style="background:{c.fill}; border-color:{c.border};"
 								aria-label={key}
 								onmousedown={keepFocus}
 								onclick={() => setComposerColor(key)}

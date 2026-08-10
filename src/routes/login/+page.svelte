@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import Mascot from '$lib/components/Mascot.svelte';
 
 	type LoginFormResult = {
 		sent?: boolean;
@@ -12,6 +13,7 @@
 
 <div class="page">
 	<div class="card">
+		<Mascot mood="wave" />
 		<h1>Table</h1>
 		<p class="tagline">Everything on the table.</p>
 
@@ -72,6 +74,12 @@
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
+	}
+
+	/* The card is a 1rem-gap column; the robot belongs to the wordmark, not to
+	   the form below it, so it sits closer than the default gap allows. */
+	.card :global(.mascot) {
+		margin-bottom: -0.6rem;
 	}
 
 	.card h1 {

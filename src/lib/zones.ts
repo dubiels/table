@@ -34,6 +34,11 @@ export function zoneForTask(point: Point, zones: ZoneBounds[]): ZoneBounds | nul
 
 export type ZoneColor = 'sage' | 'sky' | 'butter' | 'blush' | 'lilac' | 'clay';
 
+/**
+ * Light-theme source of truth for the zone palette. These values are hand-copied
+ * into `app.css` as the `--zone-*` custom properties; nothing but `zoneColorVars`
+ * should reach for the hex, or the colors stop following the active theme.
+ */
 export const ZONE_COLORS: Record<ZoneColor, { fill: string; border: string }> = {
 	sage: { fill: '#e7ebda', border: '#cbd3b4' },
 	sky: { fill: '#dee7ec', border: '#bacbd6' },
@@ -44,6 +49,21 @@ export const ZONE_COLORS: Record<ZoneColor, { fill: string; border: string }> = 
 };
 
 export const ZONE_COLOR_KEYS: ZoneColor[] = ['sage', 'sky', 'butter', 'blush', 'lilac', 'clay'];
+
+/**
+ * The CSS custom properties a zone color resolves to, for inline `style=`
+ * attributes. Returning `var(...)` strings rather than hex is what lets the same
+ * markup render warm pastels in the light theme and their deep counterparts in
+ * the dark one — the swap happens in CSS, so no component re-renders.
+ *
+ * An unrecognized color (a stale row, a hand-edited database) falls back to sage
+ * rather than emitting a var name no stylesheet defines, which would paint the
+ * zone transparent.
+ */
+export function zoneColorVars(key: string): { fill: string; border: string } {
+	const safe = (ZONE_COLOR_KEYS as string[]).includes(key) ? key : 'sage';
+	return { fill: `var(--zone-${safe}-fill)`, border: `var(--zone-${safe}-border)` };
+}
 
 export interface ViewportBounds {
 	minX: number;

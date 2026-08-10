@@ -3,6 +3,7 @@ import {
 	zoneForTask,
 	taskCenter,
 	ZONE_COLOR_KEYS,
+	zoneColorVars,
 	visibleWorldBounds,
 	boundsIncluding,
 	type ZoneBounds
@@ -41,6 +42,25 @@ describe('taskCenter', () => {
 describe('ZONE_COLOR_KEYS', () => {
 	it('exposes the six palette keys', () => {
 		expect(ZONE_COLOR_KEYS).toEqual(['sage', 'sky', 'butter', 'blush', 'lilac', 'clay']);
+	});
+});
+
+describe('zoneColorVars', () => {
+	it('maps every palette key to its own pair of custom properties', () => {
+		for (const key of ZONE_COLOR_KEYS) {
+			expect(zoneColorVars(key)).toEqual({
+				fill: `var(--zone-${key}-fill)`,
+				border: `var(--zone-${key}-border)`
+			});
+		}
+	});
+
+	it('falls back to sage for a key outside the palette', () => {
+		expect(zoneColorVars('chartreuse')).toEqual({
+			fill: 'var(--zone-sage-fill)',
+			border: 'var(--zone-sage-border)'
+		});
+		expect(zoneColorVars('')).toEqual(zoneColorVars('sage'));
 	});
 });
 

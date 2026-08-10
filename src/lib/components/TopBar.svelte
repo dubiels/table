@@ -2,6 +2,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
+	import { browser } from '$app/environment';
 	import { subscribeToPush } from '$lib/client/push';
 	import { toast } from '$lib/toast.svelte';
 	import { env } from '$env/dynamic/public';
@@ -10,6 +11,26 @@
 	let menuOpen = $state(false);
 	let syncing = $state(false);
 	let avatarEl = $state<HTMLButtonElement | null>(null);
+
+	// Seeded from the DOM rather than from localStorage: the pre-paint script in
+	// app.html has already read storage and set the attribute, so the attribute is
+	// the single place both agree on. A writable $derived rather than $state
+	// because the server has no theme to read and renders the light glyph — the
+	// derived re-evaluates during hydration and corrects it. Its only dependency
+	// is `browser`, which never changes, so a toggle's write is never clobbered.
+	let dark = $derived(browser && document.documentElement.dataset.theme === 'dark');
+
+	function toggleTheme() {
+		dark = !dark;
+		if (dark) document.documentElement.dataset.theme = 'dark';
+		else delete document.documentElement.dataset.theme;
+		try {
+			if (dark) localStorage.setItem('table:theme', 'dark');
+			else localStorage.removeItem('table:theme');
+		} catch {
+			// Blocked storage: the theme still flips, it just will not persist.
+		}
+	}
 
 	function closeMenu(refocus = false) {
 		if (!menuOpen) return;
@@ -101,6 +122,18 @@
 		<a class="nav-link" class:current={page.url.pathname === '/history'} href={resolve('/history')}>
 			History
 		</a>
+
+		<button
+			type="button"
+			class="theme-toggle"
+			aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
+			title={dark ? 'Switch to light theme' : 'Switch to dark theme'}
+			onclick={toggleTheme}
+		>
+			<!-- U+FE0E asks for the text glyph: without it some platforms substitute a
+			     color emoji sun that ignores the button's color. -->
+			{dark ? '☀︎' : '☾︎'}
+		</button>
 
 		{#if user}
 			<div class="user-menu">
@@ -201,6 +234,30 @@
 		font-size: 0.68rem;
 		font-weight: 700;
 		line-height: 1;
+	}
+
+	.theme-toggle {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 26px;
+		height: 26px;
+		padding: 0;
+		border: none;
+		border-radius: 50%;
+		background: transparent;
+		color: var(--muted);
+		font-size: 0.95rem;
+		line-height: 1;
+		cursor: pointer;
+		transition:
+			background 0.15s ease,
+			color 0.15s ease;
+	}
+
+	.theme-toggle:hover {
+		background: var(--surface-2);
+		color: var(--ink);
 	}
 
 	.user-menu {

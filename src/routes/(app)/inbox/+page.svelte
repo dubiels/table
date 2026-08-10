@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import Mascot from '$lib/components/Mascot.svelte';
 
 	let { data } = $props();
 
@@ -48,7 +49,7 @@
 
 {#if data.notifications.length === 0}
 	<div class="empty">
-		<div class="glyph">☕</div>
+		<Mascot mood="sleepy" />
 		<p class="empty-title">All caught up.</p>
 		<p class="empty-sub">Digests and due-date alerts land here.</p>
 	</div>
@@ -158,9 +159,8 @@
 		color: var(--muted);
 	}
 
-	.glyph {
-		font-size: 2.5rem;
-		margin-bottom: 0.4rem;
+	.empty :global(.mascot) {
+		margin-bottom: 0.6rem;
 	}
 
 	.empty-title {

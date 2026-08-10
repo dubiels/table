@@ -12,7 +12,7 @@
 		type BentoTask,
 		type BentoZone
 	} from '$lib/bento';
-	import { ZONE_COLORS, type ZoneColor } from '$lib/zones';
+	import { zoneColorVars } from '$lib/zones';
 
 	let { tasks, zones }: { tasks: BentoTask[]; zones: BentoZone[] } = $props();
 
@@ -37,7 +37,7 @@
 	}
 
 	function colorOf(color: string | null) {
-		return color ? (ZONE_COLORS[color as ZoneColor] ?? ZONE_COLORS.sage) : null;
+		return color ? zoneColorVars(color) : null;
 	}
 
 	function addPointFor(groupId: string) {

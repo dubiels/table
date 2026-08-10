@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import TaskCard from '$lib/components/TaskCard.svelte';
 	import TaskDetailModal from '$lib/components/TaskDetailModal.svelte';
+	import Mascot from '$lib/components/Mascot.svelte';
 	let { data } = $props();
 
 	let openTaskId = $state<string | null>(null);
@@ -50,7 +51,7 @@
 
 {#if data.tasks.length === 0}
 	<div class="empty">
-		<div class="glyph">✓</div>
+		<Mascot mood="happy" />
 		<p class="empty-title">Nothing completed yet.</p>
 		<p class="empty-sub">Finished tasks move here from the table.</p>
 	</div>
@@ -137,9 +138,8 @@
 		color: var(--muted);
 	}
 
-	.glyph {
-		font-size: 2.5rem;
-		margin-bottom: 0.4rem;
+	.empty :global(.mascot) {
+		margin-bottom: 0.6rem;
 	}
 
 	.empty-title {
