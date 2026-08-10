@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
 	zoneForTask,
 	taskCenter,
+	ZONE_COLORS,
 	ZONE_COLOR_KEYS,
 	zoneColorVars,
 	visibleWorldBounds,
@@ -61,6 +63,28 @@ describe('zoneColorVars', () => {
 			border: 'var(--zone-sage-border)'
 		});
 		expect(zoneColorVars('')).toEqual(zoneColorVars('sage'));
+	});
+});
+
+describe('zone tokens in app.css', () => {
+	// Components resolve zone colors through zoneColorVars(), so nothing imports
+	// the hex map any more and app.css holds a hand-copy of it. Without this
+	// guard, editing a value in ZONE_COLORS would change precisely nothing on
+	// screen and the two would drift apart silently.
+	const css = readFileSync(new URL('../app.css', import.meta.url), 'utf8');
+	// Only the light block: `:root[data-theme='dark']` has a selector between
+	// `:root` and `{`, so it cannot satisfy these assertions in its place.
+	const lightBlock = /^:root\s*\{([^}]*)\}/m.exec(css)?.[1] ?? '';
+
+	it('finds the light :root block', () => {
+		expect(lightBlock).toContain('--bg:');
+	});
+
+	it('declares every ZONE_COLORS value as its matching custom property', () => {
+		for (const key of ZONE_COLOR_KEYS) {
+			expect(lightBlock).toContain(`--zone-${key}-fill: ${ZONE_COLORS[key].fill};`);
+			expect(lightBlock).toContain(`--zone-${key}-border: ${ZONE_COLORS[key].border};`);
+		}
 	});
 });
 

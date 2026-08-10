@@ -66,19 +66,29 @@
 	color-scheme: dark;
 
 	--bg: #1c1915;
-	--surface: #262219;
+	/* Elevation reads the same way it does in daylight: a card is the lightest
+	   thing on screen, its zone the tray beneath it, the page beneath that —
+	   bg < surface-2 < zone fills < surface. Lit by luminance rather than by
+	   paper, so the steps are wider than the light theme's, but the order is
+	   identical and a card never reads as a hole punched in its zone. */
+	--surface: #474034;
 	--surface-2: #322d24;
 	--ink: #f0e9dc;
-	/* Lighter than a straight inversion of the light theme's muted: secondary text
-	   also lands on the tinted zone fills, where 4.5:1 needs the extra step. */
-	--muted: #a89e8d;
-	--border: #3a342a;
-	--border-strong: #4d4436;
+	/* Lighter than a straight inversion of the light theme's muted: secondary
+	   text lands on --surface, the lightest ground here, and clearing 4.5:1
+	   there takes the extra step. */
+	--muted: #b8ae9c;
+	/* Raised to match: a border tuned for the old, darker surface would have
+	   been lighter than the new one and vanished on every card and input. */
+	--border: #5b5342;
+	--border-strong: #675e4c;
 	--accent: #e9e2d2;
 	--accent-hover: #f7f1e4;
 	--accent-soft: #383226;
 	--accent-ink: #26231d;
-	--danger: #e07a6c;
+	/* Lightened with the surface it is read against: at #e07a6c, overdue chips and
+	   the logout item fell to 3.5:1 on the raised card. */
+	--danger: #f0a294;
 	--danger-soft: #46271f;
 	--ok: #a3bd85;
 
@@ -103,8 +113,8 @@
 	--zone-clay-border: #5b473b;
 
 	--overlay: rgba(8, 6, 4, 0.62);
-	/* Cards sit on tinted zone fills that are lighter than the card itself, so
-	   the dark theme leans on shadow rather than fill contrast for their edge. */
+	/* Deeper than the light theme's: a warm-grey shadow disappears against a
+	   charcoal ground, so these darken instead of tinting. */
 	--shadow-card: 0 1px 2px rgba(0, 0, 0, 0.34), 0 4px 14px rgba(0, 0, 0, 0.3);
 	--shadow-raised: 0 8px 24px rgba(0, 0, 0, 0.45), 0 24px 60px rgba(0, 0, 0, 0.5);
 }
@@ -128,9 +138,9 @@ body {
 	font-size: 15px;
 	line-height: 1.5;
 	-webkit-font-smoothing: antialiased;
-	transition:
-		background 0.2s ease,
-		color 0.2s ease;
+	/* Deliberately no theme transition here: only the page ground would animate
+	   while every card, zone, rule and pill above it repainted instantly, which
+	   reads as a two-stage flip. An instant switch is the honest one. */
 }
 
 h1,

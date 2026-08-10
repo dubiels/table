@@ -50,7 +50,7 @@
 		background: var(--surface);
 		border: 1px solid var(--border-strong);
 		border-radius: var(--radius-s);
-		box-shadow: var(--shadow-raised);
+		box-shadow: var(--shadow-card);
 	}
 	.swatch {
 		width: 1.4rem;
