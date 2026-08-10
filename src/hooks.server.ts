@@ -3,7 +3,7 @@ import { redirect } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import { getSessionUser } from '$lib/server/auth/session';
 import { startScheduler } from '$lib/server/scheduler';
-import { decideDashboardAuth } from '$lib/server/dashboard/auth';
+import { decideDashboardAuth, decideFeedAuth } from '$lib/server/dashboard/auth';
 
 startScheduler();
 
@@ -18,6 +18,17 @@ export const handle: Handle = async ({ event, resolve }) => {
 		const decision = decideDashboardAuth(
 			env.DASHBOARD_TOKEN,
 			event.request.headers.get('authorization'),
+			!!user
+		);
+		if (decision === 'disabled') return new Response('Not found', { status: 404 });
+		if (decision === 'unauthorized') return new Response('Unauthorized', { status: 401 });
+		return resolve(event);
+	}
+
+	if (event.url.pathname === '/calendar.ics') {
+		const decision = decideFeedAuth(
+			env.TASKS_FEED_TOKEN,
+			event.url.searchParams.get('token'),
 			!!user
 		);
 		if (decision === 'disabled') return new Response('Not found', { status: 404 });
