@@ -91,13 +91,14 @@ export function zoneInnerBounds(zone: {
 	};
 }
 
-/** A synthetic region on bare table, below everything that already exists. */
-export function looseBounds(
-	content: Array<{ x: number; y: number; width?: number; height?: number }>
-): PlacementBounds {
-	let maxBottom = 0;
-	for (const c of content) {
-		maxBottom = Math.max(maxBottom, c.y + (c.height ?? DEFAULT_CARD.height));
-	}
-	return { x: 40, y: maxBottom + 60, width: 1400, height: 100000 };
+/**
+ * A synthetic region on bare table for tasks with no zone to land in. It is
+ * deliberately anchored near the origin rather than below existing content:
+ * the canvas has no panning and a zoom floor of 0.5, so it reaches only about
+ * 1.5x the viewport. Anything parked below the fold is unreachable forever,
+ * and each sync would push the next batch further out. Overlap is not a
+ * concern here — `nextFreeSlot` walks this region and skips occupied cards.
+ */
+export function looseBounds(): PlacementBounds {
+	return { x: 40, y: 40, width: 1400, height: 4000 };
 }

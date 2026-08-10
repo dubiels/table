@@ -33,13 +33,12 @@ export async function syncLmsAssignments(): Promise<LmsSyncResult> {
 		console.warn('LMS sync: LMS_ZONE_ID not set; placing tasks loose');
 	}
 
-	const [activeTasks, allZones, existingLms] = await Promise.all([
+	const [activeTasks, existingLms] = await Promise.all([
 		db.query.tasks.findMany({ where: eq(tasks.done, false) }),
-		db.query.zones.findMany(),
 		db.query.tasks.findMany({ where: eq(tasks.source, 'canvas') })
 	]);
 
-	const bounds = zone ? zoneInnerBounds(zone) : looseBounds([...activeTasks, ...allZones]);
+	const bounds = zone ? zoneInnerBounds(zone) : looseBounds();
 	const occupied = activeTasks.map((t) => ({ x: t.x, y: t.y }));
 	const plan = planLmsSync(events, existingLms, bounds, occupied);
 

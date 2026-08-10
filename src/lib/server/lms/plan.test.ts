@@ -84,11 +84,39 @@ describe('zoneInnerBounds', () => {
 });
 
 describe('looseBounds', () => {
-	it('starts below all existing content', () => {
-		const b = looseBounds([
-			{ x: 0, y: 500, height: 300 },
-			{ x: 200, y: 100 } // a card, DEFAULT_CARD.height tall
-		]);
-		expect(b.y).toBeGreaterThan(800);
+	it('stays near the origin, inside the reachable canvas', () => {
+		expect(looseBounds()).toEqual({ x: 40, y: 40, width: 1400, height: 4000 });
+	});
+});
+
+describe('planLmsSync on loose bounds', () => {
+	it('places a new task in a free slot even when the origin area is crowded', () => {
+		// A full first row plus the start of the second, all inside looseBounds.
+		const occupied = [
+			{ x: 40, y: 40 },
+			{ x: 272, y: 40 },
+			{ x: 504, y: 40 },
+			{ x: 736, y: 40 },
+			{ x: 968, y: 40 },
+			{ x: 1200, y: 40 },
+			{ x: 40, y: 124 }
+		];
+		const plan = planLmsSync([event()], [], looseBounds(), occupied);
+
+		expect(plan.creates).toHaveLength(1);
+		const slot = plan.creates[0];
+		// Reachable: within the near-origin region the canvas can actually show.
+		expect(slot.x).toBeGreaterThanOrEqual(40);
+		expect(slot.y).toBeGreaterThanOrEqual(40);
+		expect(slot.y).toBeLessThan(1000);
+		// And not stacked on top of anything already there.
+		for (const o of occupied) {
+			const apart =
+				slot.x + DEFAULT_CARD.width <= o.x ||
+				o.x + DEFAULT_CARD.width <= slot.x ||
+				slot.y + DEFAULT_CARD.height <= o.y ||
+				o.y + DEFAULT_CARD.height <= slot.y;
+			expect(apart).toBe(true);
+		}
 	});
 });
