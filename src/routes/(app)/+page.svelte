@@ -89,6 +89,12 @@
 	>
 		<span aria-hidden="true">🎓</span> Canvas
 	</button>
+	{#if view === 'bento'}
+		<!-- Bento tiles the whole board edge to edge with 8px gutters, so a corner
+		     robot lands on the bottom-right box and its + button. Up here it keeps
+		     the same reactive mood with nothing to collide with. -->
+		<div class="toolbar-mascot" aria-hidden="true"><Mascot mood={mascotMood} compact /></div>
+	{/if}
 </div>
 
 <LmsPanel
@@ -111,7 +117,9 @@
 		{:else}
 			<BlobView tasks={data.tasks} zones={data.zones} />
 		{/if}
-		<div class="board-mascot"><Mascot mood={mascotMood} /></div>
+		{#if view !== 'bento'}
+			<div class="board-mascot"><Mascot mood={mascotMood} /></div>
+		{/if}
 	</div>
 	{#if data.agenda.length > 0}
 		<aside class="agenda-rail">
@@ -133,6 +141,16 @@
 		padding: 0.32rem 0.85rem;
 		font-size: 0.82rem;
 		font-weight: 600;
+	}
+
+	/* The bento stand-in for .board-mascot. margin-left: auto parks it at the far
+	   right of the row; align-items: center on .page-toolbar already centers it
+	   against the taller controls, and one 0.7rem line is shorter than they are,
+	   so the row's height does not move. */
+	.toolbar-mascot {
+		margin-left: auto;
+		pointer-events: none;
+		opacity: 0.5;
 	}
 
 	.board-row {

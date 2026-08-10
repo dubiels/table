@@ -279,7 +279,7 @@
 <style>
 	.lms-panel {
 		position: fixed;
-		top: 52px; /* the topbar's height — the drawer starts where the shell ends */
+		top: var(--topbar-height); /* the drawer starts where the shell's header ends */
 		right: 0;
 		bottom: 0;
 		width: min(340px, 100vw);

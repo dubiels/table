@@ -571,6 +571,10 @@
 			resolveComposer();
 		} else if (e.key === 'Escape') {
 			e.preventDefault();
+			// Escape here means "discard this composer" and nothing else. Without the
+			// stop it keeps bubbling to the window listeners that close the user menu
+			// and the Canvas drawer, so one cancel dismissed three things at once.
+			e.stopPropagation();
 			cancelComposer();
 		}
 	}

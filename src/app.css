@@ -50,6 +50,10 @@
 	--zone-clay-fill: #efddd3;
 	--zone-clay-border: #ddbba6;
 
+	/* The shell's one fixed dimension. Anything that has to start below the topbar
+	   — the LMS drawer, for now — measures from this rather than repeating 52. */
+	--topbar-height: 52px;
+
 	--radius-s: 10px;
 	--radius-m: 14px;
 	--radius-l: 20px;
