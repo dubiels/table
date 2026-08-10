@@ -3,13 +3,17 @@ import { z } from 'zod';
 import { fail } from '@sveltejs/kit';
 import * as zonesService from '$lib/server/zones/service';
 import * as tasksService from '$lib/server/tasks/service';
+import { getAgenda } from '$lib/server/gcal/service';
 
 export const load: PageServerLoad = async () => {
-	const [tasks, zones] = await Promise.all([
+	// getAgenda() already swallows per-calendar failures; the catch is a belt for
+	// anything unexpected, because a calendar must never stop the board loading.
+	const [tasks, zones, agenda] = await Promise.all([
 		tasksService.listActiveTasks(),
-		zonesService.listZones()
+		zonesService.listZones(),
+		getAgenda().catch(() => [])
 	]);
-	return { tasks, zones };
+	return { tasks, zones, agenda };
 };
 
 const newTaskSchema = z.object({
