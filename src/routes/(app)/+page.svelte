@@ -4,9 +4,8 @@
 	import ListView from '$lib/components/ListView.svelte';
 	import BentoView from '$lib/components/BentoView.svelte';
 	import ViewSwitcher from '$lib/components/ViewSwitcher.svelte';
-	import AgendaRail from '$lib/components/AgendaRail.svelte';
 	import Mascot from '$lib/components/Mascot.svelte';
-	import LmsPanel from '$lib/components/LmsPanel.svelte';
+	import SidePanel from '$lib/components/SidePanel.svelte';
 	import { localDateString } from '$lib/listView';
 	let { data } = $props();
 
@@ -25,30 +24,50 @@
 	});
 
 	const VIEW_KEY = 'table:view';
-	// Bento is the opening view for anyone who has not picked one: it reads at a
-	// glance and needs no dragging to be useful. The $effect below still lets a
-	// stored choice win, so this only ever decides a first visit.
-	let view = $state<'blob' | 'list' | 'bento'>('bento');
+	const PANEL_KEY = 'table:panel';
+	const PANEL_TAB_KEY = 'table:panelTab';
+
 	// Safari in private mode throws on both of these; an uncaught throw inside an
 	// $effect takes the whole page down over a remembered dropdown.
-	function readSavedView(): string | null {
+	function readSetting(key: string): string | null {
 		try {
-			return localStorage.getItem(VIEW_KEY);
+			return localStorage.getItem(key);
 		} catch {
 			return null;
 		}
 	}
+	function saveSetting(key: string, value: string) {
+		try {
+			localStorage.setItem(key, value);
+		} catch {
+			// Not remembering a preference is survivable; crashing is not.
+		}
+	}
+
+	// Bento is the opening view for anyone who has not picked one: it reads at a
+	// glance and needs no dragging to be useful. The $effect below still lets a
+	// stored choice win, so this only ever decides a first visit.
+	let view = $state<'blob' | 'list' | 'bento'>('bento');
 	$effect(() => {
-		const saved = readSavedView();
+		const saved = readSetting(VIEW_KEY);
 		if (saved === 'blob' || saved === 'list' || saved === 'bento') view = saved;
 	});
+	$effect(() => saveSetting(VIEW_KEY, view));
+
+	// The docked panel is open until someone folds it away; the narrow-screen
+	// drawer is never remembered, because a drawer that reopens itself over the
+	// board on every load is a nuisance rather than a memory.
+	let panelOpen = $state(true);
+	let panelTab = $state<'today' | 'canvas'>('today');
+	let drawerOpen = $state(false);
 	$effect(() => {
-		try {
-			localStorage.setItem(VIEW_KEY, view);
-		} catch {
-			// Not remembering the view is survivable; crashing is not.
-		}
+		const saved = readSetting(PANEL_KEY);
+		if (saved === 'open' || saved === 'closed') panelOpen = saved === 'open';
+		const savedTab = readSetting(PANEL_TAB_KEY);
+		if (savedTab === 'today' || savedTab === 'canvas') panelTab = savedTab;
 	});
+	$effect(() => saveSetting(PANEL_KEY, panelOpen ? 'open' : 'closed'));
+	$effect(() => saveSetting(PANEL_TAB_KEY, panelTab));
 
 	let isMobile = $state(false);
 	$effect(() => {
@@ -59,14 +78,34 @@
 		return () => mq.removeEventListener('change', apply);
 	});
 
-	let lmsOpen = $state(false);
+	// Wide enough to keep the panel docked beside the board. Below this it turns
+	// into a drawer the toolbar button opens, so the board keeps the full width.
+	let wideEnough = $state(true);
+	$effect(() => {
+		const mq = window.matchMedia('(min-width: 1101px)');
+		const apply = () => (wideEnough = mq.matches);
+		apply();
+		mq.addEventListener('change', apply);
+		return () => mq.removeEventListener('change', apply);
+	});
+
 	// Handed to the panel so its outside-click test can exclude this button —
 	// otherwise the capture listener would close the drawer on the same click
 	// that reopens it, and the toggle would only ever appear to do nothing.
-	let lmsButtonEl = $state<HTMLButtonElement | null>(null);
-	function closeLms(refocus = false) {
-		lmsOpen = false;
-		if (refocus) lmsButtonEl?.focus();
+	let panelButtonEl = $state<HTMLButtonElement | null>(null);
+
+	function openPanel() {
+		if (wideEnough) panelOpen = true;
+		else drawerOpen = true;
+	}
+
+	function closePanel(refocus = false) {
+		if (wideEnough) {
+			panelOpen = false;
+		} else {
+			drawerOpen = false;
+			if (refocus) panelButtonEl?.focus();
+		}
 	}
 </script>
 
@@ -79,16 +118,18 @@
 			{ value: 'bento', label: 'Bento' }
 		]}
 	/>
-	<button
-		type="button"
-		class="btn btn-ghost lms-toggle"
-		bind:this={lmsButtonEl}
-		aria-expanded={lmsOpen}
-		aria-controls="lms-panel"
-		onclick={() => (lmsOpen = !lmsOpen)}
-	>
-		<span aria-hidden="true">🎓</span> Canvas
-	</button>
+	{#if !wideEnough}
+		<button
+			type="button"
+			class="btn btn-ghost panel-toggle"
+			bind:this={panelButtonEl}
+			aria-expanded={drawerOpen}
+			aria-controls="side-panel"
+			onclick={() => (drawerOpen = !drawerOpen)}
+		>
+			<span aria-hidden="true">🗓</span> Panel
+		</button>
+	{/if}
 	{#if view === 'bento'}
 		<!-- Bento tiles the whole board edge to edge with 8px gutters, so a corner
 		     robot lands on the bottom-right box and its + button. Up here it keeps
@@ -96,15 +137,6 @@
 		<div class="toolbar-mascot" aria-hidden="true"><Mascot mood={mascotMood} compact /></div>
 	{/if}
 </div>
-
-<LmsPanel
-	open={lmsOpen}
-	configured={data.lmsConfigured}
-	tasks={data.tasks}
-	zones={data.zones}
-	anchor={lmsButtonEl}
-	onclose={closeLms}
-/>
 
 <div class="board-row">
 	<div class="board-main">
@@ -121,11 +153,18 @@
 			<div class="board-mascot"><Mascot mood={mascotMood} /></div>
 		{/if}
 	</div>
-	{#if data.agenda.length > 0}
-		<aside class="agenda-rail">
-			<AgendaRail events={data.agenda} />
-		</aside>
-	{/if}
+	<SidePanel
+		mode={wideEnough ? 'docked' : 'overlay'}
+		open={wideEnough ? panelOpen : drawerOpen}
+		bind:tab={panelTab}
+		agenda={data.agenda}
+		gcalConfigured={data.gcalConfigured}
+		lmsConfigured={data.lmsConfigured}
+		tasks={data.tasks}
+		anchor={panelButtonEl}
+		onopen={openPanel}
+		onclose={closePanel}
+	/>
 </div>
 
 <style>
@@ -137,7 +176,7 @@
 		flex-shrink: 0;
 	}
 
-	.lms-toggle {
+	.panel-toggle {
 		padding: 0.32rem 0.85rem;
 		font-size: 0.82rem;
 		font-weight: 600;
@@ -169,14 +208,14 @@
 		flex-direction: column;
 		min-height: 0;
 		/* The anchor for .board-mascot. Inside this column rather than the row, so
-		   the robot never drifts under the agenda rail. */
+		   the robot never drifts under the side panel. */
 		position: relative;
 	}
 
 	/* A companion, not a control: it sits over the board's bottom-right corner and
 	   passes every click straight through to the canvas beneath it. Cards carry
 	   z-indexes up to 900 and the composer 950, so clearing those is what keeps it
-	   from being buried; 960 still leaves the LMS drawer (980), topbar (999) and
+	   from being buried; 960 still leaves the panel drawer (980), topbar (999) and
 	   task modal (1000) above it. */
 	.board-mascot {
 		position: absolute;
@@ -190,19 +229,6 @@
 	/* Phones need the space more than they need the company. */
 	@media (max-width: 720px) {
 		.board-mascot {
-			display: none;
-		}
-	}
-
-	.agenda-rail {
-		width: 250px;
-		flex-shrink: 0;
-		overflow-y: auto;
-	}
-
-	/* The agenda is a desk-monitor affordance; narrow screens get the board only. */
-	@media (max-width: 1100px) {
-		.agenda-rail {
 			display: none;
 		}
 	}

@@ -51,7 +51,8 @@
 	--zone-clay-border: #ddbba6;
 
 	/* The shell's one fixed dimension. Anything that has to start below the topbar
-	   — the LMS drawer, for now — measures from this rather than repeating 52. */
+	   — the side panel's drawer, for now — measures from this rather than
+	   repeating 52. */
 	--topbar-height: 52px;
 
 	--radius-s: 10px;

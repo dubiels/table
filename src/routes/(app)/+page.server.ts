@@ -14,11 +14,14 @@ export const load: PageServerLoad = async () => {
 		zonesService.listZones(),
 		getAgenda().catch(() => [])
 	]);
-	// Whether the feed URL exists, never the URL itself — it is a bearer secret,
-	// and the panel only needs to know which of its two faces to show. The same
-	// pair of names syncLmsAssignments() reads, so the two can never disagree.
+	// Whether the feed URLs exist, never the URLs themselves — they are bearer
+	// secrets, and the panel only needs to know which of its two faces to show.
+	// The same names syncLmsAssignments() and getAgenda() read, so they can never
+	// disagree. An empty agenda alone would not distinguish "no calendar set up"
+	// from "a quiet week", and those want different empty states.
 	const lmsConfigured = Boolean(env.LMS_ICAL_URL ?? env.CANVAS_ICAL_URL);
-	return { tasks, zones, agenda, lmsConfigured };
+	const gcalConfigured = Boolean(env.GCAL_ICAL_URLS);
+	return { tasks, zones, agenda, lmsConfigured, gcalConfigured };
 };
 
 const newTaskSchema = z.object({
