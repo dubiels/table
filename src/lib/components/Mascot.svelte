@@ -1,5 +1,5 @@
 <script lang="ts">
-	type Mood = 'happy' | 'sleepy' | 'wave';
+	type Mood = 'happy' | 'sleepy' | 'wave' | 'worried';
 
 	let { mood = 'happy' }: { mood?: Mood } = $props();
 
@@ -9,7 +9,10 @@
 	const ART: Record<Mood, string[]> = {
 		happy: ['   ___', '  [o_o]', ' /|___|\\', '  d   b'],
 		sleepy: ['   ___  z', '  [-_-]z', ' /|___|\\', '  d   b'],
-		wave: ['   ___', '  [o_o]', ' \\|___|/', '  d   b']
+		wave: ['   ___', '  [o_o]', ' \\|___|/', '  d   b'],
+		// The squint alone is a two-character change and too easy to miss at this
+		// size, so it gets a marker beside the head the way sleepy gets its z.
+		worried: ['   ___  !', '  [>_<]', ' /|___|\\', '  d   b']
 	};
 
 	let art = $derived(ART[mood].join('\n'));

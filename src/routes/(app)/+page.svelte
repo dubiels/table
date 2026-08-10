@@ -5,7 +5,23 @@
 	import BentoView from '$lib/components/BentoView.svelte';
 	import ViewSwitcher from '$lib/components/ViewSwitcher.svelte';
 	import AgendaRail from '$lib/components/AgendaRail.svelte';
+	import Mascot from '$lib/components/Mascot.svelte';
+	import { localDateString } from '$lib/listView';
 	let { data } = $props();
+
+	// Read once at setup, like TaskCard and ListView do: a board left open across
+	// midnight re-reads it on the next load, and re-deriving it per render would
+	// not help anyway — nothing invalidates on the clock.
+	const today = localDateString();
+
+	// The robot reacts to the board rather than decorating it: something is late,
+	// nothing is left, or the table is simply in use.
+	let mascotMood = $derived.by(() => {
+		const active = data.tasks.filter((t) => !t.done);
+		if (active.some((t) => t.dueDate && t.dueDate < today)) return 'worried' as const;
+		if (active.length === 0) return 'sleepy' as const;
+		return 'happy' as const;
+	});
 
 	const VIEW_KEY = 'table:view';
 	let view = $state<'blob' | 'list' | 'bento'>('blob');
@@ -62,6 +78,7 @@
 		{:else}
 			<BlobView tasks={data.tasks} zones={data.zones} />
 		{/if}
+		<div class="board-mascot"><Mascot mood={mascotMood} /></div>
 	</div>
 	{#if data.agenda.length > 0}
 		<aside class="agenda-rail">
@@ -93,6 +110,30 @@
 		display: flex;
 		flex-direction: column;
 		min-height: 0;
+		/* The anchor for .board-mascot. Inside this column rather than the row, so
+		   the robot never drifts under the agenda rail. */
+		position: relative;
+	}
+
+	/* A companion, not a control: it sits over the board's bottom-right corner and
+	   passes every click straight through to the canvas beneath it. Cards carry
+	   z-indexes up to 900 and the composer 950, so clearing those is what keeps it
+	   from being buried; 960 still leaves the LMS drawer (980), topbar (999) and
+	   task modal (1000) above it. */
+	.board-mascot {
+		position: absolute;
+		right: 0.25rem;
+		bottom: 0.25rem;
+		z-index: 960;
+		pointer-events: none;
+		opacity: 0.5;
+	}
+
+	/* Phones need the space more than they need the company. */
+	@media (max-width: 720px) {
+		.board-mascot {
+			display: none;
+		}
 	}
 
 	.agenda-rail {
