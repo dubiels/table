@@ -339,11 +339,21 @@
 		width?: number,
 		height?: number
 	) {
-		await fetch('/api/positions', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ kind, id, x, y, width, height })
-		});
+		try {
+			const res = await fetch('/api/positions', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ kind, id, x, y, width, height })
+			});
+			// A dropped save leaves the canvas and the database permanently out of
+			// step, and the card keeps sitting where the user let go — so without
+			// this the divergence is completely invisible until the next reload.
+			if (!res.ok) {
+				console.error(`Could not save ${kind} ${id} position: HTTP ${res.status}`);
+			}
+		} catch (err) {
+			console.error(`Could not save ${kind} ${id} position`, err);
+		}
 	}
 
 	async function createZoneFromCluster(rect: Rect) {
