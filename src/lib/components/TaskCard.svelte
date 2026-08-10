@@ -30,7 +30,6 @@
 	}
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
 	class="card"
@@ -49,9 +48,17 @@
 		></span>
 	{/if}
 	<div class="row-main">
-		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- Keydown is guarded alongside click: Enter on the submit button would
+		     otherwise bubble to the card's role="button" handler, whose
+		     preventDefault cancels the submit and opens the modal instead. -->
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<form method="POST" action="?/toggleTaskDone" use:enhance onclick={(e) => e.stopPropagation()}>
+		<form
+			method="POST"
+			action="?/toggleTaskDone"
+			use:enhance
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
+		>
 			<input type="hidden" name="id" value={task.id} />
 			<button class="done-toggle" class:checked={task.done} type="submit" aria-label="Toggle done">
 				{#if task.done}✓{/if}

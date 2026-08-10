@@ -157,7 +157,14 @@
 						onclick={() => (openTaskId = task.id)}
 						onkeydown={(e) => handleRowKeydown(e, task.id)}
 					>
-						<td class="done-cell" onclick={(e) => e.stopPropagation()}>
+						<!-- Keydown is guarded alongside click: Enter on the submit button
+						     would otherwise bubble to the row's role="button" handler, whose
+						     preventDefault cancels the submit and opens the modal instead. -->
+						<td
+							class="done-cell"
+							onclick={(e) => e.stopPropagation()}
+							onkeydown={(e) => e.stopPropagation()}
+						>
 							<form method="POST" action="?/toggleTaskDone" use:enhance>
 								<input type="hidden" name="id" value={task.id} />
 								<button
