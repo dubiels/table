@@ -6,8 +6,14 @@
 	import ViewSwitcher from '$lib/components/ViewSwitcher.svelte';
 	import Mascot from '$lib/components/Mascot.svelte';
 	import SidePanel from '$lib/components/SidePanel.svelte';
-	import { localDateString } from '$lib/listView';
+	import { localDateString, CANVAS_SOURCE } from '$lib/listView';
 	let { data } = $props();
+
+	// Synced assignments have a home now — the panel's Canvas tab and the list —
+	// and it is not the board. They still carry coordinates because the row needs
+	// them, but a fortnight of Canvas deadlines dropped onto the table buries the
+	// handful of things actually arranged there.
+	let boardTasks = $derived(data.tasks.filter((t) => t.source !== CANVAS_SOURCE));
 
 	// Read once at setup, like TaskCard and ListView do: a board left open across
 	// midnight re-reads it on the next load, and re-deriving it per render would
@@ -143,11 +149,11 @@
 		{#if view === 'list'}
 			<ListView tasks={data.tasks} zones={data.zones} />
 		{:else if view === 'bento'}
-			<BentoView tasks={data.tasks} zones={data.zones} />
+			<BentoView tasks={boardTasks} zones={data.zones} />
 		{:else if isMobile}
-			<MobileColumns tasks={data.tasks} zones={data.zones} />
+			<MobileColumns tasks={boardTasks} zones={data.zones} />
 		{:else}
-			<BlobView tasks={data.tasks} zones={data.zones} />
+			<BlobView tasks={boardTasks} zones={data.zones} />
 		{/if}
 		{#if view !== 'bento'}
 			<div class="board-mascot"><Mascot mood={mascotMood} /></div>

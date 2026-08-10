@@ -45,24 +45,25 @@ Table sends magic-link login emails and the morning digest through [Resend](http
 
 ## Canvas LMS sync
 
-Table can pull assignments from Canvas's calendar feed and place them on the board as tasks.
+Table can pull assignments from Canvas's calendar feed in as tasks.
 
 1. In Canvas, go to **Calendar > Calendar Feed** and copy the `.ics` URL.
 2. Set `LMS_ICAL_URL` to that URL.
-3. Optionally set `LMS_ZONE_ID` to the id of a zone (not its name — names can be renamed later, ids don't change) so synced assignments land inside that zone. Look the id up in the database if you don't have it handy:
-   ```sh
-   sqlite3 data/table.sqlite "select id, name from zones;"
-   ```
-   Leave `LMS_ZONE_ID` unset to place synced tasks loose on the open table instead.
-4. `LMS_SYNC_CRON` controls how often sync runs automatically (default every 6 hours). You can also trigger a sync on demand any time — from the **Canvas** panel on the board, or from the user menu ("Sync assignments").
+3. `LMS_SYNC_CRON` controls how often sync runs automatically (default every 6 hours). You can also trigger a sync on demand any time — from the side panel's **Canvas** tab, or from the user menu ("Sync assignments").
 
-The **Canvas** button above the board opens a panel with the synced assignments grouped by course. Before `LMS_ICAL_URL` is set it shows this setup guide instead, along with your zone ids and a copy button for each — which saves the `sqlite3` lookup in step 3.
+Each sync imports assignments due from today through 14 days out: a reading list of what's actually coming up, not an archive of the semester.
+
+Assignments live in the side panel's **Canvas** tab, grouped by course, and in the list view, where they carry the category **Canvas** and can be filtered like any other category. They deliberately don't appear on the spatial views (table, bento, mobile columns) — a fortnight of deadlines would bury the handful of things you arranged there by hand. `LMS_ZONE_ID` is a leftover from when they did, and is no longer needed.
+
+Before `LMS_ICAL_URL` is set, the Canvas tab shows the setup guide instead.
 
 A sync only ever creates new tasks or refreshes the `dueDate` on ones it created before — it never touches a task's title, notes, priority, position, or completion state, and it never deletes anything. Running sync again against the same feed creates nothing new for assignments it's already imported.
 
 ## Google Calendar agenda
 
-Set `GCAL_ICAL_URLS` to one or more comma-separated Google Calendar "secret address in iCal format" URLs (Calendar settings > your calendar > **Integrate calendar**) to show a read-only agenda rail beside the board on wide screens (≥1100px). It's display-only — nothing in it is editable — just a glance at what's on your calendars alongside your tasks. Leave it unset and the rail doesn't render at all.
+Set `GCAL_ICAL_URLS` to one or more comma-separated Google Calendar "secret address in iCal format" URLs (Calendar settings > your calendar > **Integrate calendar**) to fill the side panel's **Today** tab: today's events at the top, then the next few days. It's display-only — nothing in it is editable — just a glance at what's on your calendars alongside your tasks. Leave it unset and the tab explains how to connect one.
+
+The panel is docked beside the board and open by default on screens ≥1100px; the chevron folds it into a slim edge strip, and both that choice and the active tab are remembered. Below 1100px it becomes a drawer, opened from the **Panel** button above the board.
 
 ## Tasks → Google Calendar
 
@@ -103,7 +104,7 @@ Note that the token travels in the URL, so it lands in server access logs and br
      PUBLIC_VAPID_PUBLIC_KEY=your_public_key \
      VAPID_SUBJECT=mailto:you@example.com
    ```
-   These cover core functionality. If you're using the optional integrations above, also set `LMS_ICAL_URL`, `LMS_ZONE_ID`, `GCAL_ICAL_URLS`, `TASKS_FEED_TOKEN`, and/or `DASHBOARD_TOKEN` as needed.
+   These cover core functionality. If you're using the optional integrations above, also set `LMS_ICAL_URL`, `GCAL_ICAL_URLS`, `TASKS_FEED_TOKEN`, and/or `DASHBOARD_TOKEN` as needed.
 5. Deploy:
    ```sh
    flyctl deploy
@@ -139,7 +140,7 @@ A few more pure-logic modules are the ones most worth reading before extending a
 - `src/lib/placement.ts` — grid/collision math shared by the canvas and LMS sync, so newly placed tasks don't stack on top of each other.
 - `src/lib/server/lms/plan.ts` — decides what a Canvas sync run creates or updates, independent of the database or scheduler.
 - `src/lib/server/dashboard/serialize.ts` — shapes tasks/zones into the dashboard API payload.
-- `src/lib/server/gcal/agenda.ts` — parses and windows Google Calendar events for the agenda rail.
+- `src/lib/server/gcal/agenda.ts` — parses and windows Google Calendar events for the side panel's Today tab.
 - `src/lib/server/ics/export.ts` — renders tasks as an RFC 5545 `.ics` feed.
 
 These are called the same way by the UI routes and by the in-process scheduler (`src/lib/server/scheduler/index.ts`), which is also what drives the periodic LMS sync. A future integration can call these same functions directly to create tasks and trigger notifications, without going through HTTP routes or duplicating scheduling logic.

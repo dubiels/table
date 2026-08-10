@@ -8,12 +8,16 @@ export interface LmsEvent {
 	eventId: string;
 }
 
-// Sync window: far enough back to catch assignments due while the app was
-// offline, far enough forward to be useful without importing a whole semester.
-const PAST_WINDOW_DAYS = 7;
-const FUTURE_WINDOW_DAYS = 60;
+// Sync window: today through a fortnight out. Assignments live in the side
+// panel and the list now rather than on the board, which makes the window a
+// reading list — what is actually coming up — instead of an archive. Nothing
+// before today, because a due date already past is not work anyone can plan.
+const FUTURE_WINDOW_DAYS = 14;
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
+/** Local midnight `days` after `date`'s own day. */
+function startOfLocalDay(date: Date, days = 0): Date {
+	return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+}
 
 function toLocalDateString(date: Date): string {
 	const year = date.getFullYear();
@@ -29,8 +33,12 @@ export function parseLmsIcal(icsText: string, now: Date = new Date()): LmsEvent[
 	const cal = ical.parseICS(icsText);
 	const events: LmsEvent[] = [];
 
-	const windowStart = new Date(now.getTime() - PAST_WINDOW_DAYS * MS_PER_DAY);
-	const windowEnd = new Date(now.getTime() + FUTURE_WINDOW_DAYS * MS_PER_DAY);
+	// Both edges are local midnights rather than offsets from the current
+	// instant: an assignment due at 9am today is still due today at 3pm, and a
+	// window anchored to `now` would have dropped it. windowEnd is the midnight
+	// after the last included day, so the whole 14th day counts.
+	const windowStart = startOfLocalDay(now);
+	const windowEnd = startOfLocalDay(now, FUTURE_WINDOW_DAYS + 1);
 
 	for (const key in cal) {
 		const comp = cal[key];
@@ -41,7 +49,7 @@ export function parseLmsIcal(icsText: string, now: Date = new Date()): LmsEvent[
 
 		const start = comp.start;
 		if (!start || isNaN(start.getTime())) continue;
-		if (start < windowStart || start > windowEnd) continue;
+		if (start < windowStart || start >= windowEnd) continue;
 
 		const summary = comp.summary || 'Untitled';
 		const bracketMatch = summary.match(TRAILING_BRACKET);

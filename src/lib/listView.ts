@@ -7,9 +7,13 @@ export type ListTask = {
 	priority: string | null;
 	dueDate: string | null;
 	notes: string | null;
+	source: string;
 	x: number;
 	y: number;
 };
+
+/** The fields category resolution actually reads. */
+type Categorizable = Pick<ListTask, 'x' | 'y' | 'source'>;
 
 export type ListZone = ZoneBounds & { name: string; color: string };
 
@@ -20,29 +24,44 @@ export type PriorityFilter = 'all' | 'low' | 'med' | 'high';
 
 export const NO_CATEGORY = 'none';
 
+/**
+ * The pseudo-category for synced Canvas assignments.
+ *
+ * They still carry x/y because the row needs them, but they are no longer
+ * drawn on the spatial views, so the zone they happen to overlap is an
+ * accident of placement rather than a statement about the work. Sorted and
+ * filtered like any zone category; it just is not one.
+ */
+export const CANVAS_CATEGORY = 'canvas';
+export const CANVAS_CATEGORY_NAME = 'Canvas';
+
+/** `task.source` for rows created by the Canvas sync. */
+export const CANVAS_SOURCE = 'canvas';
+
 const PRIORITY_RANK: Record<string, number> = { low: 0, med: 1, high: 2 };
 
-/** The owning zone's name for a task, or "—" for a loose task. */
-export function categoryNameFor(task: Pick<ListTask, 'x' | 'y'>, zones: ListZone[]): string {
+/** The owning zone's name for a task, "Canvas" for an assignment, "—" when loose. */
+export function categoryNameFor(task: Categorizable, zones: ListZone[]): string {
+	if (task.source === CANVAS_SOURCE) return CANVAS_CATEGORY_NAME;
 	const hit = zoneForTask(taskCenter(task), zones);
 	if (!hit) return '—';
 	return zones.find((z) => z.id === hit.id)?.name ?? '—';
 }
 
 /**
- * The filter-bar key for a task's category: its zone id, or NO_CATEGORY when
- * loose. Ids, not names — two zones may share a name, and a rename must not
- * quietly move a task into a different filter bucket.
+ * The filter-bar key for a task's category: CANVAS_CATEGORY for an assignment,
+ * otherwise its zone id, or NO_CATEGORY when loose. Ids, not names — two zones
+ * may share a name, and a rename must not quietly move a task into a different
+ * filter bucket.
  */
-export function categoryKeyFor(task: Pick<ListTask, 'x' | 'y'>, zones: ListZone[]): string {
+export function categoryKeyFor(task: Categorizable, zones: ListZone[]): string {
+	if (task.source === CANVAS_SOURCE) return CANVAS_CATEGORY;
 	return zoneForTask(taskCenter(task), zones)?.id ?? NO_CATEGORY;
 }
 
-/** The owning zone's color for a task, or null for a loose task. */
-export function categoryColorFor(
-	task: Pick<ListTask, 'x' | 'y'>,
-	zones: ListZone[]
-): string | null {
+/** The owning zone's color for a task; null for assignments and loose tasks. */
+export function categoryColorFor(task: Categorizable, zones: ListZone[]): string | null {
+	if (task.source === CANVAS_SOURCE) return null;
 	const hit = zoneForTask(taskCenter(task), zones);
 	if (!hit) return null;
 	return zones.find((z) => z.id === hit.id)?.color ?? null;

@@ -9,6 +9,9 @@
 		filterTasks,
 		localDateString,
 		NO_CATEGORY,
+		CANVAS_CATEGORY,
+		CANVAS_CATEGORY_NAME,
+		CANVAS_SOURCE,
 		type ListTask,
 		type ListZone,
 		type SortField,
@@ -42,6 +45,10 @@
 		)
 	);
 	let sorted = $derived(sortTasks(filtered, zones, sortField, sortDirection));
+
+	// Offered only once there is something to filter: nobody who has not connected
+	// Canvas needs a checkbox for it.
+	let hasAssignments = $derived(tasks.some((t) => t.source === CANVAS_SOURCE));
 
 	function toggleCategory(key: string) {
 		if (deselectedCategories.has(key)) deselectedCategories.delete(key);
@@ -98,6 +105,16 @@
 				/>
 				No category
 			</label>
+			{#if hasAssignments}
+				<label>
+					<input
+						type="checkbox"
+						checked={!deselectedCategories.has(CANVAS_CATEGORY)}
+						onchange={() => toggleCategory(CANVAS_CATEGORY)}
+					/>
+					{CANVAS_CATEGORY_NAME}
+				</label>
+			{/if}
 			{#each zones as zone (zone.id)}
 				<label>
 					<input

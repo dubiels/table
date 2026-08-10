@@ -132,18 +132,18 @@ describe('parseLmsIcal', () => {
 		expect(result).toHaveLength(0);
 	});
 
-	it('includes an event 2 days in the past', () => {
+	it('excludes an event due yesterday', () => {
 		const text = ics([
 			vevent({
-				uid: 'recent-past',
-				dtstart: 'DTSTART:20260807T235900Z', // 2 days before NOW
-				summary: 'Recent Past [CS 4641]'
+				uid: 'yesterday',
+				dtstart: 'DTSTART:20260808T235900Z', // the evening before NOW's local day
+				summary: 'Yesterday [CS 4641]'
 			})
 		]);
 
 		const result = parseLmsIcal(text, NOW);
 
-		expect(result).toHaveLength(1);
+		expect(result).toHaveLength(0);
 	});
 
 	it('falls back to Untitled when the summary is only a bracket group', () => {
@@ -161,12 +161,12 @@ describe('parseLmsIcal', () => {
 		expect(result[0].courseName).toBe('CS 101');
 	});
 
-	it('includes an event exactly 7 days in the past (window lower boundary)', () => {
+	it('includes an event due earlier today (window starts at local midnight, not now)', () => {
 		const text = ics([
 			vevent({
-				uid: 'lower-boundary',
-				dtstart: 'DTSTART:20260802T120000Z', // exactly NOW - 7 days
-				summary: 'Lower Boundary [CS 4641]'
+				uid: 'early-today',
+				dtstart: 'DTSTART:20260809T060000Z', // 2am local on NOW's own day
+				summary: 'Early Today [CS 4641]'
 			})
 		]);
 
@@ -175,25 +175,11 @@ describe('parseLmsIcal', () => {
 		expect(result).toHaveLength(1);
 	});
 
-	it('excludes an event 8 days in the past (just past the lower boundary)', () => {
-		const text = ics([
-			vevent({
-				uid: 'below-lower-boundary',
-				dtstart: 'DTSTART:20260801T120000Z', // NOW - 8 days
-				summary: 'Below Lower Boundary [CS 4641]'
-			})
-		]);
-
-		const result = parseLmsIcal(text, NOW);
-
-		expect(result).toHaveLength(0);
-	});
-
-	it('includes an event exactly 60 days in the future (window upper boundary)', () => {
+	it('includes an event 14 days ahead (window upper boundary)', () => {
 		const text = ics([
 			vevent({
 				uid: 'upper-boundary',
-				dtstart: 'DTSTART:20261008T120000Z', // exactly NOW + 60 days
+				dtstart: 'DTSTART:20260823T235900Z', // late on the 14th day ahead
 				summary: 'Upper Boundary [CS 4641]'
 			})
 		]);
@@ -203,11 +189,11 @@ describe('parseLmsIcal', () => {
 		expect(result).toHaveLength(1);
 	});
 
-	it('excludes an event 61 days in the future (just past the upper boundary)', () => {
+	it('excludes an event 15 days ahead (just past the upper boundary)', () => {
 		const text = ics([
 			vevent({
 				uid: 'above-upper-boundary',
-				dtstart: 'DTSTART:20261009T120000Z', // NOW + 61 days
+				dtstart: 'DTSTART:20260824T120000Z', // morning of the 15th day ahead
 				summary: 'Above Upper Boundary [CS 4641]'
 			})
 		]);

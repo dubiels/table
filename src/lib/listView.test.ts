@@ -7,6 +7,7 @@ import {
 	sortTasks,
 	localDateString,
 	NO_CATEGORY,
+	CANVAS_CATEGORY,
 	type ListTask,
 	type ListZone
 } from './listView';
@@ -37,6 +38,7 @@ function task(overrides: Partial<ListTask> & { id: string }): ListTask {
 		priority: null,
 		dueDate: null,
 		notes: null,
+		source: 'manual',
 		x: -1000,
 		y: -1000,
 		...overrides
@@ -69,6 +71,21 @@ describe('categoryNameFor / categoryKeyFor', () => {
 		expect(categoryNameFor(t, [work, home])).toBe('—');
 		expect(categoryKeyFor(t, [work, home])).toBe(NO_CATEGORY);
 	});
+
+	it('categorises a Canvas assignment by its source, not by where it sits', () => {
+		// Synced assignments are placed on the canvas only because the row needs
+		// coordinates; they are not shown there, so the zone they happen to land
+		// in says nothing about them.
+		const t = task({ id: '1', source: 'canvas', x: 100, y: 100 });
+		expect(categoryNameFor(t, [work, home])).toBe('Canvas');
+		expect(categoryKeyFor(t, [work, home])).toBe(CANVAS_CATEGORY);
+	});
+
+	it('keeps the Canvas category for an assignment placed loose', () => {
+		const t = task({ id: '1', source: 'canvas', x: -1000, y: -1000 });
+		expect(categoryNameFor(t, [work, home])).toBe('Canvas');
+		expect(categoryKeyFor(t, [work, home])).toBe(CANVAS_CATEGORY);
+	});
 });
 
 describe('categoryColorFor', () => {
@@ -79,6 +96,11 @@ describe('categoryColorFor', () => {
 
 	it('returns null for a loose task', () => {
 		const t = task({ id: '1', x: -1000, y: -1000 });
+		expect(categoryColorFor(t, [work, home])).toBeNull();
+	});
+
+	it('returns null for a Canvas assignment sitting inside a zone', () => {
+		const t = task({ id: '1', source: 'canvas', x: 100, y: 100 });
 		expect(categoryColorFor(t, [work, home])).toBeNull();
 	});
 });
@@ -117,6 +139,29 @@ describe('filterTasks', () => {
 			today
 		);
 		expect(result.map((t) => t.id)).toEqual(['2']);
+	});
+
+	it('excludes Canvas assignments when CANVAS_CATEGORY is deselected', () => {
+		const assignment = task({ id: '1', source: 'canvas', x: 100, y: 100 });
+		const inWork = task({ id: '2', x: 100, y: 100 });
+		const result = filterTasks(
+			[assignment, inWork],
+			[work, home],
+			{ deselectedCategories: new Set([CANVAS_CATEGORY]), due: 'all', priority: 'all' },
+			today
+		);
+		expect(result.map((t) => t.id)).toEqual(['2']);
+	});
+
+	it('keeps Canvas assignments when the zone they sit in is deselected', () => {
+		const assignment = task({ id: '1', source: 'canvas', x: 100, y: 100 });
+		const result = filterTasks(
+			[assignment],
+			[work, home],
+			{ deselectedCategories: new Set(['work']), due: 'all', priority: 'all' },
+			today
+		);
+		expect(result.map((t) => t.id)).toEqual(['1']);
 	});
 
 	it('excludes loose tasks when NO_CATEGORY is deselected', () => {
@@ -235,6 +280,15 @@ describe('sortTasks', () => {
 		const loose = task({ id: 'loose', x: -1000, y: -1000 });
 		const result = sortTasks([loose, inHome, inWork], [work, home], 'category', 'asc');
 		expect(result.map((t) => t.id)).toEqual(['home', 'work', 'loose']);
+	});
+
+	it('sorts Canvas assignments by name alongside the zone categories', () => {
+		const inHome = task({ id: 'home', x: 550, y: 50 });
+		const inWork = task({ id: 'work', x: 100, y: 100 });
+		const assignment = task({ id: 'assignment', source: 'canvas', x: -1000, y: -1000 });
+		const loose = task({ id: 'loose', x: -1000, y: -1000 });
+		const result = sortTasks([loose, inHome, assignment, inWork], [work, home], 'category', 'asc');
+		expect(result.map((t) => t.id)).toEqual(['assignment', 'home', 'work', 'loose']);
 	});
 
 	it('sorts by priority low to high with unset priority last', () => {
