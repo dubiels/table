@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance, deserialize } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import TaskCard from './TaskCard.svelte';
 	import TaskDetailModal from './TaskDetailModal.svelte';
 	import ZoneColorPicker from './ZoneColorPicker.svelte';
@@ -15,7 +15,7 @@
 		boundsIncluding,
 		type ZoneColor
 	} from '$lib/zones';
-	import { SvelteMap } from 'svelte/reactivity';
+	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
 	type Task = {
 		id: string;
@@ -56,6 +56,20 @@
 	// full reload to re-seed a locally-owned map.
 	let dragTask = new SvelteMap<string, { x: number; y: number }>();
 	let dragZone = new SvelteMap<string, Rect>();
+
+	// `kind:id` of everything the server has not confirmed yet — a pointer still
+	// down, or a save still in flight. Their overrides are the only current
+	// truth, so the prune pass below has to leave them alone. It is read
+	// untracked on purpose: pruning the instant a save settles would drop the
+	// override while the props still hold the pre-drag position, snapping the
+	// card backwards until the next load.
+	const unsettled = new SvelteSet<string>();
+	function markUnsettled(kind: 'task' | 'zone', id: string) {
+		unsettled.add(`${kind}:${id}`);
+	}
+	function markSettled(kind: 'task' | 'zone', id: string) {
+		unsettled.delete(`${kind}:${id}`);
+	}
 
 	// Live preview while dragging a task near another loose task or an existing
 	// zone's edge — an organic outline shows what would happen on drop.
@@ -142,6 +156,38 @@
 	$effect(() => {
 		window.addEventListener('keydown', handleZoomKeydown);
 		return () => window.removeEventListener('keydown', handleZoomKeydown);
+	});
+
+	// An override is a short-lived shadow over the props, but nothing ever took
+	// it back down: once a task had been dragged — or merely tapped, since up()
+	// re-sets the override on a click — its entry masked the props forever, so a
+	// position changed by an LMS sync or another device could not render without
+	// a full reload, and the maps grew without bound.
+	//
+	// Fresh props are the newest truth for everything the server has already
+	// confirmed, so on every props change drop those overrides plus any left
+	// behind by a deleted task/zone. Items still unsettled keep theirs.
+	$effect(() => {
+		// Geometry is read (not just ids) so the pass also re-runs when the server
+		// moves something that is already on screen.
+		const liveTasks = tasks.map((t) => ({ id: t.id, x: t.x, y: t.y }));
+		const liveZones = zones.map((z) => ({
+			id: z.id,
+			x: z.x,
+			y: z.y,
+			width: z.width,
+			height: z.height
+		}));
+		untrack(() => {
+			const taskIds = new Set(liveTasks.map((t) => t.id));
+			for (const id of [...dragTask.keys()]) {
+				if (!taskIds.has(id) || !unsettled.has(`task:${id}`)) dragTask.delete(id);
+			}
+			const zoneIds = new Set(liveZones.map((z) => z.id));
+			for (const id of [...dragZone.keys()]) {
+				if (!zoneIds.has(id) || !unsettled.has(`zone:${id}`)) dragZone.delete(id);
+			}
+		});
 	});
 
 	function taskXY(t: Task) {
@@ -339,6 +385,7 @@
 		width?: number,
 		height?: number
 	) {
+		markUnsettled(kind, id);
 		try {
 			const res = await fetch('/api/positions', {
 				method: 'POST',
@@ -353,6 +400,8 @@
 			}
 		} catch (err) {
 			console.error(`Could not save ${kind} ${id} position`, err);
+		} finally {
+			markSettled(kind, id);
 		}
 	}
 
@@ -517,6 +566,7 @@
 		const baseWidth = start.width;
 		const baseHeight = start.height;
 		const pointerId = e.pointerId;
+		markUnsettled('zone', zone.id);
 
 		function cleanup() {
 			window.removeEventListener('pointermove', move);
@@ -556,6 +606,7 @@
 		function cancel(ev: PointerEvent) {
 			if (ev.pointerId !== pointerId) return;
 			cleanup();
+			markSettled('zone', zone.id);
 		}
 		window.addEventListener('pointermove', move);
 		window.addEventListener('pointerup', up);
@@ -577,6 +628,7 @@
 		const baseY = base.y;
 		const pointerId = e.pointerId;
 		let traveled = 0;
+		markUnsettled(kind, id);
 
 		function cleanup() {
 			window.removeEventListener('pointermove', move);
@@ -640,7 +692,9 @@
 			cleanup();
 
 			if (traveled < CLICK_MOVE_THRESHOLD) {
-				// A tap, not a drag: revert any micro-jitter.
+				// A tap, not a drag: revert any micro-jitter. Nothing is saved, so
+				// the override is settled the moment it is written back.
+				markSettled(kind, id);
 				clusterTarget = null;
 				previewRect = null;
 				if (kind === 'task') {
@@ -693,6 +747,7 @@
 		function cancel(ev: PointerEvent) {
 			if (ev.pointerId !== pointerId) return;
 			cleanup();
+			markSettled(kind, id);
 			if (kind === 'task') {
 				clusterTarget = null;
 				previewRect = null;
