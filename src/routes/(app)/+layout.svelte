@@ -1,12 +1,17 @@
 <script lang="ts">
-	let { children } = $props();
+	import TopBar from '$lib/components/TopBar.svelte';
+	import Toasts from '$lib/components/Toasts.svelte';
+
+	let { data, children } = $props();
 </script>
 
 <div class="app-shell">
+	<TopBar user={data.user} unreadCount={data.unreadCount} />
 	<main>
 		{@render children()}
 	</main>
 </div>
+<Toasts />
 
 <style>
 	.app-shell {

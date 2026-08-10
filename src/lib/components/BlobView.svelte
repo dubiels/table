@@ -16,6 +16,7 @@
 		type ZoneColor
 	} from '$lib/zones';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
+	import { toast } from '$lib/toast.svelte';
 
 	type Task = {
 		id: string;
@@ -437,9 +438,11 @@
 			// this the divergence is completely invisible until the next reload.
 			if (!res.ok) {
 				console.error(`Could not save ${kind} ${id} position: HTTP ${res.status}`);
+				toast('Could not save position', 'error');
 			}
 		} catch (err) {
 			console.error(`Could not save ${kind} ${id} position`, err);
+			toast('Could not save position', 'error');
 		} finally {
 			markSettled(kind, id);
 		}
