@@ -54,7 +54,9 @@ Table can pull assignments from Canvas's calendar feed and place them on the boa
    sqlite3 data/table.sqlite "select id, name from zones;"
    ```
    Leave `LMS_ZONE_ID` unset to place synced tasks loose on the open table instead.
-4. `LMS_SYNC_CRON` controls how often sync runs automatically (default every 6 hours). You can also trigger a sync on demand any time from the user menu ("Sync assignments").
+4. `LMS_SYNC_CRON` controls how often sync runs automatically (default every 6 hours). You can also trigger a sync on demand any time — from the **Canvas** panel on the board, or from the user menu ("Sync assignments").
+
+The **Canvas** button above the board opens a panel with the synced assignments grouped by course. Before `LMS_ICAL_URL` is set it shows this setup guide instead, along with your zone ids and a copy button for each — which saves the `sqlite3` lookup in step 3.
 
 A sync only ever creates new tasks or refreshes the `dueDate` on ones it created before — it never touches a task's title, notes, priority, position, or completion state, and it never deletes anything. Running sync again against the same feed creates nothing new for assignments it's already imported.
 

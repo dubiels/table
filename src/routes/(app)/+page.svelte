@@ -6,6 +6,7 @@
 	import ViewSwitcher from '$lib/components/ViewSwitcher.svelte';
 	import AgendaRail from '$lib/components/AgendaRail.svelte';
 	import Mascot from '$lib/components/Mascot.svelte';
+	import LmsPanel from '$lib/components/LmsPanel.svelte';
 	import { localDateString } from '$lib/listView';
 	let { data } = $props();
 
@@ -57,6 +58,16 @@
 		mq.addEventListener('change', apply);
 		return () => mq.removeEventListener('change', apply);
 	});
+
+	let lmsOpen = $state(false);
+	// Handed to the panel so its outside-click test can exclude this button —
+	// otherwise the capture listener would close the drawer on the same click
+	// that reopens it, and the toggle would only ever appear to do nothing.
+	let lmsButtonEl = $state<HTMLButtonElement | null>(null);
+	function closeLms(refocus = false) {
+		lmsOpen = false;
+		if (refocus) lmsButtonEl?.focus();
+	}
 </script>
 
 <div class="page-toolbar">
@@ -68,7 +79,26 @@
 			{ value: 'bento', label: 'Bento' }
 		]}
 	/>
+	<button
+		type="button"
+		class="btn btn-ghost lms-toggle"
+		bind:this={lmsButtonEl}
+		aria-expanded={lmsOpen}
+		aria-controls="lms-panel"
+		onclick={() => (lmsOpen = !lmsOpen)}
+	>
+		<span aria-hidden="true">🎓</span> Canvas
+	</button>
 </div>
+
+<LmsPanel
+	open={lmsOpen}
+	configured={data.lmsConfigured}
+	tasks={data.tasks}
+	zones={data.zones}
+	anchor={lmsButtonEl}
+	onclose={closeLms}
+/>
 
 <div class="board-row">
 	<div class="board-main">
@@ -94,8 +124,15 @@
 	.page-toolbar {
 		display: flex;
 		align-items: center;
+		gap: 0.6rem;
 		margin-bottom: 0.85rem;
 		flex-shrink: 0;
+	}
+
+	.lms-toggle {
+		padding: 0.32rem 0.85rem;
+		font-size: 0.82rem;
+		font-weight: 600;
 	}
 
 	.board-row {

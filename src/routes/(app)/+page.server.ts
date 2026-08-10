@@ -1,6 +1,7 @@
 import type { PageServerLoad, Actions } from './$types';
 import { z } from 'zod';
 import { fail } from '@sveltejs/kit';
+import { env } from '$env/dynamic/private';
 import * as zonesService from '$lib/server/zones/service';
 import * as tasksService from '$lib/server/tasks/service';
 import { getAgenda } from '$lib/server/gcal/service';
@@ -13,7 +14,11 @@ export const load: PageServerLoad = async () => {
 		zonesService.listZones(),
 		getAgenda().catch(() => [])
 	]);
-	return { tasks, zones, agenda };
+	// Whether the feed URL exists, never the URL itself — it is a bearer secret,
+	// and the panel only needs to know which of its two faces to show. The same
+	// pair of names syncLmsAssignments() reads, so the two can never disagree.
+	const lmsConfigured = Boolean(env.LMS_ICAL_URL ?? env.CANVAS_ICAL_URL);
+	return { tasks, zones, agenda, lmsConfigured };
 };
 
 const newTaskSchema = z.object({
