@@ -7,6 +7,7 @@
 		categoryColorFor,
 		sortTasks,
 		filterTasks,
+		localDateString,
 		NO_CATEGORY,
 		type ListTask,
 		type ListZone,
@@ -23,7 +24,7 @@
 
 	let { tasks, zones }: { tasks: ListTask[]; zones: ListZone[] } = $props();
 
-	let today = new Date().toISOString().slice(0, 10);
+	let today = localDateString();
 
 	let sortField = $state<SortField>('dueDate');
 	let sortDirection = $state<SortDirection>('asc');

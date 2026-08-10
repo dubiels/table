@@ -36,10 +36,28 @@ export function categoryKeyFor(task: Pick<ListTask, 'x' | 'y'>, zones: ListZone[
 }
 
 /** The owning zone's color for a task, or null for a loose task. */
-export function categoryColorFor(task: Pick<ListTask, 'x' | 'y'>, zones: ListZone[]): string | null {
+export function categoryColorFor(
+	task: Pick<ListTask, 'x' | 'y'>,
+	zones: ListZone[]
+): string | null {
 	const hit = zoneForTask(taskCenter(task), zones);
 	if (!hit) return null;
 	return zones.find((z) => z.id === hit.id)?.color ?? null;
+}
+
+/**
+ * `date` as a local calendar date in `YYYY-MM-DD`.
+ *
+ * Task due dates are stored as the date the user picked, with no time or zone
+ * attached. `new Date().toISOString()` answers a different question — where the
+ * current instant falls on the UTC calendar — so anywhere west of Greenwich it
+ * rolls over to tomorrow during the evening, and everything due today starts
+ * reading as overdue hours early.
+ */
+export function localDateString(date = new Date()): string {
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
+	return `${date.getFullYear()}-${month}-${day}`;
 }
 
 function addDays(dateStr: string, days: number): string {

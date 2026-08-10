@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { localDateString } from '$lib/listView';
 
 	let {
 		task,
@@ -17,7 +18,7 @@
 		onclick?: () => void;
 	} = $props();
 
-	let today = new Date().toISOString().slice(0, 10);
+	let today = localDateString();
 	let overdue = $derived(!!task.dueDate && task.dueDate < today && !task.done);
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -30,7 +31,6 @@
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
 	class="card"
@@ -50,7 +50,6 @@
 	{/if}
 	<div class="row-main">
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<form method="POST" action="?/toggleTaskDone" use:enhance onclick={(e) => e.stopPropagation()}>
 			<input type="hidden" name="id" value={task.id} />
