@@ -6,6 +6,7 @@ primary_region = "sjc"
 [env]
   DATABASE_PATH = "/data/table.sqlite"
   PORT = "3000"
+  TZ = "America/New_York"
 
 [[mounts]]
   source = "table_data"
