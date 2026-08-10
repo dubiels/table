@@ -33,7 +33,9 @@ export const tasks = sqliteTable('tasks', {
 	priority: text('priority', { enum: ['low', 'med', 'high'] }),
 	done: integer('done', { mode: 'boolean' }).notNull().default(false),
 	completedAt: text('completed_at'),
-	source: text('source', { enum: ['manual', 'canvas'] }).notNull().default('manual'),
+	source: text('source', { enum: ['manual', 'canvas'] })
+		.notNull()
+		.default('manual'),
 	externalId: text('external_id'),
 	courseName: text('course_name'),
 	x: integer('x').notNull().default(0),

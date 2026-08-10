@@ -35,7 +35,7 @@ reliable endpoint is worse than no endpoint.
   section. Table owns assignments only.
 - **No dark theme in Table.** The wall display is near-black with an amber accent; Table
   stays warm-light. These are different media (a phone in the hand vs. a wall panel in a
-  dim room) and should not share tokens. See §5 for the one thing that *is* shared.
+  dim room) and should not share tokens. See §5 for the one thing that _is_ shared.
 - **No new views or UI surfaces**, beyond the manual sync trigger in B4.
 
 ---
@@ -50,22 +50,20 @@ Returns everything the display needs in a single request:
 
 ```jsonc
 {
-  "generatedAt": "2026-08-09T12:30:00.000Z",
-  "timezone": "America/New_York",
-  "tasks": [
-    {
-      "id": "…",
-      "title": "problem set 3",
-      "dueDate": "2026-08-09",      // YYYY-MM-DD, may be null
-      "priority": "high",            // low | med | high | null
-      "source": "canvas",            // manual | canvas
-      "courseName": "CS 4641",       // may be null
-      "zone": { "id": "…", "name": "School", "color": "sage" } // null when loose
-    }
-  ],
-  "zones": [
-    { "id": "…", "name": "School", "color": "sage" }
-  ]
+	"generatedAt": "2026-08-09T12:30:00.000Z",
+	"timezone": "America/New_York",
+	"tasks": [
+		{
+			"id": "…",
+			"title": "problem set 3",
+			"dueDate": "2026-08-09", // YYYY-MM-DD, may be null
+			"priority": "high", // low | med | high | null
+			"source": "canvas", // manual | canvas
+			"courseName": "CS 4641", // may be null
+			"zone": { "id": "…", "name": "School", "color": "sage" } // null when loose
+		}
+	],
+	"zones": [{ "id": "…", "name": "School", "color": "sage" }]
 }
 ```
 
@@ -77,7 +75,7 @@ Requirements:
 - Sorted by `dueDate` ascending, nulls last, then `priority` desc, then `title`.
 - `zone` is resolved server-side via the existing pure functions —
   `zoneForTask(taskCenter(task), zones)`. Do not reimplement the geometry, and do not ship
-  raw `x`/`y` to the client. The display consumes zone *identity*, not coordinates.
+  raw `x`/`y` to the client. The display consumes zone _identity_, not coordinates.
 - Omit `x`, `y`, `sortOrder`, `notes`, `externalId`. Keep the payload to what renders.
 - Cache-Control: `no-store`.
 
@@ -151,7 +149,7 @@ which restores the §4 invariant that grouping is computed, never stored.
 
 ### B3. Spread placement
 
-New tasks currently land at the zone's top-left + 20px — *all of them* — so a sync pulling
+New tasks currently land at the zone's top-left + 20px — _all of them_ — so a sync pulling
 six assignments stacks six cards nearly on top of each other, requiring manual dragging
 every cycle.
 
@@ -195,7 +193,7 @@ kind:
 ## 5. The one shared thing
 
 `ZONE_COLORS` (`sage | sky | butter | blush | lilac | clay`) should map to muted
-dark-theme equivalents on the display, so a zone reads as the same *identity* in both
+dark-theme equivalents on the display, so a zone reads as the same _identity_ in both
 places while being tuned for a dim room. The endpoint returns the color **token name**,
 never a hex value — the display owns its own palette. Do not export hex from Table for
 this purpose.

@@ -61,9 +61,10 @@ rather than an edge-to-edge grid. CSS `transition` on position/size gives the
 reflow a smooth animated feel rather than a snap.
 
 **Rejected alternatives:**
-- *Grid with size tiers* (span 1/2/3 grid cells by count bucket) — simpler,
+
+- _Grid with size tiers_ (span 1/2/3 grid cells by count bucket) — simpler,
   but not truly proportional and was explicitly not what was asked for.
-- *Uniform boxes that just wrap* — simplest, but not "smart-sized" at all.
+- _Uniform boxes that just wrap_ — simplest, but not "smart-sized" at all.
 
 ## Grouping / Uncategorized
 
@@ -84,6 +85,7 @@ zero active tasks, at the algorithm's minimum weight, showing a muted
 ## Box contents
 
 Each box:
+
 - Header: zone name + active task count.
 - Background/border tinted from `ZONE_COLORS[zone.color]` (Uncategorized:
   neutral, as above).
@@ -145,12 +147,13 @@ Everything Bento mode needs (`tasks`, `zones`) is already returned by
 
 - `src/routes/(app)/+page.svelte` — `view` state type becomes
   `'blob' | 'list' | 'bento'`; dropdown gets a third `<option value="bento">
-  Bento view</option>`; render branch adds the `BentoView` case, evaluated
+Bento view</option>`; render branch adds the `BentoView` case, evaluated
   before the `isMobile` branch (same as List view).
 
 ## Testing
 
 Unit tests for the new pure functions in `bento.test.ts`:
+
 - `groupTasksByZone` — correct bucketing including the Uncategorized case,
   matches `zoneForTask`/`taskCenter` semantics.
 - `computeTreemap` — output rects exactly tile the input width/height with

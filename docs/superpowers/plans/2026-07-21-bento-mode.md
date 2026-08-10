@@ -24,10 +24,12 @@
 ### Task 1: `src/lib/bento.ts` — pure grouping + treemap + task-placement helpers
 
 **Files:**
+
 - Create: `src/lib/bento.ts`
 - Test: `src/lib/bento.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Point`, `ZoneBounds`, `zoneForTask`, `taskCenter`, `DEFAULT_CARD` from `src/lib/zones.ts` (all already exist, see `src/lib/zones.ts:1-51`).
 - Produces (used by Task 2):
   - `export const UNCATEGORIZED_ID = 'uncategorized'`
@@ -71,8 +73,24 @@ function task(overrides: Partial<BentoTask> & { id: string }): BentoTask {
 	};
 }
 
-const work: BentoZone = { id: 'work', name: 'Work', color: 'sky', x: 0, y: 0, width: 400, height: 400 };
-const home: BentoZone = { id: 'home', name: 'Home', color: 'blush', x: 500, y: 0, width: 200, height: 200 };
+const work: BentoZone = {
+	id: 'work',
+	name: 'Work',
+	color: 'sky',
+	x: 0,
+	y: 0,
+	width: 400,
+	height: 400
+};
+const home: BentoZone = {
+	id: 'home',
+	name: 'Home',
+	color: 'blush',
+	x: 500,
+	y: 0,
+	width: 200,
+	height: 200
+};
 
 describe('groupTasksByZone', () => {
 	it('buckets tasks into their owning zone, matching zoneForTask/taskCenter', () => {
@@ -171,7 +189,7 @@ describe('zoneCenterPoint', () => {
 });
 
 describe('findUncategorizedPoint', () => {
-	it("returns a point whose taskCenter is outside every given zone", () => {
+	it('returns a point whose taskCenter is outside every given zone', () => {
 		const zones: ZoneBounds[] = [work, home];
 		const point = findUncategorizedPoint(zones);
 		expect(zoneForTask(taskCenter(point), zones)).toBeNull();
@@ -342,16 +360,38 @@ function layoutRow(
 	for (let i = 0; i < row.length; i++) {
 		const extent = areas[i] / thickness;
 		if (horizontal) {
-			rects.push({ id: row[i].id, x: container.x + offset, y: container.y, width: extent, height: thickness });
+			rects.push({
+				id: row[i].id,
+				x: container.x + offset,
+				y: container.y,
+				width: extent,
+				height: thickness
+			});
 		} else {
-			rects.push({ id: row[i].id, x: container.x, y: container.y + offset, width: thickness, height: extent });
+			rects.push({
+				id: row[i].id,
+				x: container.x,
+				y: container.y + offset,
+				width: thickness,
+				height: extent
+			});
 		}
 		offset += extent;
 	}
 
 	return horizontal
-		? { x: container.x, y: container.y + thickness, width: container.width, height: container.height - thickness }
-		: { x: container.x + thickness, y: container.y, width: container.width - thickness, height: container.height };
+		? {
+				x: container.x,
+				y: container.y + thickness,
+				width: container.width,
+				height: container.height - thickness
+			}
+		: {
+				x: container.x + thickness,
+				y: container.y,
+				width: container.width - thickness,
+				height: container.height
+			};
 }
 
 /** Top-left point whose `taskCenter` lands exactly on the zone's geometric center. */
@@ -393,9 +433,11 @@ git commit -m "feat: add bento treemap grouping/layout pure functions"
 ### Task 2: `src/lib/components/BentoView.svelte` — the tiled grid
 
 **Files:**
+
 - Create: `src/lib/components/BentoView.svelte`
 
 **Interfaces:**
+
 - Consumes from Task 1 (`src/lib/bento.ts`): `groupTasksByZone`, `computeTreemap`, `zoneCenterPoint`, `findUncategorizedPoint`, `UNCATEGORIZED_ID`, `BentoTask`, `BentoZone`, `TreemapRect`.
 - Consumes from `src/lib/zones.ts`: `ZONE_COLORS`, `ZoneColor`.
 - Reuses unchanged: `TaskCard.svelte` (props: `task`, `zoneColor?`, `onclick?` — see `src/lib/components/TaskCard.svelte:4-18`), `AddTaskForm.svelte` (props: `x?`, `y?` — see `src/lib/components/AddTaskForm.svelte:3`), `TaskDetailModal.svelte` (props: `task`, `onclose` — see `src/lib/components/TaskDetailModal.svelte:4-16`).
@@ -565,9 +607,11 @@ git commit -m "feat: add BentoView treemap grid component"
 ### Task 3: Wire Bento view into the toolbar switcher
 
 **Files:**
+
 - Modify: `src/routes/(app)/+page.svelte`
 
 **Interfaces:**
+
 - Consumes from Task 2: `BentoView.svelte` with props `{ tasks: BentoTask[]; zones: BentoZone[] }` (structurally compatible with `data.tasks`/`data.zones` — same fields `ListView`/`BlobView` already consume from `+page.server.ts`'s `load`).
 
 - [ ] **Step 1: Add the import and widen the view type**
@@ -575,18 +619,16 @@ git commit -m "feat: add BentoView treemap grid component"
 In `src/routes/(app)/+page.svelte`, change:
 
 ```svelte
-	import BlobView from '$lib/components/BlobView.svelte';
-	import MobileColumns from '$lib/components/MobileColumns.svelte';
-	import ListView from '$lib/components/ListView.svelte';
+import BlobView from '$lib/components/BlobView.svelte'; import MobileColumns from
+'$lib/components/MobileColumns.svelte'; import ListView from '$lib/components/ListView.svelte';
 ```
 
 to:
 
 ```svelte
-	import BlobView from '$lib/components/BlobView.svelte';
-	import MobileColumns from '$lib/components/MobileColumns.svelte';
-	import ListView from '$lib/components/ListView.svelte';
-	import BentoView from '$lib/components/BentoView.svelte';
+import BlobView from '$lib/components/BlobView.svelte'; import MobileColumns from
+'$lib/components/MobileColumns.svelte'; import ListView from '$lib/components/ListView.svelte';
+import BentoView from '$lib/components/BentoView.svelte';
 ```
 
 and change:
@@ -606,20 +648,20 @@ to:
 Change:
 
 ```svelte
-			<select class="btn btn-ghost view-select" bind:value={view}>
-				<option value="blob">Blob view</option>
-				<option value="list">List view</option>
-			</select>
+<select class="btn btn-ghost view-select" bind:value={view}>
+	<option value="blob">Blob view</option>
+	<option value="list">List view</option>
+</select>
 ```
 
 to:
 
 ```svelte
-			<select class="btn btn-ghost view-select" bind:value={view}>
-				<option value="blob">Blob view</option>
-				<option value="list">List view</option>
-				<option value="bento">Bento view</option>
-			</select>
+<select class="btn btn-ghost view-select" bind:value={view}>
+	<option value="blob">Blob view</option>
+	<option value="list">List view</option>
+	<option value="bento">Bento view</option>
+</select>
 ```
 
 - [ ] **Step 3: Add the render branch**

@@ -9,15 +9,26 @@ const vapidPrivateKey = env.VAPID_PRIVATE_KEY ?? '';
 const vapidConfigured = vapidPublicKey.length > 0 && vapidPrivateKey.length > 0;
 
 if (vapidConfigured) {
-	webpush.setVapidDetails(env.VAPID_SUBJECT ?? 'mailto:admin@example.com', vapidPublicKey, vapidPrivateKey);
+	webpush.setVapidDetails(
+		env.VAPID_SUBJECT ?? 'mailto:admin@example.com',
+		vapidPublicKey,
+		vapidPrivateKey
+	);
 } else {
-	console.warn('VAPID keys not configured; push notifications are disabled until Task 9 registers them.');
+	console.warn(
+		'VAPID keys not configured; push notifications are disabled until Task 9 registers them.'
+	);
 }
 
-export async function sendPushToUser(userId: string, payload: { title: string; body: string; url?: string }) {
+export async function sendPushToUser(
+	userId: string,
+	payload: { title: string; body: string; url?: string }
+) {
 	if (!vapidConfigured) return;
 
-	const subs = await db.query.pushSubscriptions.findMany({ where: eq(pushSubscriptions.userId, userId) });
+	const subs = await db.query.pushSubscriptions.findMany({
+		where: eq(pushSubscriptions.userId, userId)
+	});
 
 	for (const sub of subs) {
 		try {

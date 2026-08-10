@@ -16,15 +16,15 @@ dragged outside the visible viewport. For zoom-out to mean anything, that
 has to change: the canvas becomes a fixed-size viewport onto a "world" that
 can be bigger than what's currently on screen.
 
-- `worldSize()` = the bounding box of every zone's and task's *current
-  committed* position/size (from the `tasks`/`zones` props — not live drag
+- `worldSize()` = the bounding box of every zone's and task's _current
+  committed_ position/size (from the `tasks`/`zones` props — not live drag
   state), padded by a fixed `WORLD_PAD = 40`px on all sides, floored at the
   canvas's natural (unscaled) size (`canvasEl.clientWidth`/`clientHeight`).
 - With modest content this equals the natural viewport size, so behavior is
   unchanged from today. Once zones/tasks spread past the edge, `worldSize`
   grows to contain them.
 - `clampPoint`/`clampRect` swap their ceiling from `canvasEl.clientWidth /
-  clientHeight` to `worldSize()`. This is the one behavioral change outside
+clientHeight` to `worldSize()`. This is the one behavioral change outside
   zoom itself: drag, resize, and composer placement can now reach past the
   edge of what's currently visible on screen, because the world can now
   exceed the viewport.
@@ -43,8 +43,8 @@ can be bigger than what's currently on screen.
   deleting content raises it.
 - If the current zoom level ends up below the (now higher) minimum — e.g.
   after a delete shrinks the world — it's clamped up automatically. Zoom
-  never auto-*decreases*: growing the world only widens how far out you're
-  *allowed* to go, it doesn't move your current view. The guarantee is only
+  never auto-_decreases_: growing the world only widens how far out you're
+  _allowed_ to go, it doesn't move your current view. The guarantee is only
   that zooming all the way out always shows everything, not that everything
   is always immediately visible without pressing `-`.
 - Step size: **10% per press/click**, snapped to the `[min, 100%]` range.
@@ -101,7 +101,7 @@ produce.
 ## Unchanged / explicitly out of scope
 
 - No panning or scrolling. Since max zoom is capped at today's normal size
-  and zoom-out only ever shrinks the world *toward* the viewport, nothing
+  and zoom-out only ever shrinks the world _toward_ the viewport, nothing
   is ever clipped — there's no scenario left that panning would solve.
 - No zoom-level persistence across page loads.
 - `TaskDetailModal` (task detail panel) renders outside `.canvas` entirely

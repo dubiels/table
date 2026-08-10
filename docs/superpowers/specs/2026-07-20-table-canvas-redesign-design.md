@@ -39,17 +39,20 @@ minimal "loose area" bolt-on (doesn't deliver the standalone-primary vision).
 ## Data model
 
 ### `tasks`
+
 - **Drop `topicId`** entirely — category is geometric, never stored.
 - **Add `x`, `y`** (integer canvas pixels; top-left anchor of the card).
 - **Repurpose `sortOrder` as z-order** (stacking; bring-to-front on drag).
 - Keep `title`, `notes`, `dueDate`, `priority`, `done`, `createdAt`.
 
 ### `topics` → `zones`
+
 New shape: `{ id, name, color, x, y, width, height, createdAt }`.
 Drop `status` and `sortOrder`; add geometry + `color` (a key into the zone
 palette, see Design language).
 
 ### Migration
+
 - Each existing topic becomes a zone, laid out left-to-right across the canvas.
 - Each topic's tasks get scattered to x/y inside that zone's bounds.
 - Any task without a topic lands loose on the table.
@@ -101,7 +104,7 @@ zoneForTask(task, zones) -> zone | null
 - **`TableCanvas.svelte`** (desktop): zone rectangles rendered behind, draggable
   task cards in front, everything unfolded. Drag a card → persist x/y + bring to
   front. Create/rename/resize/delete zones. Cards keep the existing priority pill
-  + due chip and the click-to-open edit modal.
+  - due chip and the click-to-open edit modal.
 - **`MobileColumns.svelte`** (< ~720px): one neat column per zone (in zone order)
   plus an "On the table" column for loose tasks, grouped via `zoneForTask`.
   Check-done, edit content, add tasks. No repositioning / zone-drawing on mobile.
@@ -122,6 +125,7 @@ a muted warm charcoal — all real color comes from the zone fills and priority
 tints, keeping the surface calm (closest to Granola's notes-app restraint).
 
 ### Core tokens (replace current `:root`)
+
 ```
 --bg:            #F3EFE6;  /* warm oat — the table surface */
 --surface:       #FFFDF9;  /* warm white — note cards */
@@ -140,6 +144,7 @@ tints, keeping the surface calm (closest to Granola's notes-app restraint).
 ```
 
 ### Priority tints (warmed, still semantic)
+
 ```
 --prio-high-bg: #F4E0DC; --prio-high-fg: #B4372B;
 --prio-med-bg:  #F5E7CC; --prio-med-fg:  #9A6512;
@@ -147,7 +152,9 @@ tints, keeping the surface calm (closest to Granola's notes-app restraint).
 ```
 
 ### Zone palette (soft, low-saturation fills so cards read on top)
+
 Zones store a `color` key; each maps to a fill + border:
+
 ```
 sage   fill #E7EBDA border #CBD3B4
 sky    fill #DEE7EC border #BACBD6
@@ -158,6 +165,7 @@ clay   fill #EFDDD3 border #DDBBA6
 ```
 
 ### Type & shape
+
 - Keep the system sans stack (SF/Segoe/Roboto). Optionally warm the display via
   slightly tighter tracking; no web-font dependency.
 - Rounded, soft cards. Radii unchanged (`10/14/20px`). Softer, warmer shadows:
@@ -168,10 +176,12 @@ clay   fill #EFDDD3 border #DDBBA6
 - Cards may carry a very subtle warm paper feel (border + soft shadow, no skeuo).
 
 ### Motion
+
 - Card lifts slightly (scale + raised shadow) while dragging; settles on drop.
 - Everything else keeps the current gentle 0.12–0.18s easing.
 
 ## Out of scope (YAGNI)
+
 - Multi-user / sharing.
 - Zone nesting or non-rectangular zones.
 - Drag-to-reposition on mobile.
@@ -179,6 +189,7 @@ clay   fill #EFDDD3 border #DDBBA6
 - Auto-layout / auto-scatter (user chose freeform).
 
 ## Success criteria
+
 - A task can be added directly to the table with optional due date + priority,
   with no zone required.
 - Dragging a task/zone persists across reload.

@@ -22,6 +22,7 @@
 ### Task 1: Warm light design system
 
 **Files:**
+
 - Modify: `src/app.css:1-68` (replace `:root` tokens; delete dark-mode block)
 
 Independent of all other tasks (pure CSS). No unit test; verified via type/build check and visual inspection.
@@ -93,10 +94,12 @@ git commit -m "style: warm light Granola-inspired theme, drop dark mode"
 ### Task 2: `zoneForTask` geometric membership util
 
 **Files:**
+
 - Create: `src/lib/zones.ts`
 - Test: `src/lib/zones.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `interface Point { x: number; y: number }`
   - `interface ZoneBounds { id: string; x: number; y: number; width: number; height: number }`
@@ -188,11 +191,7 @@ export function taskCenter(task: Point, card = DEFAULT_CARD): Point {
  */
 export function zoneForTask(point: Point, zones: ZoneBounds[]): ZoneBounds | null {
 	const containing = zones.filter(
-		(z) =>
-			point.x >= z.x &&
-			point.x <= z.x + z.width &&
-			point.y >= z.y &&
-			point.y <= z.y + z.height
+		(z) => point.x >= z.x && point.x <= z.x + z.width && point.y >= z.y && point.y <= z.y + z.height
 	);
 	if (containing.length === 0) return null;
 	return containing.reduce((smallest, z) =>
@@ -231,10 +230,12 @@ git commit -m "feat: geometric zone-membership util and zone palette"
 ### Task 3: Schema + migration (zones table, task positions, drop topics)
 
 **Files:**
+
 - Modify: `src/lib/server/db/schema.ts:15-33`
 - Create: a new file under `drizzle/` (generated, then hand-edited for backfill)
 
 **Interfaces:**
+
 - Produces: `zones` table `{ id, name, color, x, y, width, height, createdAt }`; `tasks` table gains `x`, `y` (integer, not null, default 0) and loses `topicId`.
 
 - [ ] **Step 1: Edit the schema**
@@ -333,11 +334,13 @@ git commit -m "feat: zones table and task positions; drop topics"
 ### Task 4: Zones service
 
 **Files:**
+
 - Create: `src/lib/server/zones/service.ts`
 - Delete: `src/lib/server/topics/service.ts`
 - Test: `src/lib/server/zones/service.test.ts`
 
 **Interfaces:**
+
 - Consumes: `zones` table (Task 3).
 - Produces:
   - `type Zone = typeof zones.$inferSelect`
@@ -357,17 +360,36 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 const rows: any[] = [];
 vi.mock('../db', () => ({
 	db: {
-		insert: () => ({ values: (r: any) => { rows.push(r); return Promise.resolve(); } }),
+		insert: () => ({
+			values: (r: any) => {
+				rows.push(r);
+				return Promise.resolve();
+			}
+		}),
 		query: { zones: { findMany: () => Promise.resolve([...rows]) } },
-		update: () => ({ set: (patch: any) => ({ where: () => { Object.assign(rows[0], patch); return Promise.resolve(); } }) }),
-		delete: () => ({ where: () => { rows.length = 0; return Promise.resolve(); } })
+		update: () => ({
+			set: (patch: any) => ({
+				where: () => {
+					Object.assign(rows[0], patch);
+					return Promise.resolve();
+				}
+			})
+		}),
+		delete: () => ({
+			where: () => {
+				rows.length = 0;
+				return Promise.resolve();
+			}
+		})
 	}
 }));
 
 import * as zonesService from './service';
 
 describe('zones service', () => {
-	beforeEach(() => { rows.length = 0; });
+	beforeEach(() => {
+		rows.length = 0;
+	});
 
 	it('creates a zone with defaults', async () => {
 		const z = await zonesService.createZone({ name: 'Work' });
@@ -474,10 +496,12 @@ git commit -m "feat: zones service, remove topics service"
 ### Task 5: Tasks service rewrite
 
 **Files:**
+
 - Modify: `src/lib/server/tasks/service.ts` (full rewrite)
 - Test: `src/lib/server/tasks/service.test.ts` (create)
 
 **Interfaces:**
+
 - Consumes: `tasks` table (Task 3).
 - Produces:
   - `type Task = typeof tasks.$inferSelect`
@@ -500,22 +524,42 @@ let rows: any[] = [];
 let maxOrder = 0;
 vi.mock('../db', () => ({
 	db: {
-		insert: () => ({ values: (r: any) => { rows.push(r); return Promise.resolve(); } }),
+		insert: () => ({
+			values: (r: any) => {
+				rows.push(r);
+				return Promise.resolve();
+			}
+		}),
 		query: {
 			tasks: {
 				findMany: () => Promise.resolve([...rows]),
 				findFirst: () => Promise.resolve(rows[0])
 			}
 		},
-		update: () => ({ set: (patch: any) => ({ where: () => { Object.assign(rows[0], patch); return Promise.resolve(); } }) }),
-		delete: () => ({ where: () => { rows.length = 0; return Promise.resolve(); } })
+		update: () => ({
+			set: (patch: any) => ({
+				where: () => {
+					Object.assign(rows[0], patch);
+					return Promise.resolve();
+				}
+			})
+		}),
+		delete: () => ({
+			where: () => {
+				rows.length = 0;
+				return Promise.resolve();
+			}
+		})
 	}
 }));
 
 import * as tasksService from './service';
 
 describe('tasks service', () => {
-	beforeEach(() => { rows = []; maxOrder = 0; });
+	beforeEach(() => {
+		rows = [];
+		maxOrder = 0;
+	});
 
 	it('creates a standalone task with a position and no topic', async () => {
 		const t = await tasksService.createTask({ title: 'Buy milk', x: 12, y: 34 });
@@ -608,7 +652,10 @@ export async function updateTask(
 }
 
 export async function updateTaskPosition(id: string, x: number, y: number): Promise<void> {
-	await db.update(tasks).set({ x, y, sortOrder: await nextSortOrder() }).where(eq(tasks.id, id));
+	await db
+		.update(tasks)
+		.set({ x, y, sortOrder: await nextSortOrder() })
+		.where(eq(tasks.id, id));
 }
 
 export async function toggleTaskDone(id: string): Promise<Task> {
@@ -643,11 +690,13 @@ git commit -m "feat: standalone-task service with positions, drop topic coupling
 ### Task 6: Notifications + scheduler decoupled from topics
 
 **Files:**
+
 - Modify: `src/lib/server/notifications/digest.ts:1-7`
 - Modify: `src/lib/server/notifications/digest.test.ts:9-11`
 - Modify: `src/lib/server/scheduler/index.ts:5,30,41`
 
 **Interfaces:**
+
 - Consumes: `listActiveTasks()` (Task 5).
 
 - [ ] **Step 1: Update the failing test**
@@ -655,11 +704,11 @@ git commit -m "feat: standalone-task service with positions, drop topic coupling
 In `src/lib/server/notifications/digest.test.ts`, remove `topicName` from the three fixture objects (lines ~9-11) so they read:
 
 ```ts
-			const tasks = [
-				{ id: '1', title: 'Overdue thing', dueDate: '2026-07-17', done: false },
-				{ id: '2', title: 'Due today thing', dueDate: '2026-07-18', done: false },
-				{ id: '3', title: 'No due date', dueDate: null, done: false }
-			];
+const tasks = [
+	{ id: '1', title: 'Overdue thing', dueDate: '2026-07-17', done: false },
+	{ id: '2', title: 'Due today thing', dueDate: '2026-07-18', done: false },
+	{ id: '3', title: 'No due date', dueDate: null, done: false }
+];
 ```
 
 - [ ] **Step 2: Run the test to confirm the type gap**
@@ -683,6 +732,7 @@ export interface DigestTask {
 - [ ] **Step 4: Point the scheduler at `listActiveTasks`**
 
 In `src/lib/server/scheduler/index.ts`:
+
 - Line ~5: change the import to `import { listActiveTasks } from '../tasks/service';`
 - Lines ~30 and ~41: replace `await listAllActiveTasksWithTopics()` with `await listActiveTasks()`.
 
@@ -703,10 +753,12 @@ git commit -m "fix: loose tasks now included in digest and due-alerts"
 ### Task 7: Server load, actions, and position endpoint
 
 **Files:**
+
 - Modify: `src/routes/(app)/+page.server.ts` (full rewrite)
 - Create: `src/routes/api/positions/+server.ts`
 
 **Interfaces:**
+
 - Consumes: zones service (Task 4), tasks service (Task 5).
 - Produces: `load` returns `{ tasks: Task[]; zones: Zone[] }`. Actions: `createTask`, `updateTask`, `toggleTaskDone`, `deleteTask`, `createZone`, `renameZone`, `deleteZone`. Endpoint: `POST /api/positions`.
 
@@ -852,11 +904,13 @@ git commit -m "feat: flat task/zone load, zone actions, drag-position endpoint"
 ### Task 8: TaskCard + creation affordance
 
 **Files:**
+
 - Modify: `src/lib/components/TaskCard.svelte` (remove move form; make draggable-friendly)
 - Modify: `src/lib/components/TaskDetailModal.svelte` (no logic change; confirm it still compiles)
 - Create: `src/lib/components/AddTaskForm.svelte` (title + optional due date + priority)
 
 **Interfaces:**
+
 - Consumes: `createTask` action (Task 7), `TaskDetailModal`.
 - Produces: `AddTaskForm` with props `{ x?: number; y?: number }` posting to `?/createTask`. `TaskCard` with prop `task: { id; title; done; priority; dueDate }` and no internal up/down move UI.
 
@@ -869,8 +923,16 @@ Replace `src/lib/components/TaskCard.svelte` with:
 	import { enhance } from '$app/forms';
 	import TaskDetailModal from './TaskDetailModal.svelte';
 
-	let { task }: {
-		task: { id: string; title: string; done: boolean; priority: string | null; dueDate: string | null };
+	let {
+		task
+	}: {
+		task: {
+			id: string;
+			title: string;
+			done: boolean;
+			priority: string | null;
+			dueDate: string | null;
+		};
 	} = $props();
 
 	let showModal = $state(false);
@@ -972,18 +1034,32 @@ Create `src/lib/components/AddTaskForm.svelte`:
 	let open = $state(false);
 </script>
 
-<form class="add" method="POST" action="?/createTask" use:enhance={() => async ({ update }) => { await update(); open = false; }}>
+<form
+	class="add"
+	method="POST"
+	action="?/createTask"
+	use:enhance={() =>
+		async ({ update }) => {
+			await update();
+			open = false;
+		}}
+>
 	<input type="hidden" name="x" value={x} />
 	<input type="hidden" name="y" value={y} />
 	<div class="row">
-		<input name="title" placeholder="Add something to the table…" required
-			onfocus={() => (open = true)} />
+		<input
+			name="title"
+			placeholder="Add something to the table…"
+			required
+			onfocus={() => (open = true)}
+		/>
 		<button class="btn btn-primary" type="submit">Add</button>
 	</div>
 	{#if open}
 		<div class="extra">
 			<label><span>Due</span><input type="date" name="dueDate" /></label>
-			<label><span>Priority</span>
+			<label
+				><span>Priority</span>
 				<select name="priority">
 					<option value="">None</option>
 					<option value="low">Low</option>
@@ -996,12 +1072,31 @@ Create `src/lib/components/AddTaskForm.svelte`:
 </form>
 
 <style>
-	.add { display: flex; flex-direction: column; gap: 0.5rem; }
-	.row { display: flex; gap: 0.5rem; }
-	.row input { flex: 1; }
-	.extra { display: flex; gap: 0.75rem; }
-	.extra label { display: flex; flex-direction: column; gap: 0.2rem; }
-	.extra span { font-size: 0.72rem; color: var(--muted); }
+	.add {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+	.row {
+		display: flex;
+		gap: 0.5rem;
+	}
+	.row input {
+		flex: 1;
+	}
+	.extra {
+		display: flex;
+		gap: 0.75rem;
+	}
+	.extra label {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+	}
+	.extra span {
+		font-size: 0.72rem;
+		color: var(--muted);
+	}
 </style>
 ```
 
@@ -1022,9 +1117,11 @@ git commit -m "feat: simplify task card, add creation form with due/priority"
 ### Task 9: Desktop drag canvas
 
 **Files:**
+
 - Create: `src/lib/components/TableCanvas.svelte`
 
 **Interfaces:**
+
 - Consumes: `TaskCard`, `AddTaskForm`, `zoneForTask`/`taskCenter`/`ZONE_COLORS` (Task 2), `/api/positions` (Task 7), `?/createZone`, `?/renameZone`, `?/deleteZone`.
 - Produces: `TableCanvas` with props `{ tasks: Task[]; zones: Zone[] }`.
 
@@ -1039,20 +1136,46 @@ Create `src/lib/components/TableCanvas.svelte`:
 	import AddTaskForm from './AddTaskForm.svelte';
 	import { ZONE_COLORS, type ZoneColor } from '$lib/zones';
 
-	type Task = { id: string; title: string; done: boolean; priority: string | null; dueDate: string | null; x: number; y: number; sortOrder: number };
-	type Zone = { id: string; name: string; color: string; x: number; y: number; width: number; height: number };
+	type Task = {
+		id: string;
+		title: string;
+		done: boolean;
+		priority: string | null;
+		dueDate: string | null;
+		x: number;
+		y: number;
+		sortOrder: number;
+	};
+	type Zone = {
+		id: string;
+		name: string;
+		color: string;
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+	};
 
 	let { tasks, zones }: { tasks: Task[]; zones: Zone[] } = $props();
 
 	// Local mutable copies so drags feel instant before the server round-trip.
 	let taskPos = $state(new Map(tasks.map((t) => [t.id, { x: t.x, y: t.y }])));
-	let zonePos = $state(new Map(zones.map((z) => [z.id, { x: z.x, y: z.y, width: z.width, height: z.height }])));
+	let zonePos = $state(
+		new Map(zones.map((z) => [z.id, { x: z.x, y: z.y, width: z.width, height: z.height }]))
+	);
 
 	function colorOf(key: string) {
-		return ZONE_COLORS[(key as ZoneColor)] ?? ZONE_COLORS.sage;
+		return ZONE_COLORS[key as ZoneColor] ?? ZONE_COLORS.sage;
 	}
 
-	async function persist(kind: 'task' | 'zone', id: string, x: number, y: number, width?: number, height?: number) {
+	async function persist(
+		kind: 'task' | 'zone',
+		id: string,
+		x: number,
+		y: number,
+		width?: number,
+		height?: number
+	) {
 		await fetch('/api/positions', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
@@ -1099,8 +1222,11 @@ Create `src/lib/components/TableCanvas.svelte`:
 		{@const p = zonePos.get(zone.id)!}
 		{@const c = colorOf(zone.color)}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="zone" style="left:{p.x}px; top:{p.y}px; width:{p.width}px; height:{p.height}px; background:{c.fill}; border-color:{c.border};"
-			onpointerdown={(e) => startDrag(e, 'zone', zone.id)}>
+		<div
+			class="zone"
+			style="left:{p.x}px; top:{p.y}px; width:{p.width}px; height:{p.height}px; background:{c.fill}; border-color:{c.border};"
+			onpointerdown={(e) => startDrag(e, 'zone', zone.id)}
+		>
 			<div class="zone-head">
 				<span class="zone-name">{zone.name}</span>
 				<form method="POST" action="?/deleteZone" use:enhance>
@@ -1114,8 +1240,11 @@ Create `src/lib/components/TableCanvas.svelte`:
 	{#each tasks as task (task.id)}
 		{@const p = taskPos.get(task.id)!}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="floating" style="left:{p.x}px; top:{p.y}px; z-index:{task.sortOrder};"
-			onpointerdown={(e) => startDrag(e, 'task', task.id)}>
+		<div
+			class="floating"
+			style="left:{p.x}px; top:{p.y}px; z-index:{task.sortOrder};"
+			onpointerdown={(e) => startDrag(e, 'task', task.id)}
+		>
 			<TaskCard {task} />
 		</div>
 	{/each}
@@ -1185,11 +1314,13 @@ git commit -m "feat: desktop freeform drag canvas with zones"
 ### Task 10: Mobile columns + page wiring + cleanup
 
 **Files:**
+
 - Create: `src/lib/components/MobileColumns.svelte`
 - Modify: `src/routes/(app)/+page.svelte`
 - Delete: `src/lib/components/Board.svelte`, `src/lib/components/Column.svelte`
 
 **Interfaces:**
+
 - Consumes: `zoneForTask`/`taskCenter` (Task 2), `TaskCard`, `AddTaskForm`, `TableCanvas` (Task 9).
 
 - [ ] **Step 1: Create `MobileColumns.svelte`**
@@ -1202,7 +1333,15 @@ Create `src/lib/components/MobileColumns.svelte`:
 	import AddTaskForm from './AddTaskForm.svelte';
 	import { zoneForTask, taskCenter, type ZoneBounds } from '$lib/zones';
 
-	type Task = { id: string; title: string; done: boolean; priority: string | null; dueDate: string | null; x: number; y: number };
+	type Task = {
+		id: string;
+		title: string;
+		done: boolean;
+		priority: string | null;
+		dueDate: string | null;
+		x: number;
+		y: number;
+	};
 	type Zone = ZoneBounds & { name: string };
 
 	let { tasks, zones }: { tasks: Task[]; zones: Zone[] } = $props();
@@ -1227,8 +1366,16 @@ Create `src/lib/components/MobileColumns.svelte`:
 {/each}
 
 <style>
-	.col { margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.4rem; }
-	.col h2 { font-size: 1.05rem; margin-bottom: 0.3rem; }
+	.col {
+		margin-top: 1.25rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+	}
+	.col h2 {
+		font-size: 1.05rem;
+		margin-bottom: 0.3rem;
+	}
 </style>
 ```
 

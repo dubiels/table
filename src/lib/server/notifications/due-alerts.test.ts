@@ -25,7 +25,11 @@ describe('findTasksNeedingDueAlert', () => {
 	it('excludes a task already alerted on today', () => {
 		const tasks = [{ id: '1', dueDate: '2026-07-18', done: false }];
 		const sent = [
-			{ type: 'due_alert', sentAt: '2026-07-18T07:00:00Z', content: JSON.stringify({ text: 'x', taskIds: ['1'] }) }
+			{
+				type: 'due_alert',
+				sentAt: '2026-07-18T07:00:00Z',
+				content: JSON.stringify({ text: 'x', taskIds: ['1'] })
+			}
 		];
 		const result = findTasksNeedingDueAlert(tasks, sent, now, 24);
 		expect(result).toEqual([]);

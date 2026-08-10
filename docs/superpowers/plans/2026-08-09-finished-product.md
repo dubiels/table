@@ -17,21 +17,23 @@
 - Commit directly on `main`. **Commit, do not push** — the user pushes.
 - **Never launch the dev server or a browser to verify.** Verification = `npm test` (vitest), `npm run check` (svelte-check), `npm run lint`. The plan's final section collects manual verification steps for the user.
 - Pure logic gets a colocated `*.test.ts`; route handlers and Svelte components stay thin and untested.
-- The `tasks.source` DB enum value stays `'canvas'` (it labels the LMS source; no migration in this plan). The *module* renames to `lms/`.
+- The `tasks.source` DB enum value stays `'canvas'` (it labels the LMS source; no migration in this plan). The _module_ renames to `lms/`.
 - Existing behavior that must survive every task: task drag/cluster/zone interactions in BlobView, push notifications, magic-link login.
 
 ---
 
 ### Task 1: Zoom reveals usable space (the world-growth fix)
 
-The bug: `BlobView.svelte` clamps every drag/resize/composer placement to `viewportBounds`, which is capped at `worldSize` — and `worldSize` only grows from *committed* content positions. Zooming out therefore shows empty space you can never actually drop anything onto. Fix: placement is allowed anywhere *currently visible*; the stored world size concept is deleted.
+The bug: `BlobView.svelte` clamps every drag/resize/composer placement to `viewportBounds`, which is capped at `worldSize` — and `worldSize` only grows from _committed_ content positions. Zooming out therefore shows empty space you can never actually drop anything onto. Fix: placement is allowed anywhere _currently visible_; the stored world size concept is deleted.
 
 **Files:**
+
 - Modify: `src/lib/zones.ts` (add pure function)
 - Test: `src/lib/zones.test.ts` (extend existing file)
 - Modify: `src/lib/components/BlobView.svelte:96-129` (delete `worldSize`, rewire `viewportBounds`)
 
 **Interfaces:**
+
 - Produces: `visibleWorldBounds(naturalWidth: number, naturalHeight: number, zoom: number): { minX: number; minY: number; maxX: number; maxY: number }` exported from `$lib/zones`.
 
 - [ ] **Step 1: Write the failing tests** — append to `src/lib/zones.test.ts`:
@@ -111,7 +113,7 @@ let viewportBounds = $derived(
 );
 ```
 
-  3. Add `visibleWorldBounds` to the existing `$lib/zones` import.
+3. Add `visibleWorldBounds` to the existing `$lib/zones` import.
 
 - [ ] **Step 6: Verify** — `npm run check` → no new errors; `npm test` → PASS.
 
@@ -129,6 +131,7 @@ git commit -m "fix(canvas): allow placing items anywhere visible when zoomed out
 Mechanical rename per spec §B1 — in this codebase "canvas" means the spatial canvas; the LMS integration must not squat on the word.
 
 **Files:**
+
 - Rename: `src/lib/server/canvas/` → `src/lib/server/lms/` (`git mv`)
 - Modify: `src/lib/server/lms/ical-parser.ts` (rename export `parseCanvasIcal` → `parseLmsIcal`; keep behavior identical)
 - Modify: `src/lib/server/lms/sync.ts` (rename export `syncCanvasAssignments` → `syncLmsAssignments`; env `LMS_ICAL_URL` with `CANVAS_ICAL_URL` fallback)
@@ -137,6 +140,7 @@ Mechanical rename per spec §B1 — in this codebase "canvas" means the spatial 
 - Modify: `.env.example` (document `LMS_ICAL_URL`, `LMS_SYNC_CRON`)
 
 **Interfaces:**
+
 - Produces: `syncLmsAssignments()` exported from `$lib/server/lms/sync`; `parseLmsIcal(icsText: string)` from `$lib/server/lms/ical-parser`. Tasks 4–5 rewrite the sync internals — this task changes names only.
 
 - [ ] **Step 1: Rename** — `git mv src/lib/server/canvas src/lib/server/lms`, then `grep -rn "canvas" src/ --include="*.ts"` and update every import path, exported symbol (`parseCanvasIcal` → `parseLmsIcal`, `syncCanvasAssignments` → `syncLmsAssignments`), and log-message prefix in the moved module + scheduler. Do NOT touch `tasks.source === 'canvas'` values or the spatial-canvas UI code.
@@ -165,10 +169,12 @@ git commit -m "refactor(lms): rename canvas module to lms"
 Pure module per spec §B3, following the `zones.ts`/`bento.ts` split.
 
 **Files:**
+
 - Create: `src/lib/placement.ts`
 - Test: `src/lib/placement.test.ts`
 
 **Interfaces:**
+
 - Consumes: `DEFAULT_CARD`, `Point` from `$lib/zones`.
 - Produces: `nextFreeSlot(occupied: Point[], bounds: PlacementBounds, card = DEFAULT_CARD): Point` and `interface PlacementBounds { x: number; y: number; width: number; height: number }` and `const PLACEMENT_GAP = 12`, all exported from `$lib/placement`.
 
@@ -298,10 +304,12 @@ git commit -m "feat(placement): add nextFreeSlot grid packing"
 Extract the sync's decision logic into a pure, fully-tested planner (spec §B2/§B3/§B5). The executor (Task 5) becomes a thin shell, so the "upsert path" is tested without a database.
 
 **Files:**
+
 - Create: `src/lib/server/lms/plan.ts`
 - Test: `src/lib/server/lms/plan.test.ts`
 
 **Interfaces:**
+
 - Consumes: `nextFreeSlot`, `PlacementBounds` from `$lib/placement`; `DEFAULT_CARD`, `Point` from `$lib/zones`.
 - Produces (all from `$lib/server/lms/plan`):
   - `interface LmsEvent { eventId: string; title: string; dueDate: string | null; courseName: string | null }`
@@ -321,14 +329,24 @@ import { DEFAULT_CARD } from '$lib/zones';
 const bounds = { x: 0, y: 0, width: 1200, height: 900 };
 
 function event(overrides: Partial<LmsEvent> = {}): LmsEvent {
-	return { eventId: 'ev-1', title: 'PS3', dueDate: '2026-08-20', courseName: 'CS 4641', ...overrides };
+	return {
+		eventId: 'ev-1',
+		title: 'PS3',
+		dueDate: '2026-08-20',
+		courseName: 'CS 4641',
+		...overrides
+	};
 }
 
 describe('planLmsSync', () => {
 	it('creates a task for an unseen event', () => {
 		const plan = planLmsSync([event()], [], bounds, []);
 		expect(plan.creates).toHaveLength(1);
-		expect(plan.creates[0]).toMatchObject({ externalId: 'ev-1', title: 'PS3', dueDate: '2026-08-20' });
+		expect(plan.creates[0]).toMatchObject({
+			externalId: 'ev-1',
+			title: 'PS3',
+			dueDate: '2026-08-20'
+		});
 		expect(plan.dueDateUpdates).toHaveLength(0);
 	});
 
@@ -513,11 +531,13 @@ git commit -m "feat(lms): add pure sync planner with loose-placement fallback"
 Replace the throwing, name-addressed, stacking sync with a thin executor over the planner (spec §B2–B4). Zone addressed by `LMS_ZONE_ID`; missing/unset zone → warn and place loose; **never throw on zone config**.
 
 **Files:**
+
 - Modify: `src/lib/server/lms/sync.ts` (full rewrite)
 - Create: `src/routes/api/lms/sync/+server.ts`
 - Modify: `.env.example` (add `LMS_ZONE_ID`)
 
 **Interfaces:**
+
 - Consumes: `planLmsSync`, `zoneInnerBounds`, `looseBounds` from `./plan`; `parseLmsIcal` from `./ical-parser`.
 - Produces: `syncLmsAssignments(): Promise<{ created: number; updated: number; placedLoose: boolean }>` — Task 9's topbar menu calls `POST /api/lms/sync` and shows this summary.
 
@@ -552,9 +572,7 @@ export async function syncLmsAssignments(): Promise<LmsSyncResult> {
 	// Zone by id — ids survive renames. Missing/unset zone is never an error:
 	// tasks go loose on bare table (a first-class state) with a warning.
 	const zoneId = env.LMS_ZONE_ID;
-	const zone = zoneId
-		? await db.query.zones.findFirst({ where: eq(zones.id, zoneId) })
-		: undefined;
+	const zone = zoneId ? await db.query.zones.findFirst({ where: eq(zones.id, zoneId) }) : undefined;
 	if (zoneId && !zone) {
 		console.warn(`LMS sync: LMS_ZONE_ID "${zoneId}" matches no zone; placing tasks loose`);
 	} else if (!zoneId) {
@@ -644,12 +662,14 @@ git commit -m "feat(lms): zone-by-id sync with loose fallback and manual trigger
 Spec Part A's logic, as two pure tested modules. The route (Task 7) stays thin.
 
 **Files:**
+
 - Create: `src/lib/server/dashboard/serialize.ts`
 - Test: `src/lib/server/dashboard/serialize.test.ts`
 - Create: `src/lib/server/dashboard/auth.ts`
 - Test: `src/lib/server/dashboard/auth.test.ts`
 
 **Interfaces:**
+
 - Consumes: `zoneForTask`, `taskCenter` from `$lib/zones`.
 - Produces:
   - `buildDashboardPayload(taskRows, zoneRows, generatedAt: Date, timezone: string): DashboardPayload` where `taskRows` have `{ id, title, dueDate, priority, source, courseName, x, y }` (already-active tasks) and `zoneRows` have `{ id, name, color, x, y, width, height }`. Payload shape per spec §A1: `{ generatedAt, timezone, tasks: [{ id, title, dueDate, priority, source, courseName, zone: { id, name, color } | null }], zones: [{ id, name, color }] }`. No `x`/`y`/`sortOrder`/`notes`/`externalId` in the output.
@@ -682,12 +702,22 @@ function task(overrides: Record<string, unknown> = {}) {
 
 describe('buildDashboardPayload', () => {
 	it('resolves a loose task to zone null', () => {
-		const p = buildDashboardPayload([task()], zoneRows, new Date('2026-08-09T12:00:00Z'), 'America/New_York');
+		const p = buildDashboardPayload(
+			[task()],
+			zoneRows,
+			new Date('2026-08-09T12:00:00Z'),
+			'America/New_York'
+		);
 		expect(p.tasks[0].zone).toBeNull();
 	});
 
 	it('resolves overlapping zones to the smaller-area zone', () => {
-		const p = buildDashboardPayload([task({ x: 10, y: 10 })], zoneRows, new Date(), 'America/New_York');
+		const p = buildDashboardPayload(
+			[task({ x: 10, y: 10 })],
+			zoneRows,
+			new Date(),
+			'America/New_York'
+		);
 		expect(p.tasks[0].zone).toEqual({ id: 'z-small', name: 'Exams', color: 'blush' });
 	});
 
@@ -714,7 +744,12 @@ describe('buildDashboardPayload', () => {
 	});
 
 	it('carries generatedAt and timezone through', () => {
-		const p = buildDashboardPayload([], [], new Date('2026-08-09T12:30:00.000Z'), 'America/New_York');
+		const p = buildDashboardPayload(
+			[],
+			[],
+			new Date('2026-08-09T12:30:00.000Z'),
+			'America/New_York'
+		);
 		expect(p.generatedAt).toBe('2026-08-09T12:30:00.000Z');
 		expect(p.timezone).toBe('America/New_York');
 	});
@@ -882,12 +917,14 @@ git commit -m "feat(dashboard): add payload serializer and token auth decision"
 ### Task 7: Dashboard route, hooks bearer short-circuit, TZ
 
 **Files:**
+
 - Create: `src/routes/api/dashboard/+server.ts`
 - Modify: `src/hooks.server.ts`
 - Modify: `fly.toml` (`[env]` block)
 - Modify: `.env.example`
 
 **Interfaces:**
+
 - Consumes: `buildDashboardPayload` from `$lib/server/dashboard/serialize`; `decideDashboardAuth` from `$lib/server/dashboard/auth`; `listActiveTasks` from `$lib/server/tasks/service`; `listZones` from `$lib/server/zones/service`.
 
 - [ ] **Step 1: Create `src/routes/api/dashboard/+server.ts`:**
@@ -907,7 +944,7 @@ export const GET = async () => {
 };
 ```
 
-- [ ] **Step 2: Modify `src/hooks.server.ts`** — insert the dashboard short-circuit *before* the session redirect (after `event.locals.user = user;`):
+- [ ] **Step 2: Modify `src/hooks.server.ts`** — insert the dashboard short-circuit _before_ the session redirect (after `event.locals.user = user;`):
 
 ```ts
 import { env } from '$env/dynamic/private';
@@ -956,6 +993,7 @@ git commit -m "feat(dashboard): add read-only dashboard endpoint with bearer aut
 Systematic pass over the interactive views. This task is investigative: verify each suspect below against the actual code, fix what's real, skip what isn't (noting why). Add regression tests where the logic is pure; UI-only fixes get a manual-verification note in the commit body. One commit per confirmed fix (or one grouped `fix(views):` commit if the fixes are all one-liners).
 
 **Files:**
+
 - Inspect: `src/lib/components/BlobView.svelte`, `BentoView.svelte`, `MobileColumns.svelte`, `ListView.svelte`, `TaskCard.svelte`, `TaskDetailModal.svelte`, `AddTaskForm.svelte`, `src/lib/bento.ts`, `src/lib/listView.ts`, `src/routes/(app)/+page.svelte`
 - Test: extend `src/lib/bento.test.ts` / `src/lib/listView.test.ts` for any pure-logic fix
 
@@ -986,6 +1024,7 @@ Systematic pass over the interactive views. This task is investigative: verify e
 Kill the day-project toolbar: the `<select>` view dropdown, the loose row of ghost buttons, the raw `alert()` calls. Build a proper shell used by every `(app)` page.
 
 **Files:**
+
 - Create: `src/lib/toast.svelte.ts`
 - Create: `src/lib/components/Toasts.svelte`
 - Create: `src/lib/components/TopBar.svelte`
@@ -997,6 +1036,7 @@ Kill the day-project toolbar: the `<select>` view dropdown, the loose row of gho
 - Modify: `src/lib/client/push.ts` only if its error surface needs adapting (prefer not)
 
 **Interfaces:**
+
 - Produces:
   - `toast(message: string, tone?: 'info' | 'success' | 'error'): void` and `toasts` (reactive array) from `$lib/toast.svelte`
   - `TopBar` props: `{ user: { email: string } | null, unreadCount: number }`
@@ -1099,7 +1139,10 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		padding: 0.32rem 0.9rem;
 		border-radius: 999px;
 		cursor: pointer;
-		transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+		transition:
+			background 0.15s ease,
+			color 0.15s ease,
+			box-shadow 0.15s ease;
 	}
 	.seg-btn.active {
 		background: var(--surface);
@@ -1158,11 +1201,12 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 ```
 
 Markup: `<header class="topbar">` with:
-  - Left: `<a class="brand" href="/">Table</a>` (when not on `/`, this is the back affordance — style it plainly, no underline).
-  - Right nav: `Inbox` link with unread badge (`{#if unreadCount > 0}<span class="badge">{unreadCount}</span>{/if}` — small accent-filled pill), `History` link, then a circular user button (first letter of `user.email`, uppercase, `background: var(--accent); color: var(--accent-ink)`).
-  - User button toggles a popover (`position: absolute` under the button, `background: var(--surface)`, `border-radius: var(--radius-m)`, `box-shadow: var(--shadow-raised)`, min-width 220px): the email (muted, small, non-interactive), a divider, then menu items **Sync assignments** (disabled while `syncing`), **Enable notifications**, divider, **Log out** (a `<form method="POST" action="/logout">` submit styled as a menu item, `color: var(--danger)`).
-  - Close the popover on outside click (`svelte:window onclick` checking `!e.target.closest('.user-menu')`) and Escape.
-  - Nav links: `color: var(--muted)`, hover `var(--ink)`; the active page's link gets `color: var(--ink)` via `page.url.pathname` comparison.
+
+- Left: `<a class="brand" href="/">Table</a>` (when not on `/`, this is the back affordance — style it plainly, no underline).
+- Right nav: `Inbox` link with unread badge (`{#if unreadCount > 0}<span class="badge">{unreadCount}</span>{/if}` — small accent-filled pill), `History` link, then a circular user button (first letter of `user.email`, uppercase, `background: var(--accent); color: var(--accent-ink)`).
+- User button toggles a popover (`position: absolute` under the button, `background: var(--surface)`, `border-radius: var(--radius-m)`, `box-shadow: var(--shadow-raised)`, min-width 220px): the email (muted, small, non-interactive), a divider, then menu items **Sync assignments** (disabled while `syncing`), **Enable notifications**, divider, **Log out** (a `<form method="POST" action="/logout">` submit styled as a menu item, `color: var(--danger)`).
+- Close the popover on outside click (`svelte:window onclick` checking `!e.target.closest('.user-menu')`) and Escape.
+- Nav links: `color: var(--muted)`, hover `var(--ink)`; the active page's link gets `color: var(--ink)` via `page.url.pathname` comparison.
 
 - [ ] **Step 5: Layout** — `src/routes/(app)/+layout.svelte`:
 
@@ -1216,14 +1260,16 @@ git commit -m "feat(shell): topbar with user menu, segmented view switcher, toas
 ### Task 10: Finish the inbox
 
 **Files:**
+
 - Modify: `src/routes/(app)/inbox/+page.server.ts`
 - Modify: `src/routes/(app)/inbox/+page.svelte`
 
 **Interfaces:**
+
 - Consumes: layout's TopBar (already provides navigation home + unread badge).
 - Produces: load returns `{ notifications: Array<{ id, type, content: { text: string }, sentAt, readAt }> }` — unchanged shape, so the page template contract holds.
 
-- [ ] **Step 1: Batch the mark-read** — in `+page.server.ts`, replace the per-row update loop with one statement (rows are fetched first so the page still renders which ones *were* unread):
+- [ ] **Step 1: Batch the mark-read** — in `+page.server.ts`, replace the per-row update loop with one statement (rows are fetched first so the page still renders which ones _were_ unread):
 
 ```ts
 import type { PageServerLoad } from './$types';
@@ -1253,7 +1299,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 - [ ] **Step 2: Rebuild the page** — `+page.svelte`. Design requirements:
   - Page header row: `<h1>Inbox</h1>` styled like history's (1.4rem) + `<a class="btn btn-ghost" href="/">Back to the table</a>` on the right (parity with history; the brand link also works but an explicit affordance was the complaint).
   - Group notifications by calendar day of `sentAt`: "Today", "Yesterday", else `Mon, Aug 4` (`toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })`). Day headers: small caps, `font-size: 0.72rem`, `color: var(--muted)`, `letter-spacing: 0.04em`, `text-transform: uppercase`, margin above each group.
-  - Each notification row keeps the current card styling but: unread rows (no `readAt` in the *loaded* data) get the accent dot and `border-color: var(--border-strong)` + `background: var(--surface)`; read rows soften to `background: transparent; border-color: var(--border)`.
+  - Each notification row keeps the current card styling but: unread rows (no `readAt` in the _loaded_ data) get the accent dot and `border-color: var(--border-strong)` + `background: var(--surface)`; read rows soften to `background: transparent; border-color: var(--border)`.
   - Type label: keep "Morning digest" / "Due soon", plus show only the time (not full date) in the row's `<time>` since the day header carries the date.
   - Empty state: centered block with a large muted glyph (e.g. "☕"), "All caught up." in `--font-display` 600, and a one-line muted sub: "Digests and due-date alerts land here."
   - Grouping helper is fine inline in the `<script>` (it's presentation, not domain logic).
@@ -1272,6 +1318,7 @@ git commit -m "feat(inbox): day grouping, batch mark-read, back nav, empty state
 ### Task 11: History + login polish
 
 **Files:**
+
 - Modify: `src/routes/(app)/history/+page.svelte`
 - Modify: `src/routes/login/+page.svelte`
 - Modify: `src/routes/login/verify/+page.svelte`
@@ -1305,15 +1352,17 @@ git commit -m "style(pages): polish history grouping and login cards"
 
 ### Task 12: Google Calendar server modules (ICS agenda)
 
-Table gains a read-only *agenda* — events from one or more Google Calendar secret ICS URLs — rendered beside the board. Calendar events are **display-only**: they never become tasks, and the existing `/api/dashboard` contract is untouched (the Pi fetches its own Google feed; see memory/spec §2).
+Table gains a read-only _agenda_ — events from one or more Google Calendar secret ICS URLs — rendered beside the board. Calendar events are **display-only**: they never become tasks, and the existing `/api/dashboard` contract is untouched (the Pi fetches its own Google feed; see memory/spec §2).
 
 **Files:**
+
 - Create: `src/lib/server/gcal/agenda.ts` (pure)
 - Test: `src/lib/server/gcal/agenda.test.ts`
 - Create: `src/lib/server/gcal/service.ts` (fetch + TTL cache)
 - Modify: `.env.example`
 
 **Interfaces:**
+
 - Produces:
   - `interface AgendaEvent { id: string; title: string; start: string; end: string | null; allDay: boolean; location: string | null }` (`start`/`end` are ISO instants)
   - `upcomingEvents(icsText: string, from: Date, days: number): AgendaEvent[]` from `$lib/server/gcal/agenda`
@@ -1455,9 +1504,7 @@ export function upcomingEvents(icsText: string, from: Date, days: number): Agend
 		const durationMs = ev.end ? ev.end.getTime() - ev.start.getTime() : 0;
 
 		if (ev.rrule) {
-			const exdates = new Set(
-				Object.values(ev.exdate ?? {}).map((d) => (d as Date).getTime())
-			);
+			const exdates = new Set(Object.values(ev.exdate ?? {}).map((d) => (d as Date).getTime()));
 			for (const occurrence of ev.rrule.between(from, windowEnd, true)) {
 				if (exdates.has(occurrence.getTime())) continue;
 				out.push({
@@ -1554,11 +1601,13 @@ git commit -m "feat(gcal): parse and cache google calendar ics agendas"
 ### Task 13: Agenda rail UI
 
 **Files:**
+
 - Create: `src/lib/components/AgendaRail.svelte`
 - Modify: `src/routes/(app)/+page.server.ts` (load agenda)
 - Modify: `src/routes/(app)/+page.svelte` (layout row: content + rail)
 
 **Interfaces:**
+
 - Consumes: `getAgenda()` from `$lib/server/gcal/service`; `AgendaEvent` type.
 - Produces: `AgendaRail` props `{ events: AgendaEvent[] }`.
 
@@ -1578,10 +1627,10 @@ export const load: PageServerLoad = async () => {
 ```
 
 - [ ] **Step 2: AgendaRail component** — design:
-  - Props: `{ events }`. Group events by calendar day of `start` (local time): "Today", "Tomorrow", then `Wed, Aug 12`. Show at most the next 5 days that *have* events.
+  - Props: `{ events }`. Group events by calendar day of `start` (local time): "Today", "Tomorrow", then `Wed, Aug 12`. Show at most the next 5 days that _have_ events.
   - Day header: same small-caps muted treatment as inbox/history groups.
   - Event row: time column (fixed ~3.2rem, `font-variant-numeric: tabular-nums`, `font-size: 0.78rem`, muted; "all day" for `allDay`) + title (0.85rem, ink, single-line ellipsis) + optional location under the title (0.72rem, muted, ellipsis).
-  - Rows are plain — no cards, no borders; a 2px `border-left: 2px solid var(--border-strong)` on the group block gives structure. This is a *rail*, visually quieter than the board.
+  - Rows are plain — no cards, no borders; a 2px `border-left: 2px solid var(--border-strong)` on the group block gives structure. This is a _rail_, visually quieter than the board.
   - Rail header: "Agenda" in `--font-display` 600 0.95rem with a muted count.
   - If `events.length === 0`: render nothing (`{#if events.length > 0}` around the whole rail) — no empty chrome for the unconfigured case.
 - [ ] **Step 3: Page layout** — in `+page.svelte`, wrap the view area:
@@ -1619,6 +1668,7 @@ git commit -m "feat(agenda): google calendar rail beside the board"
 Requested mid-build by the user: tasks should reach their Google Calendar. Table publishes a token-protected ICS feed of active tasks that have due dates; the user subscribes to it in Google Calendar ("Other calendars → From URL"). No Google credentials, no write API — the feed is pull-based, matching the `DASHBOARD_TOKEN` pattern.
 
 **Files:**
+
 - Create: `src/lib/server/ics/export.ts` (pure)
 - Test: `src/lib/server/ics/export.test.ts`
 - Create: `src/routes/calendar.ics/+server.ts`
@@ -1626,6 +1676,7 @@ Requested mid-build by the user: tasks should reach their Google Calendar. Table
 - Modify: `.env.example`
 
 **Interfaces:**
+
 - Consumes: `decideDashboardAuth` pattern from Task 6 — but Google Calendar's feed fetcher cannot send headers, so the token arrives as a query parameter: `/calendar.ics?token=…`. Add `decideFeedAuth(configuredToken: string | undefined, presentedToken: string | null, hasSession: boolean)` to `src/lib/server/dashboard/auth.ts` reusing the same hashed timing-safe comparison (extract a shared `tokensMatch(a, b)` helper; do not duplicate the hashing code).
 - Produces: `buildTasksIcs(tasks: Array<{ id: string; title: string; dueDate: string | null; done: boolean; courseName: string | null; notes: string | null }>, now: Date): string` — a VCALENDAR of all-day VEVENTs, one per not-done task with a non-null dueDate.
 
@@ -1735,9 +1786,10 @@ git commit -m "feat(ics): publish token-protected tasks feed for calendar subscr
 
 Requested mid-build: the user wants a dark mode option ("this kind of dark mode with the little ascii robot is super cute") while keeping the colorful vibe. Design decisions locked in here; visual taste latitude within them.
 
-**Supersedes** the "No dark theme" global constraint for Table's own UI (user override, 2026-08-09). Still binding: the Pi wall display owns its own palette — `/api/dashboard` continues to ship zone color *token names*, never hex, and nothing in this task touches that contract.
+**Supersedes** the "No dark theme" global constraint for Table's own UI (user override, 2026-08-09). Still binding: the Pi wall display owns its own palette — `/api/dashboard` continues to ship zone color _token names_, never hex, and nothing in this task touches that contract.
 
 **Files:**
+
 - Modify: `src/app.css` (dark token set + zone color custom properties)
 - Modify: `src/app.html` (pre-paint theme script)
 - Modify: `src/lib/zones.ts` (zone color CSS-var helper)
@@ -1747,6 +1799,7 @@ Requested mid-build: the user wants a dark mode option ("this kind of dark mode 
 - Modify: `src/routes/(app)/inbox/+page.svelte`, `src/routes/(app)/history/+page.svelte`, `src/routes/login/+page.svelte` (mascot in empty states / login card)
 
 **Interfaces:**
+
 - Produces: `zoneColorVars(key: string): { fill: string; border: string }` from `$lib/zones` returning `var(--zone-<key>-fill)` / `var(--zone-<key>-border)` strings for any of the six `ZONE_COLOR_KEYS` (unknown keys fall back to sage). The raw `ZONE_COLORS` hex map stays exported (light-theme source of truth; nothing else may import it for styling).
 - Produces: `Mascot` component, props `{ mood?: 'happy' | 'sleepy' | 'wave' }` — a small ASCII robot in a `<pre>`, monospace, `color: var(--muted)`, `font-size: 0.7rem`, `line-height: 1.15`, `user-select: none`, `aria-hidden="true"`.
 
@@ -1754,7 +1807,7 @@ Requested mid-build: the user wants a dark mode option ("this kind of dark mode 
 
 - [ ] **Step 1: Tokens** — in `src/app.css`:
   1. Add zone color custom properties to `:root` (light values = the existing `ZONE_COLORS` hex, e.g. `--zone-sage-fill: #e7ebda; --zone-sage-border: #cbd3b4;` … all six).
-  2. Add a `[data-theme='dark']` block on `:root[data-theme='dark']` redefining every token. Dark palette direction (tune freely within it): warm charcoal, never pure black — `--bg: #1c1915; --surface: #262219; --surface-2: #322d24; --ink: #f0e9dc; --muted: #9a9182; --border: #3a342a; --border-strong: #4d4436; --accent: #e9e2d2; --accent-hover: #f7f1e4; --accent-soft: #383226; --accent-ink: #26231d; --danger: #e07a6c; --danger-soft: #46271f; --ok: #a3bd85;` — priority pill bg/fg pairs get legible dark variants; shadows get higher alpha. Zone colors: muted deep versions that stay *recognizably colorful* (e.g. sage `#2f3626`/`#4b5638`, sky `#273239`/`#3d4f5a`, butter `#3a3322`/`#5a4e30`, blush `#3a2a27`/`#57403b`, lilac `#312c39`/`#4a4258`, clay `#382c23`/`#554238`) — same *identity*, tuned for the dark ground.
+  2. Add a `[data-theme='dark']` block on `:root[data-theme='dark']` redefining every token. Dark palette direction (tune freely within it): warm charcoal, never pure black — `--bg: #1c1915; --surface: #262219; --surface-2: #322d24; --ink: #f0e9dc; --muted: #9a9182; --border: #3a342a; --border-strong: #4d4436; --accent: #e9e2d2; --accent-hover: #f7f1e4; --accent-soft: #383226; --accent-ink: #26231d; --danger: #e07a6c; --danger-soft: #46271f; --ok: #a3bd85;` — priority pill bg/fg pairs get legible dark variants; shadows get higher alpha. Zone colors: muted deep versions that stay _recognizably colorful_ (e.g. sage `#2f3626`/`#4b5638`, sky `#273239`/`#3d4f5a`, butter `#3a3322`/`#5a4e30`, blush `#3a2a27`/`#57403b`, lilac `#312c39`/`#4a4258`, clay `#382c23`/`#554238`) — same _identity_, tuned for the dark ground.
   3. `body` gets `transition: background 0.2s ease, color 0.2s ease`.
 - [ ] **Step 2: Pre-paint script** — in `src/app.html`, add to `<head>` before `%sveltekit.head%`:
 
@@ -1768,6 +1821,7 @@ Requested mid-build: the user wants a dark mode option ("this kind of dark mode 
 ```
 
 Default is light; only an explicit dark choice is stored.
+
 - [ ] **Step 3: Zone color plumbing** — add `zoneColorVars` to `zones.ts`; convert every component that inlines `ZONE_COLORS[…].fill/.border` into styles (BlobView zones + composer swatches + zone dot, BentoView boxes, ZoneColorPicker swatches, TaskCard dot, MobileColumns/ListView if they color by zone) to use the CSS-var strings. Grep `ZONE_COLORS` to find them all; after this step the only importers of the hex map are `zones.ts` itself and `app.css`'s values (hand-copied).
 - [ ] **Step 4: Toggle** — TopBar gets a ghost icon button before the user menu: moon glyph when light ("Switch to dark"), sun when dark; onclick flips `document.documentElement.dataset.theme` and writes/removes `localStorage['table:theme']`. State via `let dark = $state(…)` initialized from the DOM attribute.
 - [ ] **Step 5: Mascot** — `Mascot.svelte` renders ASCII art per mood, default `happy`. Starting art (improve freely, keep ≤6 lines × ≤14 chars):
@@ -1780,6 +1834,7 @@ Default is light; only an explicit dark choice is stored.
 ```
 
 `sleepy` variant: `[-_-]` face + `z z` floating; `wave` variant: one arm up `\|___|/` → use for login. Place it: inbox empty state (sleepy, "All caught up."), history empty state (happy), login card top (wave, above the wordmark). Remove the glyph placeholders ("☕", "✓") those pages used.
+
 - [ ] **Step 6: Contrast pass** — with dark active, check every hardcoded hex left in components (grep `#[0-9a-f]{3,6}` in `src/lib/components` and `src/routes`) — anything that doesn't read on dark must move to a token.
 - [ ] **Step 7: Verify** — `npm run check` → clean; `npm test` → PASS; `npm run lint` → clean.
 - [ ] **Step 8: Commit**
@@ -1794,6 +1849,7 @@ git commit -m "feat(theme): dark mode with zone color tokens and ascii mascot"
 ### Task 16: README, env docs, full verification
 
 **Files:**
+
 - Modify: `README.md`
 - Verify: `.env.example` (all vars from Tasks 2, 5, 7, 12 present)
 

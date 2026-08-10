@@ -43,7 +43,7 @@ Clicking anywhere on the canvas that is **not** an existing task card, a
 zone-head button/input, a zone resize handle, or the composer itself opens
 the composer, anchored at the click point (canvas-relative coordinates).
 
-This includes clicking empty space *inside* an existing zone's blob outline —
+This includes clicking empty space _inside_ an existing zone's blob outline —
 same trigger, same composer. Because the new item's `(x, y)` lands inside
 that zone's bounds, `zoneForTask` (existing spatial logic, unchanged) picks
 it up as belonging to that zone automatically. No separate category field is
@@ -97,7 +97,7 @@ edge or corner.
 Drag-to-cluster (creating a zone by dragging two loose tasks together), zone
 rename, zone resize, zone delete, task drag, and tap-to-edit-task all
 continue to work exactly as they do today. This feature only replaces how a
-*new* task or zone gets created from the canvas.
+_new_ task or zone gets created from the canvas.
 
 ## Data flow
 

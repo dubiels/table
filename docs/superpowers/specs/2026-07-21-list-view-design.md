@@ -47,7 +47,7 @@ the list is always identical to its category on the canvas.
 A flat table with these columns, in order:
 
 | Done | Title | Category | Due date | Priority | Notes |
-|------|-------|----------|----------|----------|-------|
+| ---- | ----- | -------- | -------- | -------- | ----- |
 
 - **Done** — the same circular toggle button as `TaskCard`, submits the
   existing `?/toggleTaskDone` form action inline, does not open the row.

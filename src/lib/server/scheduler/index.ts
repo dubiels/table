@@ -23,9 +23,15 @@ export function startScheduler() {
 	const lmsSyncCron = env.LMS_SYNC_CRON ?? env.CANVAS_SYNC_CRON ?? '0 */6 * * *';
 	const leadHours = Number(env.DUE_ALERT_LEAD_HOURS ?? '24');
 
-	cron.schedule(digestCron, () => runMorningDigest().catch((err) => console.error('Digest job failed', err)));
-	cron.schedule(dueCheckCron, () => runDueAlertCheck(leadHours).catch((err) => console.error('Due-alert job failed', err)));
-	cron.schedule(lmsSyncCron, () => syncLmsAssignments().catch((err) => console.error('LMS sync job failed', err)));
+	cron.schedule(digestCron, () =>
+		runMorningDigest().catch((err) => console.error('Digest job failed', err))
+	);
+	cron.schedule(dueCheckCron, () =>
+		runDueAlertCheck(leadHours).catch((err) => console.error('Due-alert job failed', err))
+	);
+	cron.schedule(lmsSyncCron, () =>
+		syncLmsAssignments().catch((err) => console.error('LMS sync job failed', err))
+	);
 }
 
 export async function runMorningDigest() {
