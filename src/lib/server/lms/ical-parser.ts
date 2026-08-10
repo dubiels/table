@@ -8,33 +8,60 @@ export interface LmsEvent {
 	eventId: string;
 }
 
-export function parseLmsIcal(icsText: string): LmsEvent[] {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const cal = ical.parseICS(icsText) as any;
+// Minimal shape of the fields we read off ical.parseICS's return value —
+// the `ical` package ships no types, and events carry their fields
+// directly (start/summary/uid/...), not under a `.properties` bag.
+interface IcalComponent {
+	type?: string;
+	start?: Date;
+	summary?: string;
+	uid?: string;
+}
+
+// Sync window: far enough back to catch assignments due while the app was
+// offline, far enough forward to be useful without importing a whole semester.
+const PAST_WINDOW_DAYS = 7;
+const FUTURE_WINDOW_DAYS = 60;
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function toLocalDateString(date: Date): string {
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
+	return `${year}-${month}-${day}`;
+}
+
+// Canvas summaries look like "Assignment Title [Course Name]".
+const TRAILING_BRACKET = /\s*\[([^[\]]+)\]\s*$/;
+
+export function parseLmsIcal(icsText: string, now: Date = new Date()): LmsEvent[] {
+	const cal = ical.parseICS(icsText) as Record<string, IcalComponent>;
 	const events: LmsEvent[] = [];
-	const now = new Date();
-	const sevenDaysOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+	const windowStart = new Date(now.getTime() - PAST_WINDOW_DAYS * MS_PER_DAY);
+	const windowEnd = new Date(now.getTime() + FUTURE_WINDOW_DAYS * MS_PER_DAY);
 
 	for (const key in cal) {
 		const comp = cal[key];
 		if (!comp || comp.type !== 'VEVENT') continue;
 
-		const dueData = comp.properties?.due?.[0];
-		const dueDate = dueData ? new Date(dueData) : null;
-		if (!dueDate || isNaN(dueDate.getTime()) || dueDate > sevenDaysOut) continue;
+		const start = comp.start;
+		if (!start || isNaN(start.getTime())) continue;
+		if (start < windowStart || start > windowEnd) continue;
 
-		// Parse course info from DESCRIPTION field
-		const description = (comp.properties?.description?.[0] as string) || '';
-		const courseMatch = description.match(/^([A-Z0-9]+)/);
-		const courseId = courseMatch?.[1] || 'Unknown';
-		const courseName = courseId;
+		const summary = comp.summary || 'Untitled';
+		const bracketMatch = summary.match(TRAILING_BRACKET);
+		const title = bracketMatch ? summary.slice(0, bracketMatch.index).trim() : summary;
+		const courseName = bracketMatch ? bracketMatch[1] : 'Unknown';
 
 		events.push({
-			title: (comp.properties?.summary?.[0] as string) || 'Untitled',
-			dueDate: dueDate.toISOString(),
-			courseId,
+			title,
+			dueDate: toLocalDateString(start),
+			// The feed has no separate course id field, so reuse the parsed course name.
+			courseId: courseName,
 			courseName,
-			eventId: (comp.properties?.uid?.[0] as string) || ''
+			eventId: comp.uid || ''
 		});
 	}
 
