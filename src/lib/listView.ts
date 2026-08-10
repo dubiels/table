@@ -29,10 +29,13 @@ export function categoryNameFor(task: Pick<ListTask, 'x' | 'y'>, zones: ListZone
 	return zones.find((z) => z.id === hit.id)?.name ?? '—';
 }
 
-/** The filter-bar key for a task's category: its zone name, or NO_CATEGORY when loose. */
+/**
+ * The filter-bar key for a task's category: its zone id, or NO_CATEGORY when
+ * loose. Ids, not names — two zones may share a name, and a rename must not
+ * quietly move a task into a different filter bucket.
+ */
 export function categoryKeyFor(task: Pick<ListTask, 'x' | 'y'>, zones: ListZone[]): string {
-	const name = categoryNameFor(task, zones);
-	return name === '—' ? NO_CATEGORY : name;
+	return zoneForTask(taskCenter(task), zones)?.id ?? NO_CATEGORY;
 }
 
 /** The owning zone's color for a task, or null for a loose task. */
@@ -67,7 +70,7 @@ function addDays(dateStr: string, days: number): string {
 }
 
 export type ListFilters = {
-	/** Category keys (zone name, or NO_CATEGORY) the user has unchecked. Empty = everything shown. */
+	/** Category keys (zone id, or NO_CATEGORY) the user has unchecked. Empty = everything shown. */
 	deselectedCategories: Set<string>;
 	due: DueFilter;
 	priority: PriorityFilter;

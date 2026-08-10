@@ -102,8 +102,8 @@
 				<label>
 					<input
 						type="checkbox"
-						checked={!deselectedCategories.has(zone.name)}
-						onchange={() => toggleCategory(zone.name)}
+						checked={!deselectedCategories.has(zone.id)}
+						onchange={() => toggleCategory(zone.id)}
 					/>
 					<span class="category-dot" style:background={dotColor(zone.color)}></span>
 					{zone.name}

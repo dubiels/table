@@ -47,7 +47,21 @@ describe('categoryNameFor / categoryKeyFor', () => {
 	it('returns the owning zone name for a task inside its bounds', () => {
 		const t = task({ id: '1', x: 100, y: 100 });
 		expect(categoryNameFor(t, [work, home])).toBe('Work');
-		expect(categoryKeyFor(t, [work, home])).toBe('Work');
+		expect(categoryKeyFor(t, [work, home])).toBe('work');
+	});
+
+	it('keys two zones sharing a display name separately', () => {
+		const alias: ListZone = { ...home, id: 'home-2', name: 'Work' };
+		const inWork = task({ id: '1', x: 100, y: 100 });
+		const inAlias = task({ id: '2', x: 550, y: 50 });
+		expect(categoryNameFor(inAlias, [work, alias])).toBe('Work');
+		expect(categoryKeyFor(inWork, [work, alias])).not.toBe(categoryKeyFor(inAlias, [work, alias]));
+	});
+
+	it('keeps a key that survives a rename', () => {
+		const renamed: ListZone = { ...work, name: 'Studies' };
+		const t = task({ id: '1', x: 100, y: 100 });
+		expect(categoryKeyFor(t, [renamed])).toBe(categoryKeyFor(t, [work]));
 	});
 
 	it('returns an em dash / NO_CATEGORY for a loose task', () => {
@@ -99,7 +113,7 @@ describe('filterTasks', () => {
 		const result = filterTasks(
 			[inWork, loose],
 			[work, home],
-			{ deselectedCategories: new Set(['Work']), due: 'all', priority: 'all' },
+			{ deselectedCategories: new Set(['work']), due: 'all', priority: 'all' },
 			today
 		);
 		expect(result.map((t) => t.id)).toEqual(['2']);
