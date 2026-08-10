@@ -3,6 +3,7 @@
 	import AddTaskForm from './AddTaskForm.svelte';
 	import TaskDetailModal from './TaskDetailModal.svelte';
 	import { zoneForTask, taskCenter, type ZoneBounds } from '$lib/zones';
+	import { findUncategorizedPoint } from '$lib/bento';
 
 	type Task = {
 		id: string;
@@ -23,9 +24,15 @@
 	function tasksIn(zoneId: string | null) {
 		return tasks.filter((t) => (zoneForTask(taskCenter(t), zones)?.id ?? null) === zoneId);
 	}
+
+	// This form has no column of its own to place into, so it aims for open
+	// ground. Without a point it fell back to the createTask default of (60, 60),
+	// which is also the default anchor of the first zone — so a task added on the
+	// phone silently joined whichever zone happened to cover that corner.
+	let addPoint = $derived(findUncategorizedPoint(zones));
 </script>
 
-<AddTaskForm />
+<AddTaskForm x={addPoint.x} y={addPoint.y} />
 
 <div class="col">
 	<h2>On the table</h2>
