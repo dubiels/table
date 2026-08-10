@@ -57,18 +57,25 @@
 	let dragTask = new SvelteMap<string, { x: number; y: number }>();
 	let dragZone = new SvelteMap<string, Rect>();
 
-	// `kind:id` of everything the server has not confirmed yet — a pointer still
-	// down, or a save still in flight. Their overrides are the only current
-	// truth, so the prune pass below has to leave them alone. It is read
-	// untracked on purpose: pruning the instant a save settles would drop the
-	// override while the props still hold the pre-drag position, snapping the
-	// card backwards until the next load.
-	const unsettled = new SvelteSet<string>();
+	// How many things currently claim `kind:id` as theirs — a pointer still down,
+	// a save still in flight. A refcount, not a flag: a gesture and the save it
+	// kicks off overlap, as do two saves for one item, and a plain delete by
+	// either one would hand the item back to the prune pass while the other is
+	// still mid-flight. Read untracked, so settling never itself schedules a
+	// prune.
+	const unsettled = new SvelteMap<string, number>();
 	function markUnsettled(kind: 'task' | 'zone', id: string) {
-		unsettled.add(`${kind}:${id}`);
+		const key = `${kind}:${id}`;
+		unsettled.set(key, (unsettled.get(key) ?? 0) + 1);
 	}
 	function markSettled(kind: 'task' | 'zone', id: string) {
-		unsettled.delete(`${kind}:${id}`);
+		const key = `${kind}:${id}`;
+		const remaining = (unsettled.get(key) ?? 0) - 1;
+		if (remaining > 0) unsettled.set(key, remaining);
+		else unsettled.delete(key);
+	}
+	function isUnsettled(kind: 'task' | 'zone', id: string) {
+		return (unsettled.get(`${kind}:${id}`) ?? 0) > 0;
 	}
 
 	// Live preview while dragging a task near another loose task or an existing
@@ -164,12 +171,17 @@
 	// position changed by an LMS sync or another device could not render without
 	// a full reload, and the maps grew without bound.
 	//
-	// Fresh props are the newest truth for everything the server has already
-	// confirmed, so on every props change drop those overrides plus any left
-	// behind by a deleted task/zone. Items still unsettled keep theirs.
+	// An override retires when the props catch up with it — that, not "the save
+	// returned", is what proves the server holds the position the canvas is
+	// showing. Anything still unsettled is skipped outright, so a gesture in
+	// flight is never second-guessed. The cost is that an override for a move
+	// that was never saved lingers until its item disappears; it is the position
+	// the user is looking at, so keeping it is the lesser wrong.
 	$effect(() => {
-		// Geometry is read (not just ids) so the pass also re-runs when the server
-		// moves something that is already on screen.
+		// Re-runs when SvelteKit swaps in new props arrays, which is what every
+		// load and every invalidateAll does. Copying the coordinates out is for
+		// the comparison below, not for reactivity — page data is plain objects,
+		// so reading a field registers nothing.
 		const liveTasks = tasks.map((t) => ({ id: t.id, x: t.x, y: t.y }));
 		const liveZones = zones.map((z) => ({
 			id: z.id,
@@ -179,13 +191,35 @@
 			height: z.height
 		}));
 		untrack(() => {
-			const taskIds = new Set(liveTasks.map((t) => t.id));
-			for (const id of [...dragTask.keys()]) {
-				if (!taskIds.has(id) || !unsettled.has(`task:${id}`)) dragTask.delete(id);
+			const taskById = new Map(liveTasks.map((t) => [t.id, t]));
+			for (const [id, held] of [...dragTask]) {
+				const live = taskById.get(id);
+				if (!live) {
+					dragTask.delete(id); // task is gone; nothing left to shadow
+					continue;
+				}
+				if (isUnsettled('task', id)) continue;
+				// Positions are persisted rounded, so "the server agrees" means the
+				// rounded override matches the prop exactly.
+				if (Math.round(held.x) === live.x && Math.round(held.y) === live.y) dragTask.delete(id);
 			}
-			const zoneIds = new Set(liveZones.map((z) => z.id));
-			for (const id of [...dragZone.keys()]) {
-				if (!zoneIds.has(id) || !unsettled.has(`zone:${id}`)) dragZone.delete(id);
+
+			const zoneById = new Map(liveZones.map((z) => [z.id, z]));
+			for (const [id, held] of [...dragZone]) {
+				const live = zoneById.get(id);
+				if (!live) {
+					dragZone.delete(id);
+					continue;
+				}
+				if (isUnsettled('zone', id)) continue;
+				if (
+					Math.round(held.x) === live.x &&
+					Math.round(held.y) === live.y &&
+					Math.round(held.width) === live.width &&
+					Math.round(held.height) === live.height
+				) {
+					dragZone.delete(id);
+				}
 			}
 		});
 	});
@@ -494,7 +528,10 @@
 	async function openComposerAt(clientX: number, clientY: number) {
 		resolveComposer(); // resolve whatever composer was already open first
 		const rect = canvasEl?.getBoundingClientRect();
-		if (!rect || !canvasEl) return;
+		// canvasWidth/canvasHeight stay 0 until the first ResizeObserver tick, and
+		// a zero-size canvas makes viewportBounds a point at the origin — every
+		// placement would clamp to (0, 0).
+		if (!rect || canvasWidth === 0 || canvasHeight === 0) return;
 		// .canvas-world scales from its center, so undoing the scale to land
 		// back in world units is "distance from center, divided by zoom" —
 		// not a flat subtract of rect.left/top.
@@ -601,7 +638,10 @@
 			if (ev.pointerId !== pointerId) return;
 			cleanup();
 			const final = dragZone.get(zone.id) ?? { ...start };
+			// persist() takes its own claim before this one is released, so the
+			// refcount never touches zero in the handover.
 			void persist('zone', zone.id, final.x, final.y, final.width, final.height);
+			markSettled('zone', zone.id);
 		}
 		function cancel(ev: PointerEvent) {
 			if (ev.pointerId !== pointerId) return;
@@ -629,6 +669,21 @@
 		const pointerId = e.pointerId;
 		let traveled = 0;
 		markUnsettled(kind, id);
+
+		// Tasks a zone drag is carrying. Their overrides are as much a part of
+		// this gesture as the zone's own, so they need the same protection —
+		// claimed once each on first pickup, released together at the end.
+		const carried = new SvelteSet<string>();
+		function carry(taskId: string) {
+			if (carried.has(taskId)) return;
+			carried.add(taskId);
+			markUnsettled('task', taskId);
+		}
+		function releaseGesture() {
+			markSettled(kind, id);
+			for (const taskId of carried) markSettled('task', taskId);
+			carried.clear();
+		}
 
 		function cleanup() {
 			window.removeEventListener('pointermove', move);
@@ -682,6 +737,7 @@
 				for (const task of tasks) {
 					const taskPos = taskXY(task);
 					if (zoneForTask(taskCenter(taskPos), liveZones)?.id === id) {
+						carry(task.id);
 						dragTask.set(task.id, { x: taskPos.x + delta.x, y: taskPos.y + delta.y });
 					}
 				}
@@ -693,8 +749,9 @@
 
 			if (traveled < CLICK_MOVE_THRESHOLD) {
 				// A tap, not a drag: revert any micro-jitter. Nothing is saved, so
-				// the override is settled the moment it is written back.
-				markSettled(kind, id);
+				// the gesture's claims end here — the override it writes back
+				// already matches the props and retires on the next pass.
+				releaseGesture();
 				clusterTarget = null;
 				previewRect = null;
 				if (kind === 'task') {
@@ -742,12 +799,16 @@
 						}
 					}
 				}
+
+				// Every persist() above has already taken its own claim, so releasing
+				// the gesture's cannot drop an item back to zero mid-save.
+				releaseGesture();
 			}
 		}
 		function cancel(ev: PointerEvent) {
 			if (ev.pointerId !== pointerId) return;
 			cleanup();
-			markSettled(kind, id);
+			releaseGesture();
 			if (kind === 'task') {
 				clusterTarget = null;
 				previewRect = null;
