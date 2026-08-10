@@ -68,10 +68,13 @@ describe('groupTasksByZone', () => {
 		expect(byId[UNCATEGORIZED_ID].weight).toBe(1);
 	});
 
-	it('weight is max(taskCount, 1)', () => {
+	it('weighs a group by its raw task count while the floor does not bind', () => {
 		const tasks = [1, 2, 3].map((n) => task({ id: String(n), x: 100, y: 100 }));
 		const groups = groupTasksByZone(tasks, [work]);
-		expect(groups.find((g) => g.id === 'work')?.weight).toBe(3);
+		const byId = Object.fromEntries(groups.map((g) => [g.id, g]));
+		// Largest is 3, so the floor sits at 0.5 and lifts nobody.
+		expect(byId.work.weight).toBe(3);
+		expect(byId[UNCATEGORIZED_ID].weight).toBe(1);
 	});
 
 	it('floors a quiet group so a busy board cannot squeeze it below a readable size', () => {
@@ -85,13 +88,19 @@ describe('groupTasksByZone', () => {
 		expect(byId.work.weight / byId.home.weight).toBeLessThanOrEqual(MAX_WEIGHT_RATIO);
 	});
 
-	it('keeps the busiest group the heaviest', () => {
+	it('lifts only the groups the floor binds for, leaving the ranking intact', () => {
+		// 40 / 10 / 0 across three groups: the floor lands at 40 / 6 ≈ 6.67, so it
+		// binds for the empty group and for nobody else.
 		const busy = Array.from({ length: 40 }, (_, i) => task({ id: `w${i}`, x: 100, y: 100 }));
-		const quiet = [task({ id: 'h1', x: 550, y: 50 })];
-		const groups = groupTasksByZone([...busy, ...quiet], [work, home]);
+		const middling = Array.from({ length: 10 }, (_, i) => task({ id: `h${i}`, x: 550, y: 50 }));
+		const groups = groupTasksByZone([...busy, ...middling], [work, home]);
 		const byId = Object.fromEntries(groups.map((g) => [g.id, g]));
+
+		expect(byId.work.weight).toBe(40);
+		expect(byId.home.weight).toBe(10);
+		expect(byId[UNCATEGORIZED_ID].weight).toBeCloseTo(40 / MAX_WEIGHT_RATIO);
 		expect(byId.work.weight).toBeGreaterThan(byId.home.weight);
-		expect(byId.home.weight).toBeGreaterThan(byId[UNCATEGORIZED_ID].weight - 0.001);
+		expect(byId.home.weight).toBeGreaterThan(byId[UNCATEGORIZED_ID].weight);
 	});
 });
 
