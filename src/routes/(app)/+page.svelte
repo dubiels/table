@@ -8,12 +8,25 @@
 
 	const VIEW_KEY = 'table:view';
 	let view = $state<'blob' | 'list' | 'bento'>('blob');
+	// Safari in private mode throws on both of these; an uncaught throw inside an
+	// $effect takes the whole page down over a remembered dropdown.
+	function readSavedView(): string | null {
+		try {
+			return localStorage.getItem(VIEW_KEY);
+		} catch {
+			return null;
+		}
+	}
 	$effect(() => {
-		const saved = localStorage.getItem(VIEW_KEY);
+		const saved = readSavedView();
 		if (saved === 'blob' || saved === 'list' || saved === 'bento') view = saved;
 	});
 	$effect(() => {
-		localStorage.setItem(VIEW_KEY, view);
+		try {
+			localStorage.setItem(VIEW_KEY, view);
+		} catch {
+			// Not remembering the view is survivable; crashing is not.
+		}
 	});
 
 	let isMobile = $state(false);

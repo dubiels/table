@@ -9,9 +9,16 @@
 	let { user, unreadCount }: { user: { email: string } | null; unreadCount: number } = $props();
 	let menuOpen = $state(false);
 	let syncing = $state(false);
+	let avatarEl = $state<HTMLButtonElement | null>(null);
+
+	function closeMenu(refocus = false) {
+		if (!menuOpen) return;
+		menuOpen = false;
+		if (refocus) avatarEl?.focus();
+	}
 
 	async function enableNotifications() {
-		menuOpen = false;
+		closeMenu();
 		try {
 			await subscribeToPush(env.PUBLIC_VAPID_PUBLIC_KEY ?? '');
 			toast('Notifications enabled', 'success');
@@ -20,14 +27,35 @@
 		}
 	}
 
+	type SyncBody = {
+		error?: string;
+		created?: number;
+		updated?: number;
+		placedLoose?: boolean;
+	};
+
+	// A proxy error or a crashed route answers with an HTML page; res.json() would
+	// throw and lose the status we could have reported instead.
+	async function readJson(res: Response): Promise<SyncBody | null> {
+		if (!res.headers.get('content-type')?.includes('application/json')) return null;
+		try {
+			return (await res.json()) as SyncBody;
+		} catch {
+			return null;
+		}
+	}
+
 	async function syncNow() {
-		menuOpen = false;
+		closeMenu();
 		syncing = true;
+		toast('Syncing assignments…');
 		try {
 			const res = await fetch('/api/lms/sync', { method: 'POST' });
-			const body = await res.json();
+			const body = await readJson(res);
 			if (!res.ok) {
-				toast(body.error ?? 'Sync failed', 'error');
+				toast(body?.error ?? `Sync failed (HTTP ${res.status})`, 'error');
+			} else if (!body) {
+				toast('Sync failed — unexpected response', 'error');
 			} else {
 				toast(
 					`Synced — ${body.created} new, ${body.updated} updated${body.placedLoose ? ' (placed loose)' : ''}`,
@@ -42,18 +70,25 @@
 		}
 	}
 
-	function onWindowClick(e: MouseEvent) {
-		if (!menuOpen) return;
-		const target = e.target as HTMLElement | null;
-		if (!target?.closest('.user-menu')) menuOpen = false;
-	}
+	// Capture phase, not the bubble phase: cards in the canvas and rows in the
+	// list view stopPropagation() on their own clicks, so a bubble-phase window
+	// listener would never see them and the menu would stay stuck open.
+	$effect(() => {
+		function onDocumentClick(e: MouseEvent) {
+			if (!menuOpen) return;
+			const target = e.target as HTMLElement | null;
+			if (!target?.closest('.user-menu')) closeMenu();
+		}
+		document.addEventListener('click', onDocumentClick, true);
+		return () => document.removeEventListener('click', onDocumentClick, true);
+	});
 
 	function onWindowKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape' && menuOpen) menuOpen = false;
+		if (e.key === 'Escape' && menuOpen) closeMenu(true);
 	}
 </script>
 
-<svelte:window onclick={onWindowClick} onkeydown={onWindowKeydown} />
+<svelte:window onkeydown={onWindowKeydown} />
 
 <header class="topbar">
 	<a class="brand" href={resolve('/')}>Table</a>
@@ -72,7 +107,8 @@
 				<button
 					type="button"
 					class="avatar"
-					aria-haspopup="menu"
+					bind:this={avatarEl}
+					aria-haspopup="true"
 					aria-expanded={menuOpen}
 					aria-label="Account menu"
 					onclick={() => (menuOpen = !menuOpen)}
@@ -81,18 +117,18 @@
 				</button>
 
 				{#if menuOpen}
-					<div class="popover" role="menu">
+					<div class="popover">
 						<div class="who">{user.email}</div>
 						<div class="divider"></div>
-						<button type="button" class="item" role="menuitem" disabled={syncing} onclick={syncNow}>
-							{syncing ? 'Syncing…' : 'Sync assignments'}
+						<button type="button" class="item" disabled={syncing} onclick={syncNow}>
+							Sync assignments
 						</button>
-						<button type="button" class="item" role="menuitem" onclick={enableNotifications}>
+						<button type="button" class="item" onclick={enableNotifications}>
 							Enable notifications
 						</button>
 						<div class="divider"></div>
 						<form method="POST" action="/logout">
-							<button type="submit" class="item danger" role="menuitem">Log out</button>
+							<button type="submit" class="item danger">Log out</button>
 						</form>
 					</div>
 				{/if}
@@ -105,7 +141,9 @@
 	.topbar {
 		flex-shrink: 0;
 		/* Sticky so the shell stays reachable on the pages that scroll the body
-		   (history, inbox); below the task modal's 1000 so it never covers it. */
+		   (history, inbox). This z-index also opens a stacking context, so it is
+		   the ceiling for everything inside — including the popover — and 999
+		   keeps all of it under the task modal's 1000. */
 		position: sticky;
 		top: 0;
 		z-index: 999;
@@ -200,7 +238,6 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius-m);
 		box-shadow: var(--shadow-raised);
-		z-index: 1100;
 	}
 
 	.who {
