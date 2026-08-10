@@ -369,6 +369,12 @@
 		return fallback;
 	}
 
+	// The preview must be free to wrap both things it is joining, so the clamp is
+	// widened by both — the dragged card as well as its partner. Widening by the
+	// partner alone clipped the outline off the dragged card whenever that card
+	// was itself outside the visible region, and the zone committed on drop
+	// would not have contained it. What stays clamped is the padding the union
+	// adds beyond the two boxes, which is the only part not already on screen.
 	function updateClusterPreview(taskId: string, box: Rect) {
 		let best: ClusterTarget = null;
 		let bestArea = Infinity;
@@ -379,7 +385,7 @@
 			if (!intersects(box, zbox, CLUSTER_GAP)) continue;
 			const rect = clampRect(
 				withHeadClearance(unionRect(box, zbox, ZONE_PAD)),
-				boundsIncluding(viewportBounds, zbox)
+				boundsIncluding(boundsIncluding(viewportBounds, box), zbox)
 			);
 			const area = rect.width * rect.height;
 			if (area < bestArea) {
@@ -397,7 +403,7 @@
 				if (!intersects(box, obox, CLUSTER_GAP)) continue;
 				const rect = clampRect(
 					withHeadClearance(unionRect(box, obox, ZONE_PAD)),
-					boundsIncluding(viewportBounds, obox)
+					boundsIncluding(boundsIncluding(viewportBounds, box), obox)
 				);
 				const area = rect.width * rect.height;
 				if (area < bestArea) {
