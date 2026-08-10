@@ -54,6 +54,20 @@ describe('findTasksNeedingDueAlert', () => {
 		expect(result).toEqual([]);
 	});
 
+	it('anchors the lead window at local midnight, not UTC midnight', () => {
+		// 22:00 local on the 18th. The 20th begins at local midnight, 26h away —
+		// outside a 24h lead window. Parsing the due date as UTC midnight put it
+		// only 22h away, so the alert fired a day early (up to 5h early in general,
+		// 4h under EDT).
+		const lateNight = new Date(2026, 6, 18, 22, 0);
+		const tasks = [
+			{ id: 'day-after-tomorrow', dueDate: '2026-07-20', done: false },
+			{ id: 'tomorrow', dueDate: '2026-07-19', done: false }
+		];
+		const result = findTasksNeedingDueAlert(tasks, [], lateNight, 24);
+		expect(result.map((t) => t.id)).toEqual(['tomorrow']);
+	});
+
 	it('includes an overdue task', () => {
 		const tasks = [{ id: '1', dueDate: '2026-07-10', done: false }];
 		const result = findTasksNeedingDueAlert(tasks, [], now, 24);

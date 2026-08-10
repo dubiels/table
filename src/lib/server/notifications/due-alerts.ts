@@ -41,7 +41,11 @@ export function findTasksNeedingDueAlert(
 	return tasks.filter((t) => {
 		if (t.done || !t.dueDate) return false;
 		if (alertedTaskIdsToday.has(t.id)) return false;
-		const due = new Date(`${t.dueDate}T00:00:00Z`);
+		// No Z: a date-time without an offset parses as local time, so the task
+		// comes due at local midnight. The Z form anchored it at UTC midnight,
+		// which is the small hours of the previous evening here — every alert
+		// fired up to a whole timezone offset early.
+		const due = new Date(`${t.dueDate}T00:00:00`);
 		return due <= windowEnd;
 	});
 }
