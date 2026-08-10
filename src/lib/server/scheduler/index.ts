@@ -69,7 +69,15 @@ export async function runDueAlertCheck(leadHours: number) {
 
 		const text = `${due.length} task${due.length === 1 ? '' : 's'} due soon.`;
 		const content = { text, taskIds: due.map((t) => t.id) };
-		await sendPushToUser(user.id, { title: 'Table — due soon', body: text, url: '/' });
+		// Guarded like the digest, and for a sharper reason: the inbox entry is
+		// what findTasksNeedingDueAlert reads to decide a task has already been
+		// alerted about, so losing the write to a push failure would re-alert the
+		// same task every hour until its due date passed.
+		try {
+			await sendPushToUser(user.id, { title: 'Table — due soon', body: text, url: '/' });
+		} catch (err) {
+			console.warn('Due-alert push failed; logging to the inbox anyway', err);
+		}
 		await logNotification({ userId: user.id, type: 'due_alert', content });
 	}
 }
