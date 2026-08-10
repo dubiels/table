@@ -1614,7 +1614,184 @@ git commit -m "feat(agenda): google calendar rail beside the board"
 
 ---
 
-### Task 14: README, env docs, full verification
+### Task 14: Task export ICS feed (Table → Google Calendar)
+
+Requested mid-build by the user: tasks should reach their Google Calendar. Table publishes a token-protected ICS feed of active tasks that have due dates; the user subscribes to it in Google Calendar ("Other calendars → From URL"). No Google credentials, no write API — the feed is pull-based, matching the `DASHBOARD_TOKEN` pattern.
+
+**Files:**
+- Create: `src/lib/server/ics/export.ts` (pure)
+- Test: `src/lib/server/ics/export.test.ts`
+- Create: `src/routes/calendar.ics/+server.ts`
+- Modify: `src/hooks.server.ts` (token short-circuit, same pattern as `/api/dashboard`)
+- Modify: `.env.example`
+
+**Interfaces:**
+- Consumes: `decideDashboardAuth` pattern from Task 6 — but Google Calendar's feed fetcher cannot send headers, so the token arrives as a query parameter: `/calendar.ics?token=…`. Add `decideFeedAuth(configuredToken: string | undefined, presentedToken: string | null, hasSession: boolean)` to `src/lib/server/dashboard/auth.ts` reusing the same hashed timing-safe comparison (extract a shared `tokensMatch(a, b)` helper; do not duplicate the hashing code).
+- Produces: `buildTasksIcs(tasks: Array<{ id: string; title: string; dueDate: string | null; done: boolean; courseName: string | null; notes: string | null }>, now: Date): string` — a VCALENDAR of all-day VEVENTs, one per not-done task with a non-null dueDate.
+
+- [ ] **Step 1: Write the failing tests** — `src/lib/server/ics/export.test.ts`:
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { buildTasksIcs } from './export';
+
+const now = new Date('2026-08-09T12:00:00Z');
+
+function task(overrides: Record<string, unknown> = {}) {
+	return {
+		id: 'abc-123',
+		title: 'problem set 3',
+		dueDate: '2026-08-20',
+		done: false,
+		courseName: null,
+		notes: null,
+		...overrides
+	};
+}
+
+describe('buildTasksIcs', () => {
+	it('emits an all-day VEVENT per active task with a due date', () => {
+		const ics = buildTasksIcs([task()], now);
+		expect(ics).toContain('BEGIN:VCALENDAR');
+		expect(ics).toContain('BEGIN:VEVENT');
+		expect(ics).toContain('UID:table-abc-123');
+		expect(ics).toContain('DTSTART;VALUE=DATE:20260820');
+		expect(ics).toContain('SUMMARY:problem set 3');
+		expect(ics).toContain('END:VCALENDAR');
+	});
+
+	it('skips tasks without a due date and done tasks', () => {
+		const ics = buildTasksIcs(
+			[task({ id: 'no-due', dueDate: null }), task({ id: 'is-done', done: true })],
+			now
+		);
+		expect(ics).not.toContain('no-due');
+		expect(ics).not.toContain('is-done');
+	});
+
+	it('prefixes the course name into the summary when present', () => {
+		const ics = buildTasksIcs([task({ courseName: 'CS 4641' })], now);
+		expect(ics).toContain('SUMMARY:[CS 4641] problem set 3');
+	});
+
+	it('escapes ICS special characters in text fields', () => {
+		const ics = buildTasksIcs([task({ title: 'a, b; c\nnewline' })], now);
+		expect(ics).toContain('SUMMARY:a\\, b\\; c\\nnewline');
+	});
+
+	it('uses CRLF line endings and folds nothing shorter than 75 octets', () => {
+		const ics = buildTasksIcs([task()], now);
+		expect(ics).toContain('\r\n');
+		expect(ics.split('\r\n').every((l) => Buffer.byteLength(l) <= 75)).toBe(true);
+	});
+});
+```
+
+- [ ] **Step 2: Run to verify failure** — `npm test -- src/lib/server/ics` → FAIL.
+
+- [ ] **Step 3: Implement** — `src/lib/server/ics/export.ts`. Requirements the tests encode:
+  - `VERSION:2.0`, `PRODID:-//Table//EN`, `CALSCALE:GREGORIAN`, and `X-WR-CALNAME:Table tasks` headers.
+  - Per task (skip `done` or null `dueDate`): `BEGIN:VEVENT`, `UID:table-<id>`, `DTSTAMP:<now as UTC basic format>`, `DTSTART;VALUE=DATE:<yyyymmdd>` (all-day; no DTEND needed for single-day), `SUMMARY:<[courseName] >title`, optional `DESCRIPTION:<notes>` when notes non-null, `END:VEVENT`.
+  - Escape per RFC 5545: backslash, comma, semicolon → backslash-escaped; literal newline → `\n`.
+  - Fold any content line longer than 75 octets (continuation lines start with a single space). CRLF (`\r\n`) line endings throughout.
+- [ ] **Step 4: Run to verify pass** — `npm test -- src/lib/server/ics` → PASS.
+- [ ] **Step 5: Auth + route** — extract `tokensMatch` in `src/lib/server/dashboard/auth.ts`, add `decideFeedAuth` (same disabled/unauthorized/ok semantics; token from query param). In `src/hooks.server.ts`, add a `/calendar.ics` short-circuit before the session redirect mirroring the dashboard one, reading `event.url.searchParams.get('token')` against env `TASKS_FEED_TOKEN`. Route `src/routes/calendar.ics/+server.ts`:
+
+```ts
+import { listActiveTasks } from '$lib/server/tasks/service';
+import { buildTasksIcs } from '$lib/server/ics/export';
+
+export const GET = async () => {
+	const tasks = await listActiveTasks();
+	return new Response(buildTasksIcs(tasks, new Date()), {
+		headers: {
+			'content-type': 'text/calendar; charset=utf-8',
+			'cache-control': 'no-store'
+		}
+	});
+};
+```
+
+Add auth tests for `decideFeedAuth` to `auth.test.ts` (mirror the dashboard matrix: unset → disabled; session → ok; right/wrong/missing token). `.env.example`:
+
+```
+# Token for the read-only tasks .ics feed (subscribe in Google Calendar via
+# "Other calendars > From URL": https://your-app/calendar.ics?token=...).
+# Unset = feed disabled (404).
+TASKS_FEED_TOKEN=
+```
+
+- [ ] **Step 6: Verify** — `npm test` → PASS; `npm run check` → clean.
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/lib/server/ics src/lib/server/dashboard/auth.ts src/lib/server/dashboard/auth.test.ts src/routes/calendar.ics src/hooks.server.ts .env.example
+git commit -m "feat(ics): publish token-protected tasks feed for calendar subscription"
+```
+
+---
+
+### Task 15: Theming — light/dark mode, zone color tokens, ASCII robot mascot
+
+Requested mid-build: the user wants a dark mode option ("this kind of dark mode with the little ascii robot is super cute") while keeping the colorful vibe. Design decisions locked in here; visual taste latitude within them.
+
+**Supersedes** the "No dark theme" global constraint for Table's own UI (user override, 2026-08-09). Still binding: the Pi wall display owns its own palette — `/api/dashboard` continues to ship zone color *token names*, never hex, and nothing in this task touches that contract.
+
+**Files:**
+- Modify: `src/app.css` (dark token set + zone color custom properties)
+- Modify: `src/app.html` (pre-paint theme script)
+- Modify: `src/lib/zones.ts` (zone color CSS-var helper)
+- Modify: `src/lib/components/TopBar.svelte` (theme toggle)
+- Modify: `src/lib/components/BlobView.svelte`, `BentoView.svelte`, `ZoneColorPicker.svelte`, `TaskCard.svelte`, `MobileColumns.svelte`, `ListView.svelte` (zone colors via CSS vars)
+- Create: `src/lib/components/Mascot.svelte`
+- Modify: `src/routes/(app)/inbox/+page.svelte`, `src/routes/(app)/history/+page.svelte`, `src/routes/login/+page.svelte` (mascot in empty states / login card)
+
+**Interfaces:**
+- Produces: `zoneColorVars(key: string): { fill: string; border: string }` from `$lib/zones` returning `var(--zone-<key>-fill)` / `var(--zone-<key>-border)` strings for any of the six `ZONE_COLOR_KEYS` (unknown keys fall back to sage). The raw `ZONE_COLORS` hex map stays exported (light-theme source of truth; nothing else may import it for styling).
+- Produces: `Mascot` component, props `{ mood?: 'happy' | 'sleepy' | 'wave' }` — a small ASCII robot in a `<pre>`, monospace, `color: var(--muted)`, `font-size: 0.7rem`, `line-height: 1.15`, `user-select: none`, `aria-hidden="true"`.
+
+**Steps:**
+
+- [ ] **Step 1: Tokens** — in `src/app.css`:
+  1. Add zone color custom properties to `:root` (light values = the existing `ZONE_COLORS` hex, e.g. `--zone-sage-fill: #e7ebda; --zone-sage-border: #cbd3b4;` … all six).
+  2. Add a `[data-theme='dark']` block on `:root[data-theme='dark']` redefining every token. Dark palette direction (tune freely within it): warm charcoal, never pure black — `--bg: #1c1915; --surface: #262219; --surface-2: #322d24; --ink: #f0e9dc; --muted: #9a9182; --border: #3a342a; --border-strong: #4d4436; --accent: #e9e2d2; --accent-hover: #f7f1e4; --accent-soft: #383226; --accent-ink: #26231d; --danger: #e07a6c; --danger-soft: #46271f; --ok: #a3bd85;` — priority pill bg/fg pairs get legible dark variants; shadows get higher alpha. Zone colors: muted deep versions that stay *recognizably colorful* (e.g. sage `#2f3626`/`#4b5638`, sky `#273239`/`#3d4f5a`, butter `#3a3322`/`#5a4e30`, blush `#3a2a27`/`#57403b`, lilac `#312c39`/`#4a4258`, clay `#382c23`/`#554238`) — same *identity*, tuned for the dark ground.
+  3. `body` gets `transition: background 0.2s ease, color 0.2s ease`.
+- [ ] **Step 2: Pre-paint script** — in `src/app.html`, add to `<head>` before `%sveltekit.head%`:
+
+```html
+<script>
+	try {
+		var t = localStorage.getItem('table:theme');
+		if (t === 'dark') document.documentElement.dataset.theme = 'dark';
+	} catch (e) {}
+</script>
+```
+
+Default is light; only an explicit dark choice is stored.
+- [ ] **Step 3: Zone color plumbing** — add `zoneColorVars` to `zones.ts`; convert every component that inlines `ZONE_COLORS[…].fill/.border` into styles (BlobView zones + composer swatches + zone dot, BentoView boxes, ZoneColorPicker swatches, TaskCard dot, MobileColumns/ListView if they color by zone) to use the CSS-var strings. Grep `ZONE_COLORS` to find them all; after this step the only importers of the hex map are `zones.ts` itself and `app.css`'s values (hand-copied).
+- [ ] **Step 4: Toggle** — TopBar gets a ghost icon button before the user menu: moon glyph when light ("Switch to dark"), sun when dark; onclick flips `document.documentElement.dataset.theme` and writes/removes `localStorage['table:theme']`. State via `let dark = $state(…)` initialized from the DOM attribute.
+- [ ] **Step 5: Mascot** — `Mascot.svelte` renders ASCII art per mood, default `happy`. Starting art (improve freely, keep ≤6 lines × ≤14 chars):
+
+```
+   ___
+  [o_o]
+ /|___|\
+  d   b
+```
+
+`sleepy` variant: `[-_-]` face + `z z` floating; `wave` variant: one arm up `\|___|/` → use for login. Place it: inbox empty state (sleepy, "All caught up."), history empty state (happy), login card top (wave, above the wordmark). Remove the glyph placeholders ("☕", "✓") those pages used.
+- [ ] **Step 6: Contrast pass** — with dark active, check every hardcoded hex left in components (grep `#[0-9a-f]{3,6}` in `src/lib/components` and `src/routes`) — anything that doesn't read on dark must move to a token.
+- [ ] **Step 7: Verify** — `npm run check` → clean; `npm test` → PASS; `npm run lint` → clean.
+- [ ] **Step 8: Commit**
+
+```bash
+git add -A
+git commit -m "feat(theme): dark mode with zone color tokens and ascii mascot"
+```
+
+---
+
+### Task 16: README, env docs, full verification
 
 **Files:**
 - Modify: `README.md`
