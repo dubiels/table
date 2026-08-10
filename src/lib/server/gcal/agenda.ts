@@ -27,8 +27,12 @@ export function upcomingEvents(icsText: string, from: Date, days: number): Agend
 		const durationMs = ev.end ? ev.end.getTime() - ev.start.getTime() : 0;
 
 		if (ev.rrule) {
-			const exdates = new Set(Object.values(ev.exdate ?? {}).map((d) => (d as Date).getTime()));
+			const exdates = new Set(Object.values(ev.exdate ?? {}).map((d) => d.getTime()));
 			for (const occurrence of ev.rrule.between(from, windowEnd, true)) {
+				// .between(..., inclusive: true) includes both edges; the window
+				// contract is half-open [from, windowEnd), so only the `from` edge
+				// should survive — drop anything landing exactly on windowEnd.
+				if (occurrence.getTime() >= windowEnd.getTime()) continue;
 				if (exdates.has(occurrence.getTime())) continue;
 				out.push({
 					id: `${uid}:${occurrence.toISOString()}`,

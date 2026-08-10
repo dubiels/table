@@ -76,6 +76,39 @@ describe('upcomingEvents', () => {
 		expect(new Set(events.map((e) => e.id)).size).toBe(2);
 	});
 
+	it('respects the half-open window boundary for recurring events', () => {
+		const text = ics([
+			'BEGIN:VEVENT',
+			'UID:w1',
+			'SUMMARY:Boundary check',
+			'DTSTART:20260809T000000Z',
+			'DTEND:20260809T010000Z',
+			'RRULE:FREQ=WEEKLY;COUNT=2',
+			'END:VEVENT'
+		]);
+		// occurrences: 8/9T00:00Z (== from, included) and 8/16T00:00Z (== windowEnd, excluded)
+		const events = upcomingEvents(text, from, 7);
+		expect(events).toHaveLength(1);
+		expect(events[0].start).toBe('2026-08-09T00:00:00.000Z');
+	});
+
+	it('excludes occurrences listed in exdate', () => {
+		const text = ics([
+			'BEGIN:VEVENT',
+			'UID:r2',
+			'SUMMARY:CS lecture',
+			'DTSTART:20260803T140000Z',
+			'DTEND:20260803T152000Z',
+			'RRULE:FREQ=WEEKLY;BYDAY=MO,WE',
+			'EXDATE:20260810T140000Z',
+			'END:VEVENT'
+		]);
+		// window 8/9–8/16 would contain Mon 8/10 and Wed 8/12; 8/10 is excluded
+		const events = upcomingEvents(text, from, 7);
+		expect(events).toHaveLength(1);
+		expect(events[0].start).toBe('2026-08-12T14:00:00.000Z');
+	});
+
 	it('sorts by start time', () => {
 		const text = ics([
 			'BEGIN:VEVENT',
