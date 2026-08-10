@@ -48,3 +48,33 @@ export const ZONE_COLORS: Record<ZoneColor, { fill: string; border: string }> = 
 };
 
 export const ZONE_COLOR_KEYS: ZoneColor[] = ['sage', 'sky', 'butter', 'blush', 'lilac', 'clay'];
+
+export interface ViewportBounds {
+	minX: number;
+	minY: number;
+	maxX: number;
+	maxY: number;
+}
+
+/**
+ * The world-coordinate region visible in a canvas of the given natural size at
+ * the given zoom, where the canvas content scales around the natural center.
+ * Placement is legal anywhere visible — zooming out reveals fresh space that
+ * can be dragged onto immediately; there is no stored "world size".
+ */
+export function visibleWorldBounds(
+	naturalWidth: number,
+	naturalHeight: number,
+	zoom: number
+): ViewportBounds {
+	const halfW = naturalWidth / (2 * zoom);
+	const halfH = naturalHeight / (2 * zoom);
+	const cx = naturalWidth / 2;
+	const cy = naturalHeight / 2;
+	return {
+		minX: Math.max(0, cx - halfW),
+		minY: Math.max(0, cy - halfH),
+		maxX: cx + halfW,
+		maxY: cy + halfH
+	};
+}

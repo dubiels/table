@@ -11,6 +11,7 @@
 		zoneForTask,
 		taskCenter,
 		DEFAULT_CARD,
+		visibleWorldBounds,
 		type ZoneColor
 	} from '$lib/zones';
 	import { SvelteMap } from 'svelte/reactivity';
@@ -93,32 +94,8 @@
 	const CLICK_MOVE_THRESHOLD = 6; // px of pointer travel below which a drag counts as a click
 	const COMPOSER_WIDTH = 240; // approximate rendered size, used to keep the composer on-canvas
 	const COMPOSER_HEIGHT = 190;
-	const WORLD_PAD = 40; // px padding around content when computing the growable "world" bounds
 	const ZOOM_STEP = 0.1;
 	const ZOOM_MIN_FLOOR = 0.5;
-
-	// The growable canvas world: starts at the natural viewport size and only
-	// grows once committed (non-drag) zone/task positions spread past its
-	// edge. Positions clamp to this instead of the raw viewport, so zooming
-	// out has something to reveal.
-	let worldSize = $derived.by(() => {
-		const naturalW = canvasEl?.clientWidth ?? 0;
-		const naturalH = canvasEl?.clientHeight ?? 0;
-		let maxX = 0;
-		let maxY = 0;
-		for (const t of tasks) {
-			maxX = Math.max(maxX, t.x + DEFAULT_CARD.width);
-			maxY = Math.max(maxY, t.y + DEFAULT_CARD.height);
-		}
-		for (const z of zones) {
-			maxX = Math.max(maxX, z.x + z.width);
-			maxY = Math.max(maxY, z.y + z.height);
-		}
-		return {
-			width: Math.max(naturalW, maxX + WORLD_PAD),
-			height: Math.max(naturalH, maxY + WORLD_PAD)
-		};
-	});
 
 	// Zoom is a view-only lens: 100% is the max (today's normal, unscaled
 	// view). The min is a fixed floor, not content-driven — zooming out past
@@ -225,26 +202,12 @@
 		return { x: rect.x, y: rect.y - extra, width: rect.width, height: rect.height + extra };
 	}
 
-	// The region of the world actually visible right now, given the current
-	// zoom (the world can be bigger, but only its zoomed-out-enough portion
-	// is on screen — see the zoom design spec for why .canvas-world scales
-	// around the natural canvas center). Bounds every drag/resize/composer
-	// placement so nothing can end up somewhere the user can't see; zooming
-	// out is what makes more of the world reachable.
-	let viewportBounds = $derived.by(() => {
-		const natW = canvasEl?.clientWidth ?? 0;
-		const natH = canvasEl?.clientHeight ?? 0;
-		const halfW = natW / (2 * zoom);
-		const halfH = natH / (2 * zoom);
-		const cx = natW / 2;
-		const cy = natH / 2;
-		return {
-			minX: Math.max(0, cx - halfW),
-			minY: Math.max(0, cy - halfH),
-			maxX: Math.min(worldSize.width, cx + halfW),
-			maxY: Math.min(worldSize.height, cy + halfH)
-		};
-	});
+	// The region of the world visible right now at the current zoom. Every
+	// drag/resize/composer placement is clamped to this — so zooming out is
+	// exactly what makes more space reachable.
+	let viewportBounds = $derived(
+		visibleWorldBounds(canvasEl?.clientWidth ?? 0, canvasEl?.clientHeight ?? 0, zoom)
+	);
 
 	function clampPoint(x: number, y: number, width: number, height: number) {
 		const { minX, minY, maxX, maxY } = viewportBounds;
