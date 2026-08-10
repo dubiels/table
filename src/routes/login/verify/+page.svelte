@@ -1,18 +1,21 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
+
 	let { data }: { data: { error: 'invalid' | 'expired' | 'used' } } = $props();
 </script>
 
 <div class="page">
 	<div class="card">
-		<h1>Link problem</h1>
+		<h1>Table</h1>
+		<p class="tagline">Link problem</p>
 		{#if data.error === 'expired'}
-			<p>That login link has expired. Request a new one.</p>
+			<p class="status-error" role="alert">That login link has expired. Request a new one.</p>
 		{:else if data.error === 'used'}
-			<p>That login link was already used. Request a new one.</p>
+			<p class="status-error" role="alert">That login link was already used. Request a new one.</p>
 		{:else}
-			<p>That login link isn't valid. Request a new one.</p>
+			<p class="status-error" role="alert">That login link isn't valid. Request a new one.</p>
 		{/if}
-		<a class="btn btn-primary" href="/login">Back to login</a>
+		<a class="btn btn-primary" href={resolve('/login')}>Back to login</a>
 	</div>
 </div>
 
@@ -20,9 +23,10 @@
 	.page {
 		min-height: 100vh;
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		justify-content: center;
 		padding: 1rem;
+		padding-top: 35vh;
 	}
 
 	.card {
@@ -38,7 +42,19 @@
 	}
 
 	.card h1 {
-		font-size: 2rem;
+		font-family: var(--font-display);
+		font-weight: 700;
+		font-size: 1.6rem;
+	}
+
+	.tagline {
+		color: var(--muted);
+		margin-top: -0.5rem;
+	}
+
+	.status-error {
+		color: var(--danger);
+		font-size: 0.85rem;
 	}
 
 	.card .btn-primary {

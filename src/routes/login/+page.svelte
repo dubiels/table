@@ -13,10 +13,10 @@
 <div class="page">
 	<div class="card">
 		<h1>Table</h1>
-		<p class="tagline">See what's on the table.</p>
+		<p class="tagline">Everything on the table.</p>
 
 		{#if form?.sent}
-			<p>Check {form.email} for a login link and a 6-digit code.</p>
+			<p class="status">Check {form.email} for a login link and a 6-digit code.</p>
 			<form method="POST" action="?/code" use:enhance>
 				<input type="hidden" name="email" value={form.email} />
 				<label>
@@ -26,7 +26,7 @@
 				<button class="btn btn-primary" type="submit">Verify code</button>
 			</form>
 			{#if form?.codeError}
-				<p role="alert">
+				<p class="status-error" role="alert">
 					{#if form.codeError === 'locked'}
 						Too many wrong attempts. Request a new link.
 					{:else if form.codeError === 'expired'}
@@ -42,12 +42,12 @@
 					<span>Email</span>
 					<input name="email" type="email" required />
 				</label>
-				<button class="btn btn-primary" type="submit">Send login link</button>
+				<button class="btn btn-primary" type="submit">Send magic link</button>
 			</form>
 		{/if}
 
 		{#if form?.error}
-			<p role="alert">{form.error}</p>
+			<p class="status-error" role="alert">{form.error}</p>
 		{/if}
 	</div>
 </div>
@@ -56,9 +56,10 @@
 	.page {
 		min-height: 100vh;
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		justify-content: center;
 		padding: 1rem;
+		padding-top: 35vh;
 	}
 
 	.card {
@@ -74,12 +75,18 @@
 	}
 
 	.card h1 {
-		font-size: 2rem;
+		font-family: var(--font-display);
+		font-weight: 700;
+		font-size: 1.6rem;
 	}
 
 	.tagline {
 		color: var(--muted);
 		margin-top: -0.5rem;
+	}
+
+	.status {
+		color: var(--muted);
 	}
 
 	form {
@@ -104,16 +111,17 @@
 	}
 
 	.code-input {
+		font-size: 1.3rem;
+		letter-spacing: 0.35em;
 		text-align: center;
-		letter-spacing: 0.3em;
-		font-size: 1.2rem;
+		font-variant-numeric: tabular-nums;
 	}
 
 	form .btn-primary {
 		width: 100%;
 	}
 
-	[role='alert'] {
+	.status-error {
 		color: var(--danger);
 		font-size: 0.85rem;
 	}
