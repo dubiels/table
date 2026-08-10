@@ -87,13 +87,21 @@ describe('parseLmsIcal', () => {
 		expect(result[0].courseName).toBe('Unknown');
 	});
 
-	it('falls back to Untitled and empty eventId when summary/uid are missing', () => {
+	it('drops an event with no uid rather than importing an undedupable one', () => {
 		const text = ics([vevent({ dtstart: 'DTSTART:20260815T235900Z' })]);
 
 		const result = parseLmsIcal(text, NOW);
 
+		expect(result).toHaveLength(0);
+	});
+
+	it('falls back to Untitled when the summary is missing', () => {
+		const text = ics([vevent({ uid: 'no-summary', dtstart: 'DTSTART:20260815T235900Z' })]);
+
+		const result = parseLmsIcal(text, NOW);
+
 		expect(result[0].title).toBe('Untitled');
-		expect(result[0].eventId).toBe('');
+		expect(result[0].eventId).toBe('no-summary');
 	});
 
 	it('excludes an event 90 days in the future', () => {

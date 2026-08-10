@@ -36,6 +36,9 @@ export function parseLmsIcal(icsText: string, now: Date = new Date()): LmsEvent[
 		const comp = cal[key];
 		if (!comp || comp.type !== 'VEVENT') continue;
 
+		// No stable id ⇒ no way to dedupe; skipping beats duplicating every sync.
+		if (!comp.uid) continue;
+
 		const start = comp.start;
 		if (!start || isNaN(start.getTime())) continue;
 		if (start < windowStart || start > windowEnd) continue;
@@ -54,7 +57,7 @@ export function parseLmsIcal(icsText: string, now: Date = new Date()): LmsEvent[
 			// The feed has no separate course id field, so reuse the parsed course name.
 			courseId: courseName,
 			courseName,
-			eventId: comp.uid || ''
+			eventId: comp.uid
 		});
 	}
 
