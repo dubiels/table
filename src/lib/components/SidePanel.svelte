@@ -234,11 +234,12 @@
 <svelte:window onkeydown={onWindowKeydown} />
 
 {#if mode === 'docked' && !open}
+	<!-- No aria-controls: the panel it would name is not in the DOM while the strip
+	     is showing, and a dangling reference is worse than none. -->
 	<button
 		type="button"
 		class="edge-strip"
 		aria-expanded="false"
-		aria-controls="side-panel"
 		title="Show Today and Canvas"
 		onclick={onopen}
 	>
