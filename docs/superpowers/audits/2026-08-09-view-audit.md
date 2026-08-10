@@ -88,8 +88,11 @@ design limitation worth revisiting, but out of scope for a bug pass.
   diverging from it.
 - **Zone drags can move tasks that are never saved.** `up()` persists only the
   member tasks still inside the zone after the drag, so one dragged out of it
-  keeps an unsaved override. With overrides now pruned, that task returns to its
-  stored position on the next load rather than lying about where it is.
+  keeps an override the server never hears about. Pruning retires an override
+  only once the props match it, so this one is never retired: the task holds the
+  position it was dragged to for as long as the view is mounted, then reverts on
+  the next full load. Showing where the user put it is the better of the two
+  wrongs, but the underlying gap is that the drag does not persist it at all.
 - **Server-side date handling has the same UTC bug** in
   `notifications/digest.ts` and `notifications/due-alerts.ts`. Out of scope for a
   view audit, but the same class as suspect 7 and worth a separate pass.

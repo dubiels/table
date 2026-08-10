@@ -805,11 +805,14 @@
 						}
 					}
 				}
-
-				// Every persist() above has already taken its own claim, so releasing
-				// the gesture's cannot drop an item back to zero mid-save.
-				releaseGesture();
 			}
+
+			// One exit for both branches. Every persist() above has already taken
+			// its own claim, so releasing the gesture's cannot drop an item back to
+			// zero mid-save. Releasing per branch is how the task drop came to leak
+			// its claim, leaving the card permanently unsettled and its override
+			// permanently shadowing the props.
+			releaseGesture();
 		}
 		function cancel(ev: PointerEvent) {
 			if (ev.pointerId !== pointerId) return;
