@@ -49,21 +49,21 @@ Table can pull assignments from Canvas's calendar feed in as tasks.
 
 1. In Canvas, go to **Calendar > Calendar Feed** and copy the `.ics` URL.
 2. Set `LMS_ICAL_URL` to that URL.
-3. `LMS_SYNC_CRON` controls how often sync runs automatically (default every 6 hours). You can also trigger a sync on demand any time — from the side panel's **Canvas** tab, or from the user menu ("Sync assignments").
+3. `LMS_SYNC_CRON` controls how often sync runs automatically (default every 6 hours). You can also trigger a sync on demand any time — from the side panel's **Canvas** section, or from the user menu ("Sync assignments").
 
 Each sync imports assignments due from today through 14 days out: a reading list of what's actually coming up, not an archive of the semester.
 
-Assignments live in the side panel's **Canvas** tab, grouped by course, and in the list view, where they carry the category **Canvas** and can be filtered like any other category. They deliberately don't appear on the spatial views (table, bento, mobile columns) — a fortnight of deadlines would bury the handful of things you arranged there by hand. `LMS_ZONE_ID` is a leftover from when they did, and is no longer needed.
+Assignments live in the side panel's **Canvas** section, grouped by course, and in the list view, where they carry the category **Canvas** and can be filtered like any other category. They deliberately don't appear on the spatial views (table, bento, mobile columns) — a fortnight of deadlines would bury the handful of things you arranged there by hand. `LMS_ZONE_ID` is a leftover from when they did, and is no longer needed.
 
-Before `LMS_ICAL_URL` is set, the Canvas tab shows the setup guide instead.
+Before `LMS_ICAL_URL` is set, the Canvas section shows the setup guide instead.
 
 A sync only ever creates new tasks or refreshes the `dueDate` on ones it created before — it never touches a task's title, notes, priority, position, or completion state, and it never deletes anything. Running sync again against the same feed creates nothing new for assignments it's already imported.
 
 ## Google Calendar agenda
 
-Set `GCAL_ICAL_URLS` to one or more comma-separated Google Calendar "secret address in iCal format" URLs (Calendar settings > your calendar > **Integrate calendar**) to fill the side panel's **Today** tab: today's events at the top, then the next few days. It's display-only — nothing in it is editable — just a glance at what's on your calendars alongside your tasks. Leave it unset and the tab explains how to connect one.
+Set `GCAL_ICAL_URLS` to one or more comma-separated Google Calendar "secret address in iCal format" URLs (Calendar settings > your calendar > **Integrate calendar**) to fill the side panel's **Today** section: today's events at the top, then the next few days. It's display-only — nothing in it is editable — just a glance at what's on your calendars alongside your tasks. Leave it unset and the section explains how to connect one.
 
-The panel is docked beside the board and open by default on screens ≥1100px; the chevron folds it into a slim edge strip, and both that choice and the active tab are remembered. Below 1100px it becomes a drawer, opened from the **Panel** button above the board.
+The panel is docked beside the board and open by default on screens ≥1100px. It shows both sections at once in a single scrolling column — **Today** above, **Canvas** below — so the day and the coursework are visible together rather than one at a time. Each section header collapses its own contents, and the ⟩ button at the top of the panel folds the whole thing into a slim edge strip you click to bring it back. All three choices are remembered. Below 1100px the panel becomes a drawer, opened from the **Panel** button above the board.
 
 ## Tasks → Google Calendar
 
@@ -140,7 +140,7 @@ A few more pure-logic modules are the ones most worth reading before extending a
 - `src/lib/placement.ts` — grid/collision math shared by the canvas and LMS sync, so newly placed tasks don't stack on top of each other.
 - `src/lib/server/lms/plan.ts` — decides what a Canvas sync run creates or updates, independent of the database or scheduler.
 - `src/lib/server/dashboard/serialize.ts` — shapes tasks/zones into the dashboard API payload.
-- `src/lib/server/gcal/agenda.ts` — parses and windows Google Calendar events for the side panel's Today tab.
+- `src/lib/server/gcal/agenda.ts` — parses and windows Google Calendar events for the side panel's Today section.
 - `src/lib/server/ics/export.ts` — renders tasks as an RFC 5545 `.ics` feed.
 
 These are called the same way by the UI routes and by the in-process scheduler (`src/lib/server/scheduler/index.ts`), which is also what drives the periodic LMS sync. A future integration can call these same functions directly to create tasks and trigger notifications, without going through HTTP routes or duplicating scheduling logic.

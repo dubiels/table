@@ -58,6 +58,8 @@
 		ok?: boolean;
 		created?: number;
 		updated?: number;
+		/** Still worth surfacing: it means LMS_ZONE_ID named no zone this run. */
+		placedLoose?: boolean;
 	};
 
 	// A proxy error or a crashed route answers with an HTML page; res.json() would
@@ -83,7 +85,10 @@
 			} else if (!body) {
 				toast('Sync failed — unexpected response', 'error');
 			} else {
-				toast(`Synced — ${body.created} new, ${body.updated} updated`, 'success');
+				toast(
+					`Synced — ${body.created} new, ${body.updated} updated${body.placedLoose ? ' (placed loose)' : ''}`,
+					'success'
+				);
 				await invalidateAll();
 			}
 		} catch {

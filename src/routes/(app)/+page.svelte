@@ -31,7 +31,8 @@
 
 	const VIEW_KEY = 'table:view';
 	const PANEL_KEY = 'table:panel';
-	const PANEL_TAB_KEY = 'table:panelTab';
+	const PANEL_TODAY_KEY = 'table:panelToday';
+	const PANEL_CANVAS_KEY = 'table:panelCanvas';
 
 	// Safari in private mode throws on both of these; an uncaught throw inside an
 	// $effect takes the whole page down over a remembered dropdown.
@@ -49,6 +50,12 @@
 			// Not remembering a preference is survivable; crashing is not.
 		}
 	}
+	/** A stored open/closed flag, falling back when nothing usable is stored. */
+	function readFlag(key: string, fallback: boolean): boolean {
+		const saved = readSetting(key);
+		return saved === 'open' || saved === 'closed' ? saved === 'open' : fallback;
+	}
+	const flagValue = (open: boolean) => (open ? 'open' : 'closed');
 
 	// Bento is the opening view for anyone who has not picked one: it reads at a
 	// glance and needs no dragging to be useful. The $effect below still lets a
@@ -60,20 +67,21 @@
 	});
 	$effect(() => saveSetting(VIEW_KEY, view));
 
-	// The docked panel is open until someone folds it away; the narrow-screen
-	// drawer is never remembered, because a drawer that reopens itself over the
-	// board on every load is a nuisance rather than a memory.
+	// The docked panel and both of its sections are open until someone folds them
+	// away; the narrow-screen drawer is never remembered, because a drawer that
+	// reopens itself over the board on every load is a nuisance, not a memory.
 	let panelOpen = $state(true);
-	let panelTab = $state<'today' | 'canvas'>('today');
+	let todaySectionOpen = $state(true);
+	let canvasSectionOpen = $state(true);
 	let drawerOpen = $state(false);
 	$effect(() => {
-		const saved = readSetting(PANEL_KEY);
-		if (saved === 'open' || saved === 'closed') panelOpen = saved === 'open';
-		const savedTab = readSetting(PANEL_TAB_KEY);
-		if (savedTab === 'today' || savedTab === 'canvas') panelTab = savedTab;
+		panelOpen = readFlag(PANEL_KEY, true);
+		todaySectionOpen = readFlag(PANEL_TODAY_KEY, true);
+		canvasSectionOpen = readFlag(PANEL_CANVAS_KEY, true);
 	});
-	$effect(() => saveSetting(PANEL_KEY, panelOpen ? 'open' : 'closed'));
-	$effect(() => saveSetting(PANEL_TAB_KEY, panelTab));
+	$effect(() => saveSetting(PANEL_KEY, flagValue(panelOpen)));
+	$effect(() => saveSetting(PANEL_TODAY_KEY, flagValue(todaySectionOpen)));
+	$effect(() => saveSetting(PANEL_CANVAS_KEY, flagValue(canvasSectionOpen)));
 
 	let isMobile = $state(false);
 	$effect(() => {
@@ -89,7 +97,13 @@
 	let wideEnough = $state(true);
 	$effect(() => {
 		const mq = window.matchMedia('(min-width: 1101px)');
-		const apply = () => (wideEnough = mq.matches);
+		const apply = () => {
+			wideEnough = mq.matches;
+			// A drawer left open on a phone-width window would otherwise still count
+			// as open after a rotation or a resize, so the toolbar button's first
+			// press would close a panel the user can already see docked.
+			if (mq.matches) drawerOpen = false;
+		};
 		apply();
 		mq.addEventListener('change', apply);
 		return () => mq.removeEventListener('change', apply);
@@ -162,7 +176,8 @@
 	<SidePanel
 		mode={wideEnough ? 'docked' : 'overlay'}
 		open={wideEnough ? panelOpen : drawerOpen}
-		bind:tab={panelTab}
+		bind:todayOpen={todaySectionOpen}
+		bind:canvasOpen={canvasSectionOpen}
 		agenda={data.agenda}
 		gcalConfigured={data.gcalConfigured}
 		lmsConfigured={data.lmsConfigured}
