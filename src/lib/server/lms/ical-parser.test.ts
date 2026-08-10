@@ -161,6 +161,37 @@ describe('parseLmsIcal', () => {
 		expect(result[0].courseName).toBe('CS 101');
 	});
 
+	// The two fixtures below are the ones that tell a local-midnight window from a
+	// UTC-midnight one: both fall on the far side of midnight UTC from the local
+	// day they belong to, so a window built with Date.UTC gets both backwards.
+	it('excludes an event due late yesterday local time, though it is today in UTC', () => {
+		const text = ics([
+			vevent({
+				uid: 'late-yesterday',
+				dtstart: 'DTSTART:20260809T020000Z', // 10pm on the 8th, local
+				summary: 'Late Yesterday [CS 4641]'
+			})
+		]);
+
+		const result = parseLmsIcal(text, NOW);
+
+		expect(result).toHaveLength(0);
+	});
+
+	it('includes an event due late on the 14th day, though it is day 15 in UTC', () => {
+		const text = ics([
+			vevent({
+				uid: 'late-upper-boundary',
+				dtstart: 'DTSTART:20260824T020000Z', // 10pm on the 23rd, local
+				summary: 'Late Upper Boundary [CS 4641]'
+			})
+		]);
+
+		const result = parseLmsIcal(text, NOW);
+
+		expect(result).toHaveLength(1);
+	});
+
 	it('includes an event due earlier today (window starts at local midnight, not now)', () => {
 		const text = ics([
 			vevent({
