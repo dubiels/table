@@ -8,16 +8,6 @@ export interface LmsEvent {
 	eventId: string;
 }
 
-// Minimal shape of the fields we read off ical.parseICS's return value —
-// the `ical` package ships no types, and events carry their fields
-// directly (start/summary/uid/...), not under a `.properties` bag.
-interface IcalComponent {
-	type?: string;
-	start?: Date;
-	summary?: string;
-	uid?: string;
-}
-
 // Sync window: far enough back to catch assignments due while the app was
 // offline, far enough forward to be useful without importing a whole semester.
 const PAST_WINDOW_DAYS = 7;
@@ -36,7 +26,7 @@ function toLocalDateString(date: Date): string {
 const TRAILING_BRACKET = /\s*\[([^[\]]+)\]\s*$/;
 
 export function parseLmsIcal(icsText: string, now: Date = new Date()): LmsEvent[] {
-	const cal = ical.parseICS(icsText) as Record<string, IcalComponent>;
+	const cal = ical.parseICS(icsText);
 	const events: LmsEvent[] = [];
 
 	const windowStart = new Date(now.getTime() - PAST_WINDOW_DAYS * MS_PER_DAY);
@@ -52,7 +42,10 @@ export function parseLmsIcal(icsText: string, now: Date = new Date()): LmsEvent[
 
 		const summary = comp.summary || 'Untitled';
 		const bracketMatch = summary.match(TRAILING_BRACKET);
-		const title = bracketMatch ? summary.slice(0, bracketMatch.index).trim() : summary;
+		const strippedTitle = bracketMatch ? summary.slice(0, bracketMatch.index).trim() : summary;
+		// A summary that is only "[Course]" strips down to nothing — fall back
+		// to Untitled rather than surfacing an empty title.
+		const title = strippedTitle || 'Untitled';
 		const courseName = bracketMatch ? bracketMatch[1] : 'Unknown';
 
 		events.push({
