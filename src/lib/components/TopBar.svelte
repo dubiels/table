@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { invalidate, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import { browser } from '$app/environment';
@@ -10,6 +10,7 @@
 	let { user, unreadCount }: { user: { email: string } | null; unreadCount: number } = $props();
 	let menuOpen = $state(false);
 	let syncing = $state(false);
+	let digesting = $state(false);
 	let avatarEl = $state<HTMLButtonElement | null>(null);
 
 	// Seeded from the DOM rather than from localStorage: the pre-paint script in
@@ -52,19 +53,19 @@
 		}
 	}
 
-	type SyncBody = {
+	type ApiBody = {
 		error?: string;
+		ok?: boolean;
 		created?: number;
 		updated?: number;
-		placedLoose?: boolean;
 	};
 
 	// A proxy error or a crashed route answers with an HTML page; res.json() would
 	// throw and lose the status we could have reported instead.
-	async function readJson(res: Response): Promise<SyncBody | null> {
+	async function readJson(res: Response): Promise<ApiBody | null> {
 		if (!res.headers.get('content-type')?.includes('application/json')) return null;
 		try {
-			return (await res.json()) as SyncBody;
+			return (await res.json()) as ApiBody;
 		} catch {
 			return null;
 		}
@@ -82,16 +83,38 @@
 			} else if (!body) {
 				toast('Sync failed — unexpected response', 'error');
 			} else {
-				toast(
-					`Synced — ${body.created} new, ${body.updated} updated${body.placedLoose ? ' (placed loose)' : ''}`,
-					'success'
-				);
+				toast(`Synced — ${body.created} new, ${body.updated} updated`, 'success');
 				await invalidateAll();
 			}
 		} catch {
 			toast('Sync failed', 'error');
 		} finally {
 			syncing = false;
+		}
+	}
+
+	async function sendDigest() {
+		closeMenu();
+		digesting = true;
+		toast('Sending digest…');
+		try {
+			const res = await fetch('/api/digest/run', { method: 'POST' });
+			const body = await readJson(res);
+			if (!res.ok) {
+				toast(body?.error ?? `Digest failed (HTTP ${res.status})`, 'error');
+			} else if (!body?.ok) {
+				toast('Digest failed — unexpected response', 'error');
+			} else {
+				toast('Digest sent — check the inbox', 'success');
+				// The layout load depends on this key and nothing else invalidates
+				// it, so without this the unread badge ignores the digest we just
+				// wrote until the next full page load.
+				await invalidate('app:notifications');
+			}
+		} catch {
+			toast('Digest failed', 'error');
+		} finally {
+			digesting = false;
 		}
 	}
 
@@ -159,6 +182,9 @@
 						<div class="divider"></div>
 						<button type="button" class="item" disabled={syncing} onclick={syncNow}>
 							Sync assignments
+						</button>
+						<button type="button" class="item" disabled={digesting} onclick={sendDigest}>
+							Send digest now
 						</button>
 						<button type="button" class="item" onclick={enableNotifications}>
 							Enable notifications

@@ -39,7 +39,19 @@ export async function runMorningDigest() {
 	const digest = buildMorningDigestContent(tasks, new Date());
 
 	for (const user of allUsers) {
-		await sendPushToUser(user.id, { title: 'Table — morning digest', body: digest.text, url: '/' });
+		// Push is the optional half of a digest and the inbox is the durable one:
+		// no VAPID keys, a dead subscription endpoint, a push service having a bad
+		// morning — none of that is a reason for the user to find no digest waiting
+		// in the app. Send first, log regardless.
+		try {
+			await sendPushToUser(user.id, {
+				title: 'Table — morning digest',
+				body: digest.text,
+				url: '/'
+			});
+		} catch (err) {
+			console.warn('Digest push failed; logging to the inbox anyway', err);
+		}
 		await logNotification({ userId: user.id, type: 'morning_digest', content: digest });
 	}
 }
