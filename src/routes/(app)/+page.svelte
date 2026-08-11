@@ -6,12 +6,15 @@
 	import ViewSwitcher from '$lib/components/ViewSwitcher.svelte';
 	import Mascot from '$lib/components/Mascot.svelte';
 	import SidePanel from '$lib/components/SidePanel.svelte';
+	import TodayPanel from '$lib/components/TodayPanel.svelte';
+	import CanvasPanel from '$lib/components/CanvasPanel.svelte';
+	import { eventsToday } from '$lib/agenda';
 	import { localDateString, CANVAS_SOURCE } from '$lib/listView';
 	let { data } = $props();
 
-	// Synced assignments have a home now — the panel's Canvas tab and the list —
-	// and it is not the board. They still carry coordinates because the row needs
-	// them, but a fortnight of Canvas deadlines dropped onto the table buries the
+	// Synced assignments have a home now — the Canvas panel and the list — and it
+	// is not the board. They still carry coordinates because the row needs them,
+	// but a fortnight of Canvas deadlines dropped onto the table buries the
 	// handful of things actually arranged there.
 	let boardTasks = $derived(data.tasks.filter((t) => t.source !== CANVAS_SOURCE));
 
@@ -29,8 +32,16 @@
 		return 'happy' as const;
 	});
 
+	let todayCount = $derived(eventsToday(data.agenda).length);
+
+	// The header count is a workload, not an inventory: a finished assignment is
+	// still worth showing struck through, but counting it would mean the number
+	// beside "Canvas" never falls as work gets done.
+	let canvasOpenCount = $derived(
+		data.tasks.filter((t) => t.source === CANVAS_SOURCE && !t.done).length
+	);
+
 	const VIEW_KEY = 'table:view';
-	const PANEL_KEY = 'table:panel';
 	const PANEL_TODAY_KEY = 'table:panelToday';
 	const PANEL_CANVAS_KEY = 'table:panelCanvas';
 
@@ -67,21 +78,20 @@
 	});
 	$effect(() => saveSetting(VIEW_KEY, view));
 
-	// The docked panel and both of its sections are open until someone folds them
-	// away; the narrow-screen drawer is never remembered, because a drawer that
-	// reopens itself over the board on every load is a nuisance, not a memory.
-	let panelOpen = $state(true);
-	let todaySectionOpen = $state(true);
-	let canvasSectionOpen = $state(true);
-	let drawerOpen = $state(false);
+	// Each panel now remembers its own docked state — folding Today away no longer
+	// says anything about Canvas. The narrow-screen drawers are never remembered,
+	// because a drawer that reopens itself over the board on every load is a
+	// nuisance, not a memory.
+	let todayOpen = $state(true);
+	let canvasOpen = $state(true);
+	let todayDrawer = $state(false);
+	let canvasDrawer = $state(false);
 	$effect(() => {
-		panelOpen = readFlag(PANEL_KEY, true);
-		todaySectionOpen = readFlag(PANEL_TODAY_KEY, true);
-		canvasSectionOpen = readFlag(PANEL_CANVAS_KEY, true);
+		todayOpen = readFlag(PANEL_TODAY_KEY, true);
+		canvasOpen = readFlag(PANEL_CANVAS_KEY, true);
 	});
-	$effect(() => saveSetting(PANEL_KEY, flagValue(panelOpen)));
-	$effect(() => saveSetting(PANEL_TODAY_KEY, flagValue(todaySectionOpen)));
-	$effect(() => saveSetting(PANEL_CANVAS_KEY, flagValue(canvasSectionOpen)));
+	$effect(() => saveSetting(PANEL_TODAY_KEY, flagValue(todayOpen)));
+	$effect(() => saveSetting(PANEL_CANVAS_KEY, flagValue(canvasOpen)));
 
 	let isMobile = $state(false);
 	$effect(() => {
@@ -92,39 +102,59 @@
 		return () => mq.removeEventListener('change', apply);
 	});
 
-	// Wide enough to keep the panel docked beside the board. Below this it turns
-	// into a drawer the toolbar button opens, so the board keeps the full width.
+	// Wide enough to keep both panels docked beside the board. Two 280px panels
+	// plus the row's gaps and the shell's padding leave the board ~630px here,
+	// and folding either one hands back 252px. Below this they become drawers the
+	// toolbar opens, so the board keeps the full width.
 	let wideEnough = $state(true);
 	$effect(() => {
-		const mq = window.matchMedia('(min-width: 1101px)');
+		const mq = window.matchMedia('(min-width: 1280px)');
 		const apply = () => {
 			wideEnough = mq.matches;
 			// A drawer left open on a phone-width window would otherwise still count
 			// as open after a rotation or a resize, so the toolbar button's first
 			// press would close a panel the user can already see docked.
-			if (mq.matches) drawerOpen = false;
+			if (mq.matches) {
+				todayDrawer = false;
+				canvasDrawer = false;
+			}
 		};
 		apply();
 		mq.addEventListener('change', apply);
 		return () => mq.removeEventListener('change', apply);
 	});
 
-	// Handed to the panel so its outside-click test can exclude this button —
+	// Handed to each panel so its outside-click test can exclude its own button —
 	// otherwise the capture listener would close the drawer on the same click
 	// that reopens it, and the toggle would only ever appear to do nothing.
-	let panelButtonEl = $state<HTMLButtonElement | null>(null);
+	let todayButtonEl = $state<HTMLButtonElement | null>(null);
+	let canvasButtonEl = $state<HTMLButtonElement | null>(null);
 
-	function openPanel() {
-		if (wideEnough) panelOpen = true;
-		else drawerOpen = true;
+	function openToday() {
+		if (wideEnough) todayOpen = true;
+		else todayDrawer = true;
 	}
 
-	function closePanel(refocus = false) {
+	function closeToday(refocus = false) {
 		if (wideEnough) {
-			panelOpen = false;
+			todayOpen = false;
 		} else {
-			drawerOpen = false;
-			if (refocus) panelButtonEl?.focus();
+			todayDrawer = false;
+			if (refocus) todayButtonEl?.focus();
+		}
+	}
+
+	function openCanvas() {
+		if (wideEnough) canvasOpen = true;
+		else canvasDrawer = true;
+	}
+
+	function closeCanvas(refocus = false) {
+		if (wideEnough) {
+			canvasOpen = false;
+		} else {
+			canvasDrawer = false;
+			if (refocus) canvasButtonEl?.focus();
 		}
 	}
 </script>
@@ -142,12 +172,22 @@
 		<button
 			type="button"
 			class="btn btn-ghost panel-toggle"
-			bind:this={panelButtonEl}
-			aria-expanded={drawerOpen}
-			aria-controls="side-panel"
-			onclick={() => (drawerOpen = !drawerOpen)}
+			bind:this={todayButtonEl}
+			aria-expanded={todayDrawer}
+			aria-controls="side-panel-today"
+			onclick={() => (todayDrawer = !todayDrawer)}
 		>
-			<span aria-hidden="true">🗓</span> Panel
+			<span aria-hidden="true">🗓</span> Today
+		</button>
+		<button
+			type="button"
+			class="btn btn-ghost panel-toggle"
+			bind:this={canvasButtonEl}
+			aria-expanded={canvasDrawer}
+			aria-controls="side-panel-canvas"
+			onclick={() => (canvasDrawer = !canvasDrawer)}
+		>
+			<span aria-hidden="true">📚</span> Canvas
 		</button>
 	{/if}
 	{#if view === 'bento'}
@@ -159,6 +199,20 @@
 </div>
 
 <div class="board-row">
+	<SidePanel
+		side="left"
+		id="side-panel-today"
+		label="Today"
+		mode={wideEnough ? 'docked' : 'overlay'}
+		open={wideEnough ? todayOpen : todayDrawer}
+		count={todayCount > 0 ? todayCount : null}
+		anchor={todayButtonEl}
+		onopen={openToday}
+		onclose={closeToday}
+	>
+		<TodayPanel agenda={data.agenda} gcalConfigured={data.gcalConfigured} />
+	</SidePanel>
+
 	<div class="board-main">
 		{#if view === 'list'}
 			<ListView tasks={data.tasks} zones={data.zones} />
@@ -173,19 +227,20 @@
 			<div class="board-mascot"><Mascot mood={mascotMood} /></div>
 		{/if}
 	</div>
+
 	<SidePanel
+		side="right"
+		id="side-panel-canvas"
+		label="Canvas"
 		mode={wideEnough ? 'docked' : 'overlay'}
-		open={wideEnough ? panelOpen : drawerOpen}
-		bind:todayOpen={todaySectionOpen}
-		bind:canvasOpen={canvasSectionOpen}
-		agenda={data.agenda}
-		gcalConfigured={data.gcalConfigured}
-		lmsConfigured={data.lmsConfigured}
-		tasks={data.tasks}
-		anchor={panelButtonEl}
-		onopen={openPanel}
-		onclose={closePanel}
-	/>
+		open={wideEnough ? canvasOpen : canvasDrawer}
+		count={data.lmsConfigured ? `${canvasOpenCount} open` : null}
+		anchor={canvasButtonEl}
+		onopen={openCanvas}
+		onclose={closeCanvas}
+	>
+		<CanvasPanel tasks={data.tasks} lmsConfigured={data.lmsConfigured} />
+	</SidePanel>
 </div>
 
 <style>
@@ -229,14 +284,14 @@
 		flex-direction: column;
 		min-height: 0;
 		/* The anchor for .board-mascot. Inside this column rather than the row, so
-		   the robot never drifts under the side panel. */
+		   the robot never drifts under either side panel. */
 		position: relative;
 	}
 
 	/* A companion, not a control: it sits over the board's bottom-right corner and
 	   passes every click straight through to the canvas beneath it. Cards carry
 	   z-indexes up to 900 and the composer 950, so clearing those is what keeps it
-	   from being buried; 960 still leaves the panel drawer (980), topbar (999) and
+	   from being buried; 960 still leaves the panel drawers (980), topbar (999) and
 	   task modal (1000) above it. */
 	.board-mascot {
 		position: absolute;
