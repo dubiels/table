@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
 import { db } from '../db';
 import { tasks, googleTaskTombstones, syncState } from '../db/schema';
@@ -134,9 +134,12 @@ async function runSyncRound(options?: { full?: boolean }): Promise<GoogleTaskSyn
 	]);
 
 	// The version of each task the plan is computed from, and so the version any
-	// push in this round actually sends. `markPushed` records this rather than
-	// re-reading `updatedAt` afterwards: an edit made while the push was in
-	// flight would otherwise be stamped as already in Google and never sync.
+	// push in this round actually sends and any patchInTable's conflict
+	// resolution was decided against. `markPushed` records this rather than
+	// re-reading `updatedAt` afterwards, and the patchInTable loop below writes
+	// only if the row is still at this version: either way, an edit made while
+	// this round's network calls were in flight must not be stamped as already
+	// synced, or it would never sync.
 	const sentUpdatedAt = new Map(tableRows.map((t) => [t.id, t.updatedAt]));
 
 	const plan = planGoogleTaskSync({
@@ -256,9 +259,26 @@ async function runSyncRound(options?: { full?: boolean }): Promise<GoogleTaskSyn
 		result.imported++;
 	}
 
+	let skippedLocalPatches = 0;
 	for (const patch of plan.patchInTable) {
+		// The googleWins resolution above was computed from the snapshot, not from
+		// whatever the row holds right now, so this write must be conditional on
+		// the row still being at that snapshot version: a compare-and-swap against
+		// `sentUpdatedAt`, the same map `markPushed` carries the snapshot through
+		// with, rather than an unconditional overwrite. If the user edited the
+		// task while Google's read/plan/write round was in flight, the WHERE
+		// matches zero rows and the write is skipped instead of both overwriting
+		// the edit and stamping it clean — which would bury it for good, since no
+		// later round diffs against a state it never wrote down. The next round
+		// sees both changes and resolves the conflict correctly.
+		//
+		// The fallback below can't actually be reached: every patchInTable entry's
+		// taskId comes from the same tableRows this map is built from. It exists
+		// only so a missing entry fails safe as a skip rather than as an
+		// unconditional write.
+		const snapshotUpdatedAt = sentUpdatedAt.get(patch.taskId) ?? '\0unreachable';
 		const updatedAt = new Date().toISOString();
-		await db
+		const applied = await db
 			.update(tasks)
 			.set({
 				title: patch.title,
@@ -271,8 +291,15 @@ async function runSyncRound(options?: { full?: boolean }): Promise<GoogleTaskSyn
 				googleUpdatedAt: patch.googleUpdatedAt,
 				googleError: null
 			})
-			.where(eq(tasks.id, patch.taskId));
-		result.updatedLocally++;
+			.where(and(eq(tasks.id, patch.taskId), eq(tasks.updatedAt, snapshotUpdatedAt)));
+		if (applied.changes > 0) {
+			result.updatedLocally++;
+		} else {
+			skippedLocalPatches++;
+			console.warn(
+				`gtasks: skipped patchInTable for task ${patch.taskId}; row was edited since the plan snapshot, next round will recompute the conflict`
+			);
+		}
 	}
 
 	for (const del of plan.deleteInTable) {
@@ -295,7 +322,8 @@ async function runSyncRound(options?: { full?: boolean }): Promise<GoogleTaskSyn
 
 	await writeSyncState(LAST_SYNC_KEY, startedAt);
 	console.log(
-		`gtasks sync: ${result.imported} imported, ${result.updatedLocally} updated, ` +
+		`gtasks sync: ${result.imported} imported, ${result.updatedLocally} updated ` +
+			`(${skippedLocalPatches} skipped: edited mid-round), ` +
 			`${result.deletedLocally} deleted locally, ${result.pushed} pushed, ` +
 			`${result.deletedRemotely} deleted remotely, ${result.failed} failed`
 	);
