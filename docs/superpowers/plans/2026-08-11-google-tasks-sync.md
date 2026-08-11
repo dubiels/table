@@ -29,36 +29,38 @@
 ## File Structure
 
 **Created:**
-| Path | Responsibility |
-| --- | --- |
-| `src/lib/server/google/oauth.ts` | Access token from refresh token (moved from `gcal/oauth.ts`) |
-| `src/lib/server/google/oauth.test.ts` | Moved from `gcal/oauth.test.ts` |
-| `src/lib/server/gtasks/client.ts` | REST wrapper + date mapping. Knows HTTP, knows no rules |
-| `src/lib/server/gtasks/client.test.ts` | Request shaping, pagination, date mapping |
-| `src/lib/server/gtasks/plan.ts` | The entire rulebook, pure, no I/O |
-| `src/lib/server/gtasks/plan.test.ts` | Every rule, table-driven |
-| `src/lib/server/gtasks/sync.ts` | Executes a plan against API + DB; cron/manual entry point |
-| `src/lib/server/gtasks/push.ts` | Immediate single-task outbound |
-| `src/routes/api/gtasks/sync/+server.ts` | `POST` manual full sync |
-| `scripts/google-auth.ts` | Renamed from `gcal-auth.ts`, both scopes |
+
+| Path                                    | Responsibility                                               |
+| --------------------------------------- | ------------------------------------------------------------ |
+| `src/lib/server/google/oauth.ts`        | Access token from refresh token (moved from `gcal/oauth.ts`) |
+| `src/lib/server/google/oauth.test.ts`   | Moved from `gcal/oauth.test.ts`                              |
+| `src/lib/server/gtasks/client.ts`       | REST wrapper + date mapping. Knows HTTP, knows no rules      |
+| `src/lib/server/gtasks/client.test.ts`  | Request shaping, pagination, date mapping                    |
+| `src/lib/server/gtasks/plan.ts`         | The entire rulebook, pure, no I/O                            |
+| `src/lib/server/gtasks/plan.test.ts`    | Every rule, table-driven                                     |
+| `src/lib/server/gtasks/sync.ts`         | Executes a plan against API + DB; cron/manual entry point    |
+| `src/lib/server/gtasks/push.ts`         | Immediate single-task outbound                               |
+| `src/routes/api/gtasks/sync/+server.ts` | `POST` manual full sync                                      |
+| `scripts/google-auth.ts`                | Renamed from `gcal-auth.ts`, both scopes                     |
 
 **Modified:**
-| Path | Change |
-| --- | --- |
-| `src/lib/server/db/schema.ts` | 6 columns on `tasks`, 2 new tables, `source` gains `'google'` |
-| `src/lib/server/tasks/service.ts` | `updatedAt` bumps, `setGoogleSync`, tombstone on delete |
-| `src/lib/server/gcal/service.ts` | Import oauth from its new home |
-| `src/lib/server/scheduler/index.ts` | Register the sync cron |
-| `src/routes/(app)/+page.server.ts` | Stale-check on load; push after task mutations |
-| `src/routes/(app)/+layout.server.ts` | Expose `gtasksConfigured` to the whole shell |
-| `src/routes/(app)/+layout.svelte` | Pass the flag to `TopBar` |
-| `src/lib/server/lms/sync.ts` | Its raw insert needs the new non-null columns |
-| `src/lib/components/TaskCard.svelte` | Badge |
-| `src/lib/components/TaskDetailModal.svelte` | "Send to Google Tasks" toggle |
-| `src/lib/components/AddTaskForm.svelte` | Sticky composer checkbox |
-| `src/lib/components/TopBar.svelte` | "Sync Google Tasks" menu item |
-| `package.json` | `gcal:auth` → `google:auth` |
-| `.env.example`, `README.md` | New config; retire the `.ics` feed |
+
+| Path                                        | Change                                                        |
+| ------------------------------------------- | ------------------------------------------------------------- |
+| `src/lib/server/db/schema.ts`               | 6 columns on `tasks`, 2 new tables, `source` gains `'google'` |
+| `src/lib/server/tasks/service.ts`           | `updatedAt` bumps, `setGoogleSync`, tombstone on delete       |
+| `src/lib/server/gcal/service.ts`            | Import oauth from its new home                                |
+| `src/lib/server/scheduler/index.ts`         | Register the sync cron                                        |
+| `src/routes/(app)/+page.server.ts`          | Stale-check on load; push after task mutations                |
+| `src/routes/(app)/+layout.server.ts`        | Expose `gtasksConfigured` to the whole shell                  |
+| `src/routes/(app)/+layout.svelte`           | Pass the flag to `TopBar`                                     |
+| `src/lib/server/lms/sync.ts`                | Its raw insert needs the new non-null columns                 |
+| `src/lib/components/TaskCard.svelte`        | Badge                                                         |
+| `src/lib/components/TaskDetailModal.svelte` | "Send to Google Tasks" toggle                                 |
+| `src/lib/components/AddTaskForm.svelte`     | Sticky composer checkbox                                      |
+| `src/lib/components/TopBar.svelte`          | "Sync Google Tasks" menu item                                 |
+| `package.json`                              | `gcal:auth` → `google:auth`                                   |
+| `.env.example`, `README.md`                 | New config; retire the `.ics` feed                            |
 
 **Deleted:** `src/lib/server/ics/export.ts`, `src/lib/server/ics/export.test.ts`, `src/routes/calendar.ics/+server.ts`, `src/lib/server/gcal/oauth.ts`, `src/lib/server/gcal/oauth.test.ts`, `scripts/gcal-auth.ts`
 
@@ -67,10 +69,12 @@
 ### Task 1: Schema and migration
 
 **Files:**
+
 - Modify: `src/lib/server/db/schema.ts`
 - Create: `drizzle/0005_*.sql` (generated, then hand-edited)
 
 **Interfaces:**
+
 - Consumes: nothing
 - Produces: `tasks.updatedAt`, `tasks.googleSync`, `tasks.googleTaskId`, `tasks.googleSyncedAt`, `tasks.googleUpdatedAt`, `tasks.googleError`, `source: 'manual' | 'canvas' | 'google'`; tables `googleTaskTombstones` (`googleTaskId`, `deletedAt`) and `syncState` (`key`, `value`)
 
@@ -166,17 +170,21 @@ UPDATE `tasks` SET `updated_at` = `created_at` WHERE `updated_at` = '';
 - [ ] **Step 4: Run the migration and verify the shape**
 
 Run:
+
 ```bash
 npm run db:migrate && sqlite3 ./data/table.sqlite "PRAGMA table_info(tasks);" | grep -E 'updated_at|google_'
 ```
+
 Expected: six rows — `updated_at`, `google_sync`, `google_task_id`, `google_synced_at`, `google_updated_at`, `google_error`.
 
 - [ ] **Step 5: Verify the backfill left no empty stamps**
 
 Run:
+
 ```bash
 sqlite3 ./data/table.sqlite "SELECT count(*) FROM tasks WHERE updated_at = '';"
 ```
+
 Expected: `0`
 
 - [ ] **Step 6: Commit**
@@ -191,12 +199,14 @@ git commit -m "feat(db): add google tasks link columns and sync tables"
 ### Task 2: Share the OAuth client and widen its scopes
 
 **Files:**
+
 - Create: `src/lib/server/google/oauth.ts`, `src/lib/server/google/oauth.test.ts` (both `git mv`'d)
 - Delete: `src/lib/server/gcal/oauth.ts`, `src/lib/server/gcal/oauth.test.ts`
 - Modify: `src/lib/server/gcal/service.ts:2`, `package.json`
 - Rename: `scripts/gcal-auth.ts` → `scripts/google-auth.ts`
 
 **Interfaces:**
+
 - Consumes: nothing
 - Produces: `getAccessToken(): Promise<string>` importable from `$lib/server/google/oauth`
 
@@ -276,10 +286,12 @@ re-consent rather than two."
 ### Task 3: Google Tasks REST client
 
 **Files:**
+
 - Create: `src/lib/server/gtasks/client.ts`
 - Test: `src/lib/server/gtasks/client.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing
 - Produces:
   - `interface GoogleTask { id, title?, notes?, due?, status?, completed?, updated, deleted?, hidden?, parent? }`
@@ -297,14 +309,7 @@ Create `src/lib/server/gtasks/client.test.ts`:
 
 ```ts
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-	listTasks,
-	insertTask,
-	patchTask,
-	deleteTask,
-	toGoogleDue,
-	fromGoogleDue
-} from './client';
+import { listTasks, insertTask, patchTask, deleteTask, toGoogleDue, fromGoogleDue } from './client';
 
 function page(items: unknown[], nextPageToken?: string) {
 	return { ok: true, status: 200, json: async () => ({ items, nextPageToken }) };
@@ -569,10 +574,7 @@ export async function listTasks(
 	return items;
 }
 
-export async function insertTask(
-	accessToken: string,
-	body: GoogleTaskWrite
-): Promise<GoogleTask> {
+export async function insertTask(accessToken: string, body: GoogleTaskWrite): Promise<GoogleTask> {
 	// No `completed` handling here, unlike patchTask: a task being created has
 	// no stale stamp to clear.
 	const res = await fetch(tasksUrl(), {
@@ -645,10 +647,12 @@ Date would move the day for any server west of UTC."
 ### Task 4: The reconcile planner
 
 **Files:**
+
 - Create: `src/lib/server/gtasks/plan.ts`
 - Test: `src/lib/server/gtasks/plan.test.ts`
 
 **Interfaces:**
+
 - Consumes: `nextFreeSlot` from `$lib/placement`, `looseBounds` from `../lms/plan`
 - Produces:
   - `interface PlanTableTask { id, title, notes, dueDate, done, completedAt, updatedAt, googleSync, googleTaskId, googleSyncedAt, googleUpdatedAt, x, y }`
@@ -759,7 +763,9 @@ describe('the four-case matrix', () => {
 	it('pulls google changes down when only google changed', () => {
 		const result = plan({
 			tableTasks: [tableTask()],
-			googleTasks: [googleTask({ title: 'Renamed on the phone', updated: '2026-08-11T12:00:00.000Z' })]
+			googleTasks: [
+				googleTask({ title: 'Renamed on the phone', updated: '2026-08-11T12:00:00.000Z' })
+			]
 		});
 
 		expect(result.patchInTable).toHaveLength(1);
@@ -772,14 +778,15 @@ describe('the four-case matrix', () => {
 
 	it('pushes table changes up when only table changed', () => {
 		const result = plan({
-			tableTasks: [
-				tableTask({ title: 'Renamed in Table', updatedAt: '2026-08-11T12:00:00.000Z' })
-			],
+			tableTasks: [tableTask({ title: 'Renamed in Table', updatedAt: '2026-08-11T12:00:00.000Z' })],
 			googleTasks: [googleTask()]
 		});
 
 		expect(result.patchInGoogle).toHaveLength(1);
-		expect(result.patchInGoogle[0]).toMatchObject({ googleTaskId: 'g1', title: 'Renamed in Table' });
+		expect(result.patchInGoogle[0]).toMatchObject({
+			googleTaskId: 'g1',
+			title: 'Renamed in Table'
+		});
 	});
 
 	it('gives the later edit the whole task when both changed', () => {
@@ -874,7 +881,12 @@ describe('outbound creation', () => {
 	it('holds the intent, creating nothing, while there is no due date', () => {
 		const result = plan({
 			tableTasks: [
-				tableTask({ googleTaskId: null, googleSyncedAt: null, googleUpdatedAt: null, dueDate: null })
+				tableTask({
+					googleTaskId: null,
+					googleSyncedAt: null,
+					googleUpdatedAt: null,
+					dueDate: null
+				})
 			]
 		});
 
@@ -1149,10 +1161,12 @@ importing a completed task Table has not seen."
 ### Task 5: The sync runner
 
 **Files:**
+
 - Create: `src/lib/server/gtasks/sync.ts`
 - Modify: `src/lib/server/tasks/service.ts` (add `nextSortOrder` export)
 
 **Interfaces:**
+
 - Consumes: `planGoogleTaskSync` (Task 4), `listTasks`/`insertTask`/`patchTask`/`deleteTask`/`toGoogleDue`/`fromGoogleDue` (Task 3), `getAccessToken` (Task 2), schema (Task 1)
 - Produces:
   - `isGoogleTasksEnabled(): boolean`
@@ -1261,9 +1275,7 @@ function toPlanGoogleTask(g: GoogleTask): PlanGoogleTask {
  * Never throws. A round that cannot reach Google reports `ok: false` and leaves
  * every local record untouched, so the next round retries from the same state.
  */
-export async function syncGoogleTasks(
-	options?: { full?: boolean }
-): Promise<GoogleTaskSyncResult> {
+export async function syncGoogleTasks(options?: { full?: boolean }): Promise<GoogleTaskSyncResult> {
 	if (!isGoogleTasksEnabled()) return { ...EMPTY };
 
 	const lastSyncAt = await readSyncState(LAST_SYNC_KEY);
@@ -1503,10 +1515,12 @@ a live Google task with nothing pointing at it."
 ### Task 6: Scheduling, manual refresh and the page-load stale check
 
 **Files:**
+
 - Create: `src/routes/api/gtasks/sync/+server.ts`
 - Modify: `src/lib/server/scheduler/index.ts`, `src/routes/(app)/+page.server.ts`, `src/lib/components/TopBar.svelte`
 
 **Interfaces:**
+
 - Consumes: `syncGoogleTasks`, `isGoogleTasksEnabled`, `readSyncState` (Task 5)
 - Produces: `POST /api/gtasks/sync` returning `GoogleTaskSyncResult` as JSON; `gtasksConfigured` on the board's load data
 
@@ -1527,12 +1541,12 @@ const gtasksSyncCron = env.GTASKS_SYNC_CRON ?? '*/5 * * * *';
 And below the LMS `cron.schedule` block:
 
 ```ts
-	// syncGoogleTasks() already swallows its own failures and reports ok:false;
-	// the catch is a belt for anything unexpected, so one bad round never kills
-	// the scheduled job.
-	cron.schedule(gtasksSyncCron, () =>
-		syncGoogleTasks().catch((err) => console.error('Google Tasks sync job failed', err))
-	);
+// syncGoogleTasks() already swallows its own failures and reports ok:false;
+// the catch is a belt for anything unexpected, so one bad round never kills
+// the scheduled job.
+cron.schedule(gtasksSyncCron, () =>
+	syncGoogleTasks().catch((err) => console.error('Google Tasks sync job failed', err))
+);
 ```
 
 - [ ] **Step 2: Add the manual refresh route**
@@ -1613,7 +1627,7 @@ export const load: PageServerLoad = async () => {
 
 - [ ] **Step 4: Expose the feature flag to the whole app shell**
 
-`GTASKS_ENABLED` unset must hide every control, not just stop the syncing — and the controls live in three components at two different depths. Putting the flag on the *layout* load rather than the page load means any of them can read it from `page.data` without prop-drilling through the board.
+`GTASKS_ENABLED` unset must hide every control, not just stop the syncing — and the controls live in three components at two different depths. Putting the flag on the _layout_ load rather than the page load means any of them can read it from `page.data` without prop-drilling through the board.
 
 In `src/routes/(app)/+layout.server.ts`:
 
@@ -1637,7 +1651,7 @@ export const load: LayoutServerLoad = async ({ locals, depends }) => {
 In `src/routes/(app)/+layout.svelte`, pass it to the topbar:
 
 ```svelte
-	<TopBar user={data.user} unreadCount={data.unreadCount} gtasksConfigured={data.gtasksConfigured} />
+<TopBar user={data.user} unreadCount={data.unreadCount} gtasksConfigured={data.gtasksConfigured} />
 ```
 
 - [ ] **Step 5: Add the menu item**
@@ -1645,79 +1659,74 @@ In `src/routes/(app)/+layout.svelte`, pass it to the topbar:
 In `src/lib/components/TopBar.svelte`, replace the props line and add the state below `let digesting = $state(false);`:
 
 ```ts
-	let {
-		user,
-		unreadCount,
-		gtasksConfigured = false
-	}: { user: { email: string } | null; unreadCount: number; gtasksConfigured?: boolean } = $props();
+let {
+	user,
+	unreadCount,
+	gtasksConfigured = false
+}: { user: { email: string } | null; unreadCount: number; gtasksConfigured?: boolean } = $props();
 ```
 
 ```ts
-	let gtasksSyncing = $state(false);
+let gtasksSyncing = $state(false);
 ```
 
 Extend the `ApiBody` type with the runner's fields:
 
 ```ts
-	type ApiBody = {
-		error?: string;
-		ok?: boolean;
-		created?: number;
-		updated?: number;
-		/** Still worth surfacing: it means LMS_ZONE_ID named no zone this run. */
-		placedLoose?: boolean;
-		imported?: number;
-		updatedLocally?: number;
-		pushed?: number;
-		failed?: number;
-	};
+type ApiBody = {
+	error?: string;
+	ok?: boolean;
+	created?: number;
+	updated?: number;
+	/** Still worth surfacing: it means LMS_ZONE_ID named no zone this run. */
+	placedLoose?: boolean;
+	imported?: number;
+	updatedLocally?: number;
+	pushed?: number;
+	failed?: number;
+};
 ```
 
 Add the handler below `syncNow`:
 
 ```ts
-	async function syncGoogleTasksNow() {
-		closeMenu();
-		gtasksSyncing = true;
-		toast('Syncing Google Tasks…');
-		try {
-			const res = await fetch('/api/gtasks/sync', { method: 'POST' });
-			const body = await readJson(res);
-			if (!res.ok) {
-				toast(body?.error ?? `Google Tasks sync failed (HTTP ${res.status})`, 'error');
-			} else if (!body?.ok) {
-				// ok:false is the runner reporting it never reached Google, not a
-				// crash — say so rather than claiming a successful empty sync.
-				toast('Google Tasks sync failed — could not reach Google', 'error');
-			} else {
-				toast(
-					`Google Tasks synced — ${body.imported} in, ${body.pushed} out` +
-						(body.failed ? `, ${body.failed} failed` : ''),
-					body.failed ? 'error' : 'success'
-				);
-				await invalidateAll();
-			}
-		} catch {
-			toast('Google Tasks sync failed', 'error');
-		} finally {
-			gtasksSyncing = false;
+async function syncGoogleTasksNow() {
+	closeMenu();
+	gtasksSyncing = true;
+	toast('Syncing Google Tasks…');
+	try {
+		const res = await fetch('/api/gtasks/sync', { method: 'POST' });
+		const body = await readJson(res);
+		if (!res.ok) {
+			toast(body?.error ?? `Google Tasks sync failed (HTTP ${res.status})`, 'error');
+		} else if (!body?.ok) {
+			// ok:false is the runner reporting it never reached Google, not a
+			// crash — say so rather than claiming a successful empty sync.
+			toast('Google Tasks sync failed — could not reach Google', 'error');
+		} else {
+			toast(
+				`Google Tasks synced — ${body.imported} in, ${body.pushed} out` +
+					(body.failed ? `, ${body.failed} failed` : ''),
+				body.failed ? 'error' : 'success'
+			);
+			await invalidateAll();
 		}
+	} catch {
+		toast('Google Tasks sync failed', 'error');
+	} finally {
+		gtasksSyncing = false;
 	}
+}
 ```
 
 Add the button in the popover, directly after the "Sync assignments" button:
 
 ```svelte
-						{#if gtasksConfigured}
-							<button
-								type="button"
-								class="item"
-								disabled={gtasksSyncing}
-								onclick={syncGoogleTasksNow}
-							>
-								Sync Google Tasks
-							</button>
-						{/if}
+{#if gtasksConfigured}
+	<button type="button" class="item" disabled={gtasksSyncing} onclick={syncGoogleTasksNow}>
+		Sync Google Tasks
+	</button>
+{/if}
 ```
 
 - [ ] **Step 6: Typecheck and run the suite**
@@ -1741,10 +1750,12 @@ after ticking something off on the phone."
 ### Task 7: `updatedAt` bumps in the task service
 
 **Files:**
+
 - Modify: `src/lib/server/tasks/service.ts`
 - Test: `src/lib/server/tasks/service.test.ts` (existing file — add cases)
 
 **Interfaces:**
+
 - Consumes: schema (Task 1)
 - Produces: `createTask` accepts `googleSync?: boolean`; `setGoogleSync(id, googleSync): Promise<void>`; `deleteTask` writes a tombstone for a linked task
 
@@ -1753,20 +1764,20 @@ after ticking something off on the phone."
 `service.test.ts` mocks `../db` with a hand-rolled fake (lines 5–34). `deleteTask` is about to use a transaction, which the fake has no method for. Add this property to the mocked `db` object, after the existing `delete` block:
 
 ```ts
-		transaction: (fn: (tx: unknown) => void) => {
-			fn({
-				insert: () => ({
-					values: () => ({ onConflictDoNothing: () => ({ run: () => {} }) })
-				}),
-				delete: () => ({
-					where: () => ({
-						run: () => {
-							rows.length = 0;
-						}
-					})
-				})
-			});
-		}
+transaction: (fn: (tx: unknown) => void) => {
+	fn({
+		insert: () => ({
+			values: () => ({ onConflictDoNothing: () => ({ run: () => {} }) })
+		}),
+		delete: () => ({
+			where: () => ({
+				run: () => {
+					rows.length = 0;
+				}
+			})
+		})
+	});
+};
 ```
 
 - [ ] **Step 2: Write the failing tests**
@@ -1774,48 +1785,48 @@ after ticking something off on the phone."
 Append this describe block to `src/lib/server/tasks/service.test.ts`, inside the existing `describe('tasks service', ...)`. It asserts against `rows[0]` rather than re-reading through the service, matching the style of the two cases already there — the mock's `findFirst` always returns `rows[0]` regardless of the id it is given.
 
 ```ts
-	it('stamps a new task with its creation time', async () => {
-		const t = await tasksService.createTask({ title: 'Fresh' });
-		expect(t.updatedAt).toBe(t.createdAt);
-	});
+it('stamps a new task with its creation time', async () => {
+	const t = await tasksService.createTask({ title: 'Fresh' });
+	expect(t.updatedAt).toBe(t.createdAt);
+});
 
-	it('bumps updatedAt when a field Google can see changes', async () => {
-		const t = await tasksService.createTask({ title: 'Before' });
-		await tasksService.updateTask(t.id, { title: 'After' });
-		expect(rows[0].updatedAt).not.toBe('');
-		expect(Date.parse(rows[0].updatedAt)).toBeGreaterThanOrEqual(Date.parse(t.updatedAt));
-	});
+it('bumps updatedAt when a field Google can see changes', async () => {
+	const t = await tasksService.createTask({ title: 'Before' });
+	await tasksService.updateTask(t.id, { title: 'After' });
+	expect(rows[0].updatedAt).not.toBe('');
+	expect(Date.parse(rows[0].updatedAt)).toBeGreaterThanOrEqual(Date.parse(t.updatedAt));
+});
 
-	it('bumps updatedAt on completion', async () => {
-		const t = await tasksService.createTask({ title: 'Toggle me' });
-		await tasksService.toggleTaskDone(t.id);
-		expect(rows[0].completedAt).not.toBeNull();
-		expect(rows[0].updatedAt).toBe(rows[0].completedAt);
-	});
+it('bumps updatedAt on completion', async () => {
+	const t = await tasksService.createTask({ title: 'Toggle me' });
+	await tasksService.toggleTaskDone(t.id);
+	expect(rows[0].completedAt).not.toBeNull();
+	expect(rows[0].updatedAt).toBe(rows[0].completedAt);
+});
 
-	it('does NOT bump updatedAt when only the priority changes', async () => {
-		const t = await tasksService.createTask({ title: 'Priority only' });
-		await tasksService.updateTask(t.id, { priority: 'high' });
-		expect(rows[0].priority).toBe('high');
-		expect(rows[0].updatedAt).toBe(t.updatedAt);
-	});
+it('does NOT bump updatedAt when only the priority changes', async () => {
+	const t = await tasksService.createTask({ title: 'Priority only' });
+	await tasksService.updateTask(t.id, { priority: 'high' });
+	expect(rows[0].priority).toBe('high');
+	expect(rows[0].updatedAt).toBe(t.updatedAt);
+});
 
-	it('does NOT bump updatedAt when a card is moved', async () => {
-		const t = await tasksService.createTask({ title: 'Dragged' });
-		await tasksService.updateTaskPosition(t.id, 500, 500);
-		// Dirtiness is `updatedAt !== googleSyncedAt`, so a drag that bumped this
-		// would fire a pointless push and could win a conflict against a real edit
-		// made on the phone.
-		expect(rows[0].x).toBe(500);
-		expect(rows[0].updatedAt).toBe(t.updatedAt);
-	});
+it('does NOT bump updatedAt when a card is moved', async () => {
+	const t = await tasksService.createTask({ title: 'Dragged' });
+	await tasksService.updateTaskPosition(t.id, 500, 500);
+	// Dirtiness is `updatedAt !== googleSyncedAt`, so a drag that bumped this
+	// would fire a pointless push and could win a conflict against a real edit
+	// made on the phone.
+	expect(rows[0].x).toBe(500);
+	expect(rows[0].updatedAt).toBe(t.updatedAt);
+});
 
-	it('records the opt-in without marking the task dirty', async () => {
-		const t = await tasksService.createTask({ title: 'Opt me in' });
-		await tasksService.setGoogleSync(t.id, true);
-		expect(rows[0].googleSync).toBe(true);
-		expect(rows[0].updatedAt).toBe(t.updatedAt);
-	});
+it('records the opt-in without marking the task dirty', async () => {
+	const t = await tasksService.createTask({ title: 'Opt me in' });
+	await tasksService.setGoogleSync(t.id, true);
+	expect(rows[0].googleSync).toBe(true);
+	expect(rows[0].updatedAt).toBe(t.updatedAt);
+});
 ```
 
 - [ ] **Step 3: Run the tests to verify they fail**
@@ -1906,11 +1917,11 @@ export async function updateTask(
 Replace `toggleTaskDone`'s update call so it bumps too:
 
 ```ts
-	const now = new Date().toISOString();
-	await db
-		.update(tasks)
-		.set({ done, completedAt: done ? now : null, updatedAt: now })
-		.where(eq(tasks.id, id));
+const now = new Date().toISOString();
+await db
+	.update(tasks)
+	.set({ done, completedAt: done ? now : null, updatedAt: now })
+	.where(eq(tasks.id, id));
 ```
 
 `updateTaskPosition` is left exactly as it is — that is the point of the test above.
@@ -1998,10 +2009,12 @@ reason and could beat a real edit made on the phone in a conflict."
 ### Task 8: Immediate outbound push
 
 **Files:**
+
 - Create: `src/lib/server/gtasks/push.ts`
 - Modify: `src/routes/(app)/+page.server.ts`
 
 **Interfaces:**
+
 - Consumes: `getTask` (Task 7), `markPushed`/`recordError`/`isGoogleTasksEnabled` (Task 5), client (Task 3)
 - Produces: `pushTaskNow(taskId: string): Promise<void>`, `pushDeletionNow(googleTaskId: string): Promise<void>` — neither ever throws
 
@@ -2170,9 +2183,11 @@ never blocks on Google being up."
 ### Task 9: The badge, the toggle and the composer checkbox
 
 **Files:**
+
 - Modify: `src/lib/components/TaskCard.svelte`, `src/lib/components/TaskDetailModal.svelte`, `src/lib/components/AddTaskForm.svelte`
 
 **Interfaces:**
+
 - Consumes: `googleSync`, `googleTaskId`, `googleError` on the task rows the board already loads
 - Produces: no new module exports
 
@@ -2196,90 +2211,90 @@ In `src/lib/components/TaskCard.svelte`, extend the `task` prop type:
 Add below the `overdue` derivation:
 
 ```ts
-	// null hides the badge entirely: a task nobody asked to mirror should carry
-	// no mark at all, or every card on the board grows one.
-	let googleState = $derived(
-		!task.googleSync && !task.googleTaskId
-			? null
-			: task.googleError
-				? 'error'
-				: task.googleSync && task.googleTaskId
-					? 'synced'
-					: 'pending'
-	);
+// null hides the badge entirely: a task nobody asked to mirror should carry
+// no mark at all, or every card on the board grows one.
+let googleState = $derived(
+	!task.googleSync && !task.googleTaskId
+		? null
+		: task.googleError
+			? 'error'
+			: task.googleSync && task.googleTaskId
+				? 'synced'
+				: 'pending'
+);
 
-	let googleLabel = $derived(
-		googleState === 'error'
-			? `Google Tasks: ${task.googleError}`
-			: googleState === 'pending'
-				? 'Waiting to reach Google Tasks'
-				: 'In Google Tasks'
-	);
+let googleLabel = $derived(
+	googleState === 'error'
+		? `Google Tasks: ${task.googleError}`
+		: googleState === 'pending'
+			? 'Waiting to reach Google Tasks'
+			: 'In Google Tasks'
+);
 ```
 
 Add the badge markup immediately after the `{#if zoneColor}` block:
 
 ```svelte
-	{#if googleState}
-		<span class="gmark gmark-{googleState}" title={googleLabel}>
-			<!-- Drawn rather than set in type, like the topbar icons: a glyph would
+{#if googleState}
+	<span class="gmark gmark-{googleState}" title={googleLabel}>
+		<!-- Drawn rather than set in type, like the topbar icons: a glyph would
 			     ignore the span's colour and so could not carry the three states. -->
-			<svg
-				viewBox="0 0 24 24"
-				width="11"
-				height="11"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2.5"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-				aria-hidden="true"
-			>
-				<circle cx="12" cy="12" r="9" />
-				<path d="M8 12.5l2.5 2.5L16 9.5" />
-			</svg>
-			<span class="sr-only">{googleLabel}</span>
-		</span>
-	{/if}
+		<svg
+			viewBox="0 0 24 24"
+			width="11"
+			height="11"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="2.5"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+			aria-hidden="true"
+		>
+			<circle cx="12" cy="12" r="9" />
+			<path d="M8 12.5l2.5 2.5L16 9.5" />
+		</svg>
+		<span class="sr-only">{googleLabel}</span>
+	</span>
+{/if}
 ```
 
 And the styles, plus a shift of `.zone-dot` so the two marks do not overlap:
 
 ```css
-	.zone-dot {
-		position: absolute;
-		top: 0.4rem;
-		right: 0.4rem;
-		width: 0.5rem;
-		height: 0.5rem;
-		border-radius: 50%;
-		border: 1px solid;
-	}
-	.gmark {
-		position: absolute;
-		top: 0.3rem;
-		right: 1.15rem;
-		display: inline-flex;
-		line-height: 0;
-	}
-	.gmark-synced {
-		color: var(--ok);
-	}
-	.gmark-pending {
-		color: var(--muted);
-	}
-	.gmark-error {
-		color: var(--danger);
-	}
-	.sr-only {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		padding: 0;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
-	}
+.zone-dot {
+	position: absolute;
+	top: 0.4rem;
+	right: 0.4rem;
+	width: 0.5rem;
+	height: 0.5rem;
+	border-radius: 50%;
+	border: 1px solid;
+}
+.gmark {
+	position: absolute;
+	top: 0.3rem;
+	right: 1.15rem;
+	display: inline-flex;
+	line-height: 0;
+}
+.gmark-synced {
+	color: var(--ok);
+}
+.gmark-pending {
+	color: var(--muted);
+}
+.gmark-error {
+	color: var(--danger);
+}
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
 ```
 
 Also change `.row-main`'s `padding-right` from `0.9rem` to `1.8rem`, so a long title cannot run under the two marks.
@@ -2289,46 +2304,46 @@ Also change `.row-main`'s `padding-right` from `0.9rem` to `1.8rem`, so a long t
 In `src/lib/components/TaskDetailModal.svelte`, add `import { page } from '$app/state';` to the script, extend the `task` prop type with `googleSync?: boolean; googleTaskId?: string | null; googleError?: string | null;`, and add below the `$props()` call:
 
 ```ts
-	// Mirrors the date input rather than the saved value, so the toggle enables
-	// the moment a date is typed instead of after a save-and-reopen.
-	let dueDate = $state(task.dueDate ?? '');
-	let googleSync = $state(task.googleSync ?? false);
-	// From the layout load, so this component does not have to be handed the flag
-	// through the two views that render it.
-	let gtasksConfigured = $derived(page.data.gtasksConfigured === true);
-	// Creation needs a date; an existing link does not, and is maintained with a
-	// null due date rather than severed.
-	let canSync = $derived(Boolean(dueDate) || Boolean(task.googleTaskId));
+// Mirrors the date input rather than the saved value, so the toggle enables
+// the moment a date is typed instead of after a save-and-reopen.
+let dueDate = $state(task.dueDate ?? '');
+let googleSync = $state(task.googleSync ?? false);
+// From the layout load, so this component does not have to be handed the flag
+// through the two views that render it.
+let gtasksConfigured = $derived(page.data.gtasksConfigured === true);
+// Creation needs a date; an existing link does not, and is maintained with a
+// null due date rather than severed.
+let canSync = $derived(Boolean(dueDate) || Boolean(task.googleTaskId));
 
-	$effect(() => {
-		if (!canSync) googleSync = false;
-	});
+$effect(() => {
+	if (!canSync) googleSync = false;
+});
 ```
 
 Change the due-date input to bind:
 
 ```svelte
-			<label>
-				<span>Due date</span>
-				<input type="date" name="dueDate" bind:value={dueDate} />
-			</label>
+<label>
+	<span>Due date</span>
+	<input type="date" name="dueDate" bind:value={dueDate} />
+</label>
 ```
 
 Add after the Priority label, inside the same form:
 
 ```svelte
-			{#if gtasksConfigured}
-				<label class="check">
-					<input type="checkbox" name="googleSync" bind:checked={googleSync} disabled={!canSync} />
-					<span>Send to Google Tasks</span>
-				</label>
-				{#if !canSync}
-					<p class="hint">Needs a due date — an undated task never reaches the calendar grid.</p>
-				{/if}
-				{#if task.googleError}
-					<p class="hint hint-error">Google Tasks: {task.googleError}</p>
-				{/if}
-			{/if}
+{#if gtasksConfigured}
+	<label class="check">
+		<input type="checkbox" name="googleSync" bind:checked={googleSync} disabled={!canSync} />
+		<span>Send to Google Tasks</span>
+	</label>
+	{#if !canSync}
+		<p class="hint">Needs a due date — an undated task never reaches the calendar grid.</p>
+	{/if}
+	{#if task.googleError}
+		<p class="hint hint-error">Google Tasks: {task.googleError}</p>
+	{/if}
+{/if}
 ```
 
 This pairs with the `isGoogleTasksEnabled()` guard on `setGoogleSync` in Task 8: the action treats an absent checkbox as "off", which is only true when the control was actually rendered.
@@ -2336,26 +2351,26 @@ This pairs with the `isGoogleTasksEnabled()` guard on `setGoogleSync` in Task 8:
 And the styles:
 
 ```css
-	.check {
-		flex-direction: row;
-		align-items: center;
-		gap: 0.5rem;
-	}
+.check {
+	flex-direction: row;
+	align-items: center;
+	gap: 0.5rem;
+}
 
-	.check span {
-		font-size: 0.88rem;
-		color: var(--ink);
-	}
+.check span {
+	font-size: 0.88rem;
+	color: var(--ink);
+}
 
-	.hint {
-		margin: -0.35rem 0 0;
-		font-size: 0.74rem;
-		color: var(--muted);
-	}
+.hint {
+	margin: -0.35rem 0 0;
+	font-size: 0.74rem;
+	color: var(--muted);
+}
 
-	.hint-error {
-		color: var(--danger);
-	}
+.hint-error {
+	color: var(--danger);
+}
 ```
 
 - [ ] **Step 3: Add the composer checkbox**
@@ -2363,89 +2378,89 @@ And the styles:
 In `src/lib/components/AddTaskForm.svelte`, add `import { page } from '$app/state';` and this to the script:
 
 ```ts
-	const STORAGE_KEY = 'table:gtasks-default';
+const STORAGE_KEY = 'table:gtasks-default';
 
-	let dueDate = $state('');
-	// Sticky, because pushing everything should cost one click ever rather than
-	// one per task.
-	let googleSync = $state(false);
-	let gtasksConfigured = $derived(page.data.gtasksConfigured === true);
-	let canSync = $derived(Boolean(dueDate));
+let dueDate = $state('');
+// Sticky, because pushing everything should cost one click ever rather than
+// one per task.
+let googleSync = $state(false);
+let gtasksConfigured = $derived(page.data.gtasksConfigured === true);
+let canSync = $derived(Boolean(dueDate));
 
-	// No reactive dependencies, so this runs once after mount to seed the sticky
-	// preference. The server has no localStorage to read and renders it unticked.
-	$effect(() => {
-		try {
-			googleSync = localStorage.getItem(STORAGE_KEY) === 'true';
-		} catch {
-			// Blocked storage: the checkbox still works, it just will not persist.
-		}
-	});
-
-	function rememberGoogleSync(on: boolean) {
-		googleSync = on;
-		try {
-			localStorage.setItem(STORAGE_KEY, String(on));
-		} catch {
-			// As above.
-		}
+// No reactive dependencies, so this runs once after mount to seed the sticky
+// preference. The server has no localStorage to read and renders it unticked.
+$effect(() => {
+	try {
+		googleSync = localStorage.getItem(STORAGE_KEY) === 'true';
+	} catch {
+		// Blocked storage: the checkbox still works, it just will not persist.
 	}
+});
+
+function rememberGoogleSync(on: boolean) {
+	googleSync = on;
+	try {
+		localStorage.setItem(STORAGE_KEY, String(on));
+	} catch {
+		// As above.
+	}
+}
 ```
 
 Reset the fields in the `enhance` callback so the next task starts clean but keeps the sticky preference:
 
 ```svelte
-	use:enhance={() =>
-		async ({ update }) => {
-			await update();
-			open = false;
-			dueDate = '';
-		}}
+use:enhance={() =>
+	async ({ update }) => {
+		await update();
+		open = false;
+		dueDate = '';
+	}}
 ```
 
 Replace the `{#if open}` block:
 
 ```svelte
-	{#if open}
-		<div class="extra">
-			<label><span>Due</span><input type="date" name="dueDate" bind:value={dueDate} /></label>
-			<label
-				><span>Priority</span>
-				<select name="priority">
-					<option value="">None</option>
-					<option value="low">Low</option>
-					<option value="med">Medium</option>
-					<option value="high">High</option>
-				</select>
-			</label>
-		</div>
-		{#if gtasksConfigured}
-			<label class="gsync">
-				<input
-					type="checkbox"
-					name="googleSync"
-					checked={googleSync}
-					disabled={!canSync}
-					onchange={(e) => rememberGoogleSync(e.currentTarget.checked)}
-				/>
-				<span>Also add to Google Tasks{canSync ? '' : ' — needs a due date'}</span>
-			</label>
-		{/if}
+{#if open}
+	<div class="extra">
+		<label><span>Due</span><input type="date" name="dueDate" bind:value={dueDate} /></label>
+		<label
+			><span>Priority</span>
+			<select name="priority">
+				<option value="">None</option>
+				<option value="low">Low</option>
+				<option value="med">Medium</option>
+				<option value="high">High</option>
+			</select>
+		</label>
+	</div>
+	{#if gtasksConfigured}
+		<label class="gsync">
+			<input
+				type="checkbox"
+				name="googleSync"
+				checked={googleSync}
+				disabled={!canSync}
+				onchange={(e) => rememberGoogleSync(e.currentTarget.checked)}
+			/>
+			<span>Also add to Google Tasks{canSync ? '' : ' — needs a due date'}</span>
+		</label>
 	{/if}
+{/if}
 ```
 
 And the styles:
 
 ```css
-	.gsync {
-		display: flex;
-		align-items: center;
-		gap: 0.4rem;
-	}
-	.gsync span {
-		font-size: 0.72rem;
-		color: var(--muted);
-	}
+.gsync {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+}
+.gsync span {
+	font-size: 0.72rem;
+	color: var(--muted);
+}
 ```
 
 - [ ] **Step 4: Typecheck, lint and run the suite**
@@ -2469,10 +2484,12 @@ composer checkbox is sticky so pushing everything costs one click ever."
 ### Task 10: Retire the .ics feed and update the docs
 
 **Files:**
+
 - Delete: `src/lib/server/ics/export.ts`, `src/lib/server/ics/export.test.ts`, `src/routes/calendar.ics/+server.ts`
 - Modify: `.env.example`, `README.md`
 
 **Interfaces:**
+
 - Consumes: nothing
 - Produces: nothing
 
@@ -2515,7 +2532,7 @@ GTASKS_SYNC_CRON=*/5 * * * *
 
 Replace the whole `## Tasks → Google Calendar` section (lines 103–112) with:
 
-````markdown
+```markdown
 ## Google Tasks sync
 
 Table mirrors tasks two ways with Google Tasks. Badged tasks become real Google
@@ -2555,7 +2572,7 @@ How it behaves:
 
 Canvas assignments can be pushed like any other task. Priority and the course
 name stay in Table — Google Tasks has no field for either.
-````
+```
 
 Then update the two other places that name the old script:
 
@@ -2604,15 +2621,15 @@ Prerequisites (see the project memory note — a 403 here is almost always a sco
 2. `GCAL_REFRESH_TOKEN` regenerated via `npm run google:auth`.
 3. `GTASKS_ENABLED=true`.
 
-| # | Do this | Expect |
-| --- | --- | --- |
-| 1 | Create a task with a due date, tick "Also add to Google Tasks" | It appears in the Google Tasks app and on the Calendar grid on that date; the card shows a solid badge |
-| 2 | Tick it complete in the Google Tasks app, then use the menu's "Sync Google Tasks" | Table shows it done |
-| 3 | Add a task in the Google Tasks app | It appears in Table as Uncategorized within five minutes |
-| 4 | Add a task in Google and complete it before Table's next sync | Table never imports it |
-| 5 | Rename a linked task in Table | The rename reaches Google within seconds |
-| 6 | Delete a linked task in Table, then delete a different one in Google | Each disappears from the other side |
-| 7 | Clear the due date on a linked task, then re-add one | It stays in the Google Tasks list, leaves the grid, and returns to the grid as the same task — not a duplicate |
-| 8 | Turn the modal toggle off on a linked task | The Google task is gone by the next sync; the Table task survives without a badge |
-| 9 | Disconnect the network, edit a linked task, reconnect, sync | The edit saves locally, the badge turns to its error state, and the next sync settles it and clears the badge |
-| 10 | Drag a linked card to another bento category | No Google request is made and the badge does not change to pending |
+| #   | Do this                                                                           | Expect                                                                                                         |
+| --- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 1   | Create a task with a due date, tick "Also add to Google Tasks"                    | It appears in the Google Tasks app and on the Calendar grid on that date; the card shows a solid badge         |
+| 2   | Tick it complete in the Google Tasks app, then use the menu's "Sync Google Tasks" | Table shows it done                                                                                            |
+| 3   | Add a task in the Google Tasks app                                                | It appears in Table as Uncategorized within five minutes                                                       |
+| 4   | Add a task in Google and complete it before Table's next sync                     | Table never imports it                                                                                         |
+| 5   | Rename a linked task in Table                                                     | The rename reaches Google within seconds                                                                       |
+| 6   | Delete a linked task in Table, then delete a different one in Google              | Each disappears from the other side                                                                            |
+| 7   | Clear the due date on a linked task, then re-add one                              | It stays in the Google Tasks list, leaves the grid, and returns to the grid as the same task — not a duplicate |
+| 8   | Turn the modal toggle off on a linked task                                        | The Google task is gone by the next sync; the Table task survives without a badge                              |
+| 9   | Disconnect the network, edit a linked task, reconnect, sync                       | The edit saves locally, the badge turns to its error state, and the next sync settles it and clears the badge  |
+| 10  | Drag a linked card to another bento category                                      | No Google request is made and the badge does not change to pending                                             |

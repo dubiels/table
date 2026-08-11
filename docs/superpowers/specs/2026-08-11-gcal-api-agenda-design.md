@@ -55,13 +55,13 @@ declined meetings stop appearing.
 Four server modules replace the current two, plus a script that runs outside the app. Each
 has one job and one direction of dependency.
 
-| Module | Exports | Knows about |
-|---|---|---|
-| `gcal/oauth.ts` *(new)* | `getAccessToken(): Promise<string>` | env, `fetch` |
-| `gcal/client.ts` *(new)* | `listEvents(calendarId, timeMin, timeMax, token): Promise<GoogleEvent[]>` | `fetch` |
-| `gcal/agenda.ts` *(rewrite)* | `toAgendaEvents(items: GoogleEvent[]): AgendaEvent[]`, `AgendaEvent` | nothing |
-| `gcal/service.ts` *(rewrite)* | `getAgenda(): Promise<AgendaEvent[]>` | the three above |
-| `scripts/gcal-auth.ts` *(new)* | one-time consent flow | `fetch`, `node:http` |
+| Module                         | Exports                                                                   | Knows about          |
+| ------------------------------ | ------------------------------------------------------------------------- | -------------------- |
+| `gcal/oauth.ts` _(new)_        | `getAccessToken(): Promise<string>`                                       | env, `fetch`         |
+| `gcal/client.ts` _(new)_       | `listEvents(calendarId, timeMin, timeMax, token): Promise<GoogleEvent[]>` | `fetch`              |
+| `gcal/agenda.ts` _(rewrite)_   | `toAgendaEvents(items: GoogleEvent[]): AgendaEvent[]`, `AgendaEvent`      | nothing              |
+| `gcal/service.ts` _(rewrite)_  | `getAgenda(): Promise<AgendaEvent[]>`                                     | the three above      |
+| `scripts/gcal-auth.ts` _(new)_ | one-time consent flow                                                     | `fetch`, `node:http` |
 
 `agenda.ts` becomes a pure function over API payloads — no network, no clock, no config.
 `client.ts` performs one HTTP call and knows nothing of caching or credentials.
@@ -115,7 +115,7 @@ percent-encoded, because they are email addresses.
 interface AgendaEvent {
 	id: string;
 	title: string;
-	start: string;      // ISO
+	start: string; // ISO
 	end: string | null; // ISO
 	allDay: boolean;
 	location: string | null;
@@ -133,7 +133,7 @@ interface AgendaEvent {
 - **All-day times** convert `YYYY-MM-DD` to midnight in the server's local timezone before
   serialising, matching both the current behaviour and the local-midnight convention used
   elsewhere in the app.
-  Google reports an all-day `end.date` as the *following* day, which the mapping passes
+  Google reports an all-day `end.date` as the _following_ day, which the mapping passes
   through unchanged, exactly as the ICS path did.
 - **Timed times** parse `start.dateTime` — RFC 3339 with an offset — and normalise to a
   UTC ISO string, as today.
@@ -169,7 +169,7 @@ board keeps showing the last good agenda and retries on every request.
 
 ### 3.6 Window semantics change
 
-The ICS path included an event only when its *start* fell inside the 7-day window. The API
+The ICS path included an event only when its _start_ fell inside the 7-day window. The API
 filters by overlap, so an event that began before now and ends after now comes back too.
 The meeting you are currently in therefore appears on the rail. This is a deliberate
 improvement for a section titled **Today**, and it is recorded here because it is a visible
@@ -240,28 +240,32 @@ every other secret in the project is handled.
 Every test stubs `fetch`. No test reaches the network.
 
 **`oauth.test.ts`**
+
 - Returns the access token from a successful refresh.
 - Reuses the cached token on a second call within its lifetime, issuing one HTTP call.
 - Refetches once the token is inside the 60-second expiry skew.
 - Throws on a non-2xx token response.
 
 **`client.test.ts`**
+
 - Sends `timeMin`, `timeMax`, `singleEvents=true`, and `orderBy=startTime`.
 - Percent-encodes a calendar id containing `@`.
 - Concatenates pages while `nextPageToken` is present, then stops.
 - Sends the bearer token.
 
-**`agenda.test.ts`** *(rewritten from the current ICS tests)*
+**`agenda.test.ts`** _(rewritten from the current ICS tests)_
+
 - Maps a timed event to a UTC ISO start and end.
 - Maps an all-day event to local midnight with `allDay: true`.
 - Passes an all-day exclusive `end.date` through unchanged.
 - Returns `end: null` when the payload has no end.
 - Drops `status: 'cancelled'`.
 - Drops an event the account declined, and keeps one it accepted.
-- Keeps an event declined by *another* attendee.
+- Keeps an event declined by _another_ attendee.
 - Falls back to `(untitled)` and `location: null`.
 
-**`service.test.ts`** *(new)*
+**`service.test.ts`** _(new)_
+
 - Returns `[]` when `GCAL_REFRESH_TOKEN` is unset, without calling `fetch`.
 - Merges two calendars into one list sorted by start.
 - Serves the successes when one calendar of two fails.

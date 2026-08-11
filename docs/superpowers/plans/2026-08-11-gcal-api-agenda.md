@@ -33,10 +33,12 @@
 ### Task 1: OAuth access tokens
 
 **Files:**
+
 - Create: `src/lib/server/gcal/oauth.ts`
 - Test: `src/lib/server/gcal/oauth.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing
 - Produces: `getAccessToken(): Promise<string>` — returns a Google OAuth access token, cached in memory until 60 seconds before it expires. Throws `Error` on a non-2xx token response.
 
@@ -209,10 +211,12 @@ git commit -m "feat(gcal): add oauth access token refresh"
 ### Task 2: Calendar API client
 
 **Files:**
+
 - Create: `src/lib/server/gcal/client.ts`
 - Test: `src/lib/server/gcal/client.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing
 - Produces:
   - `interface GoogleEventTime { date?: string; dateTime?: string }`
@@ -381,10 +385,12 @@ git commit -m "feat(gcal): add calendar events api client"
 Rewrites `agenda.ts` from an ICS parser into a pure mapping function. The `rrule`/`exdate` expansion disappears because Task 2 asks Google to expand recurrences.
 
 **Files:**
+
 - Modify: `src/lib/server/gcal/agenda.ts` (replace entire contents)
 - Test: `src/lib/server/gcal/agenda.test.ts` (replace entire contents)
 
 **Interfaces:**
+
 - Consumes: `GoogleEvent`, `GoogleEventTime` from `./client` (Task 2)
 - Produces:
   - `interface AgendaEvent { id: string; title: string; start: string; end: string | null; allDay: boolean; location: string | null }` — unchanged from today
@@ -472,10 +478,7 @@ describe('toAgendaEvents', () => {
 
 	it('keeps an event someone else declined', () => {
 		const otherDeclined = event({
-			attendees: [
-				{ self: true, responseStatus: 'accepted' },
-				{ responseStatus: 'declined' }
-			]
+			attendees: [{ self: true, responseStatus: 'accepted' }, { responseStatus: 'declined' }]
 		});
 		expect(toAgendaEvents([otherDeclined])).toHaveLength(1);
 	});
@@ -594,10 +597,12 @@ git commit -m "refactor(gcal): map calendar api events instead of parsing ics"
 Rewrites `service.ts` to fetch through the API. The resilience contract in its docstring is preserved exactly, and gets tests for the first time.
 
 **Files:**
+
 - Modify: `src/lib/server/gcal/service.ts` (replace entire contents)
 - Create: `src/lib/server/gcal/service.test.ts`
 
 **Interfaces:**
+
 - Consumes: `getAccessToken()` (Task 1), `listEvents()` (Task 2), `toAgendaEvents()` and `AgendaEvent` (Task 3)
 - Produces: `getAgenda(): Promise<AgendaEvent[]>` — signature unchanged
 
@@ -836,10 +841,12 @@ Retires `GCAL_ICAL_URLS` and points the panel's configured-or-not test at the ne
 **Prerequisite:** commit or stash the in-flight changes to `src/routes/(app)/+page.server.ts`.
 
 **Files:**
+
 - Modify: `src/routes/(app)/+page.server.ts:24`
 - Modify: `.env.example`
 
 **Interfaces:**
+
 - Consumes: nothing new
 - Produces: `gcalConfigured: boolean` in the page load data — unchanged name and type, new source
 
@@ -848,13 +855,13 @@ Retires `GCAL_ICAL_URLS` and points the panel's configured-or-not test at the ne
 In `src/routes/(app)/+page.server.ts`, replace line 24:
 
 ```ts
-	const gcalConfigured = Boolean(env.GCAL_ICAL_URLS);
+const gcalConfigured = Boolean(env.GCAL_ICAL_URLS);
 ```
 
 with:
 
 ```ts
-	const gcalConfigured = Boolean(env.GCAL_REFRESH_TOKEN);
+const gcalConfigured = Boolean(env.GCAL_REFRESH_TOKEN);
 ```
 
 The comment above it still holds — it says the page checks "the same names `getAgenda()` reads", and `GCAL_REFRESH_TOKEN` is now that name. Leave it as is.
@@ -906,10 +913,12 @@ git commit -m "feat(gcal): configure the agenda with oauth credentials"
 ### Task 6: One-time authorisation script
 
 **Files:**
+
 - Create: `scripts/gcal-auth.ts`
 - Modify: `package.json` (add one script)
 
 **Interfaces:**
+
 - Consumes: `GCAL_CLIENT_ID`, `GCAL_CLIENT_SECRET` from the environment
 - Produces: prints a refresh token to stdout. Writes no files.
 
@@ -1042,9 +1051,11 @@ git commit -m "feat(gcal): add one-time oauth authorisation script"
 ### Task 7: Documentation
 
 **Files:**
+
 - Modify: `README.md` — the **Google Calendar agenda** section (line 64) and the Fly secrets note (line 107)
 
 **Interfaces:**
+
 - Consumes: nothing
 - Produces: nothing
 
@@ -1089,13 +1100,13 @@ need to trust your client id under **Admin console > Security > API controls**.
 In `README.md`, in the deployment section, replace:
 
 ```markdown
-   These cover core functionality. If you're using the optional integrations above, also set `LMS_ICAL_URL`, `GCAL_ICAL_URLS`, `TASKS_FEED_TOKEN`, and/or `DASHBOARD_TOKEN` as needed.
+These cover core functionality. If you're using the optional integrations above, also set `LMS_ICAL_URL`, `GCAL_ICAL_URLS`, `TASKS_FEED_TOKEN`, and/or `DASHBOARD_TOKEN` as needed.
 ```
 
 with:
 
 ```markdown
-   These cover core functionality. If you're using the optional integrations above, also set `LMS_ICAL_URL`, `GCAL_CLIENT_ID`, `GCAL_CLIENT_SECRET`, `GCAL_REFRESH_TOKEN`, `GCAL_CALENDAR_IDS`, `TASKS_FEED_TOKEN`, and/or `DASHBOARD_TOKEN` as needed.
+These cover core functionality. If you're using the optional integrations above, also set `LMS_ICAL_URL`, `GCAL_CLIENT_ID`, `GCAL_CLIENT_SECRET`, `GCAL_REFRESH_TOKEN`, `GCAL_CALENDAR_IDS`, `TASKS_FEED_TOKEN`, and/or `DASHBOARD_TOKEN` as needed.
 ```
 
 - [ ] **Step 3: Verify no stale references remain**

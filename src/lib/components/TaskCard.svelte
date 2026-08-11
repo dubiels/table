@@ -26,11 +26,18 @@
 
 	// null hides the badge entirely: a task nobody asked to mirror should carry
 	// no mark at all, or every card on the board grows one.
+	//
+	// An error outranks that guard, because the two are not mutually exclusive:
+	// a reconcile that finds a linked task gone from Google unlinks it and writes
+	// the reason in one go, leaving googleSync false, googleTaskId null and
+	// googleError set. That is a durable state, not a flash, and hiding it would
+	// make a task Google dropped look exactly like one never opted in — the very
+	// thing the badge exists to tell apart.
 	let googleState = $derived(
-		!task.googleSync && !task.googleTaskId
-			? null
-			: task.googleError
-				? 'error'
+		task.googleError
+			? 'error'
+			: !task.googleSync && !task.googleTaskId
+				? null
 				: task.googleSync && task.googleTaskId
 					? 'synced'
 					: 'pending'

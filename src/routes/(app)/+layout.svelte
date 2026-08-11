@@ -6,7 +6,11 @@
 </script>
 
 <div class="app-shell">
-	<TopBar user={data.user} unreadCount={data.unreadCount} gtasksConfigured={data.gtasksConfigured} />
+	<TopBar
+		user={data.user}
+		unreadCount={data.unreadCount}
+		gtasksConfigured={data.gtasksConfigured}
+	/>
 	<main>
 		{@render children()}
 	</main>

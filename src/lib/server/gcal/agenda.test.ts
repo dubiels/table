@@ -75,10 +75,7 @@ describe('toAgendaEvents', () => {
 
 	it('keeps an event someone else declined', () => {
 		const otherDeclined = event({
-			attendees: [
-				{ self: true, responseStatus: 'accepted' },
-				{ responseStatus: 'declined' }
-			]
+			attendees: [{ self: true, responseStatus: 'accepted' }, { responseStatus: 'declined' }]
 		});
 		expect(toAgendaEvents([otherDeclined])).toHaveLength(1);
 	});

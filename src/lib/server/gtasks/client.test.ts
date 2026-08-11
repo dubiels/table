@@ -1,12 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-	listTasks,
-	insertTask,
-	patchTask,
-	deleteTask,
-	toGoogleDue,
-	fromGoogleDue
-} from './client';
+import { listTasks, insertTask, patchTask, deleteTask, toGoogleDue, fromGoogleDue } from './client';
 
 function page(items: unknown[], nextPageToken?: string) {
 	return { ok: true, status: 200, json: async () => ({ items, nextPageToken }) };

@@ -19,21 +19,21 @@ badge.
 
 ## Decisions
 
-| Question | Decision |
-| --- | --- |
-| Google entity | Google Tasks (`tasks.googleapis.com/tasks/v1`), not calendar events |
-| Sync scope | Full mirror, including inbound capture |
-| Task list | `@default` — the list Google's quick-capture writes to |
-| Inbound of completed tasks | Never imported, first sync or any later sync |
-| Conflict policy | Per-task last-write-wins |
-| Deletion | Mirrored both ways |
-| Outbound timing | Immediate write-through, retried by the reconciler on failure |
-| Inbound timing | Cron (~5 min), manual refresh, and a stale check on page load |
-| Opt-in control | Toggle in the task detail modal, plus a sticky checkbox in the composer |
-| Due date | Required before a task can be pushed |
-| Canvas assignments | Pushable, same opt-in as any task |
-| `.ics` tasks feed | Retired entirely |
-| Code structure | Pure planner + thin runner, mirroring `lms/plan.ts` |
+| Question                   | Decision                                                                |
+| -------------------------- | ----------------------------------------------------------------------- |
+| Google entity              | Google Tasks (`tasks.googleapis.com/tasks/v1`), not calendar events     |
+| Sync scope                 | Full mirror, including inbound capture                                  |
+| Task list                  | `@default` — the list Google's quick-capture writes to                  |
+| Inbound of completed tasks | Never imported, first sync or any later sync                            |
+| Conflict policy            | Per-task last-write-wins                                                |
+| Deletion                   | Mirrored both ways                                                      |
+| Outbound timing            | Immediate write-through, retried by the reconciler on failure           |
+| Inbound timing             | Cron (~5 min), manual refresh, and a stale check on page load           |
+| Opt-in control             | Toggle in the task detail modal, plus a sticky checkbox in the composer |
+| Due date                   | Required before a task can be pushed                                    |
+| Canvas assignments         | Pushable, same opt-in as any task                                       |
+| `.ics` tasks feed          | Retired entirely                                                        |
+| Code structure             | Pure planner + thin runner, mirroring `lms/plan.ts`                     |
 
 ### Why Google Tasks and not calendar events
 
@@ -101,7 +101,7 @@ This is load-bearing, not fussiness. Dirty-detection is
 `updatedAt !== googleSyncedAt`, so a bump means "Google owes us a write", and
 conflict resolution compares `updatedAt` against Google's `updated`. If a drag
 bumped it, every reshuffle of the bento grid would fire pointless API calls
-*and* let that drag win a conflict against a real edit made on your phone.
+_and_ let that drag win a conflict against a real edit made on your phone.
 
 Priority is excluded for the same reason: Google Tasks has no priority field, so
 a priority change is not something Google can be behind on.
@@ -161,16 +161,16 @@ import from `gcal/`, misstating the relationship between two sibling features.
 
 ## Field mapping
 
-| Table | Google Tasks | Notes |
-| --- | --- | --- |
-| `title` | `title` | verbatim, no prefixing |
-| `notes` | `notes` | |
-| `dueDate` (`YYYY-MM-DD`) | `due` (`YYYY-MM-DDT00:00:00.000Z`) | lossless; see below |
-| `done` | `status` (`needsAction` / `completed`) | |
-| `completedAt` | `completed` | |
-| `priority` | — | Table-only; Google Tasks has no equivalent |
-| `courseName` | — | Table-only, deliberately not prefixed into the title |
-| — | `parent`, `position`, `links` | read and ignored |
+| Table                    | Google Tasks                           | Notes                                                |
+| ------------------------ | -------------------------------------- | ---------------------------------------------------- |
+| `title`                  | `title`                                | verbatim, no prefixing                               |
+| `notes`                  | `notes`                                |                                                      |
+| `dueDate` (`YYYY-MM-DD`) | `due` (`YYYY-MM-DDT00:00:00.000Z`)     | lossless; see below                                  |
+| `done`                   | `status` (`needsAction` / `completed`) |                                                      |
+| `completedAt`            | `completed`                            |                                                      |
+| `priority`               | —                                      | Table-only; Google Tasks has no equivalent           |
+| `courseName`             | —                                      | Table-only, deliberately not prefixed into the title |
+| —                        | `parent`, `position`, `links`          | read and ignored                                     |
 
 **Dates are lossless in both directions.** Google documents that `due` records
 date information only — the time portion is discarded on write and cannot be
@@ -206,18 +206,36 @@ planGoogleTaskSync(input: {
 
 ```ts
 interface SyncPlan {
-  deleteInGoogle: { googleTaskId: string }[];
-  createInGoogle: { taskId: string; title: string; notes: string | null; due: string }[];
-  patchInGoogle:  { taskId: string; googleTaskId: string; title: string;
-                    notes: string | null; due: string | null;
-                    status: 'needsAction' | 'completed' }[];
-  createInTable:  { googleTaskId: string; title: string; notes: string | null;
-                    dueDate: string | null; googleUpdatedAt: string; x: number; y: number }[];
-  patchInTable:   { taskId: string; title: string; notes: string | null;
-                    dueDate: string | null; done: boolean;
-                    completedAt: string | null; googleUpdatedAt: string }[];
-  deleteInTable:  { taskId: string }[];
-  unlinkInTable:  { taskId: string; reason: string }[];
+	deleteInGoogle: { googleTaskId: string }[];
+	createInGoogle: { taskId: string; title: string; notes: string | null; due: string }[];
+	patchInGoogle: {
+		taskId: string;
+		googleTaskId: string;
+		title: string;
+		notes: string | null;
+		due: string | null;
+		status: 'needsAction' | 'completed';
+	}[];
+	createInTable: {
+		googleTaskId: string;
+		title: string;
+		notes: string | null;
+		dueDate: string | null;
+		googleUpdatedAt: string;
+		x: number;
+		y: number;
+	}[];
+	patchInTable: {
+		taskId: string;
+		title: string;
+		notes: string | null;
+		dueDate: string | null;
+		done: boolean;
+		completedAt: string | null;
+		googleUpdatedAt: string;
+	}[];
+	deleteInTable: { taskId: string }[];
+	unlinkInTable: { taskId: string; reason: string }[];
 }
 ```
 
@@ -235,23 +253,23 @@ its slot.
 **2. For each Google row `g`,** matched to the Table task `t` where
 `t.googleTaskId === g.id`:
 
-| Condition | Action |
-| --- | --- |
-| `g.deleted` and `t` exists | `deleteInTable(t)` — mirrored deletion |
-| `g.deleted` and no `t` | ignore |
-| not deleted, no `t`, `g.status === 'completed'` | **ignore** — completed tasks are never imported |
-| not deleted, no `t`, still open | `createInTable`, `source: 'google'`, `googleSync: true` |
-| not deleted, `t` exists | fall through to the four-case matrix below |
+| Condition                                       | Action                                                  |
+| ----------------------------------------------- | ------------------------------------------------------- |
+| `g.deleted` and `t` exists                      | `deleteInTable(t)` — mirrored deletion                  |
+| `g.deleted` and no `t`                          | ignore                                                  |
+| not deleted, no `t`, `g.status === 'completed'` | **ignore** — completed tasks are never imported         |
+| not deleted, no `t`, still open                 | `createInTable`, `source: 'google'`, `googleSync: true` |
+| not deleted, `t` exists                         | fall through to the four-case matrix below              |
 
 For a linked pair, let `googleChanged = g.updated !== t.googleUpdatedAt` and
 `tableDirty = t.updatedAt !== t.googleSyncedAt`:
 
-| `tableDirty` | `googleChanged` | Action |
-| --- | --- | --- |
-| no | no | nothing |
-| no | yes | `patchInTable` — Google's values win by default |
-| yes | no | `patchInGoogle` |
-| yes | yes | compare `t.updatedAt` against `g.updated`; the later wins whole. Exact tie → Google wins |
+| `tableDirty` | `googleChanged` | Action                                                                                   |
+| ------------ | --------------- | ---------------------------------------------------------------------------------------- |
+| no           | no              | nothing                                                                                  |
+| no           | yes             | `patchInTable` — Google's values win by default                                          |
+| yes          | no              | `patchInGoogle`                                                                          |
+| yes          | yes             | compare `t.updatedAt` against `g.updated`; the later wins whole. Exact tie → Google wins |
 
 The loser's change is discarded. That is the accepted cost of per-task
 last-write-wins; ties resolve to Google deterministically rather than by chance,
@@ -259,13 +277,13 @@ and are essentially impossible given Google's millisecond precision.
 
 **3. For each Table task `t`:**
 
-| Condition | Action |
-| --- | --- |
-| `googleSync`, no `googleTaskId`, has a due date | `createInGoogle` |
-| `googleSync`, no `googleTaskId`, no due date | nothing — intent is held until a date exists; the badge stays in its outline state |
-| not `googleSync`, has `googleTaskId` | `deleteInGoogle` + clear the link locally |
-| `googleSync`, has `googleTaskId`, absent from a **full** fetch | `unlinkInTable`, reason "no longer in Google" |
-| `googleSync`, has `googleTaskId`, absent from an **incremental** fetch | nothing — absence means unchanged |
+| Condition                                                              | Action                                                                             |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `googleSync`, no `googleTaskId`, has a due date                        | `createInGoogle`                                                                   |
+| `googleSync`, no `googleTaskId`, no due date                           | nothing — intent is held until a date exists; the badge stays in its outline state |
+| not `googleSync`, has `googleTaskId`                                   | `deleteInGoogle` + clear the link locally                                          |
+| `googleSync`, has `googleTaskId`, absent from a **full** fetch         | `unlinkInTable`, reason "no longer in Google"                                      |
+| `googleSync`, has `googleTaskId`, absent from an **incremental** fetch | nothing — absence means unchanged                                                  |
 
 ### The due-date rule governs creation, not maintenance
 
@@ -277,7 +295,7 @@ calendar grid.
 
 The two alternatives are both worse. Deleting it destroys a Google task in
 response to an edit that never asked for a deletion. Unlinking it leaves an
-unmanaged orphan in Google, so re-adding a due date later creates a *second*
+unmanaged orphan in Google, so re-adding a due date later creates a _second_
 Google task for the same thing. Patching `due: null` keeps one Google task,
 destroys nothing, and puts the task straight back on the grid the moment a date
 returns.
@@ -360,11 +378,11 @@ when they have no zone. No new placement code.
 **Badge** — `TaskCard.svelte`, beside the existing zone dot. Drawn as inline SVG
 rather than a text glyph, matching how the topbar icons are drawn. Three states:
 
-| State | Meaning |
-| --- | --- |
-| solid | linked and clean |
+| State   | Meaning                                                          |
+| ------- | ---------------------------------------------------------------- |
+| solid   | linked and clean                                                 |
 | outline | intent recorded, not yet in Google, or dirty and awaiting a push |
-| warning | `googleError` is set; `title` carries the message |
+| warning | `googleError` is set; `title` carries the message                |
 
 **Toggle** — `TaskDetailModal.svelte` gains "Send to Google Tasks". Disabled
 with an inline explanation when the task has no due date. Shows `googleError`

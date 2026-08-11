@@ -91,10 +91,7 @@ export async function listTasks(
 	return items;
 }
 
-export async function insertTask(
-	accessToken: string,
-	body: GoogleTaskWrite
-): Promise<GoogleTask> {
+export async function insertTask(accessToken: string, body: GoogleTaskWrite): Promise<GoogleTask> {
 	// No `completed` handling here, unlike patchTask: a task being created has
 	// no stale stamp to clear.
 	const res = await fetch(tasksUrl(), {

@@ -269,6 +269,11 @@
 			}
 		};
 	}
+	// A plain Map on purpose, not a SvelteMap: this is a registry of DOM nodes that
+	// only ever gets read imperatively inside the drag handlers, never during
+	// render. Making it reactive would invalidate the board every time a box
+	// mounts or unmounts, for a value no template reads.
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	const boxEls = new Map<string, HTMLElement>();
 
 	function startDrag(e: PointerEvent, task: BentoTask) {
