@@ -1,8 +1,9 @@
 <script lang="ts">
 	import Mascot from './Mascot.svelte';
+	import RefreshButton from './RefreshButton.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { toast } from '$lib/toast.svelte';
-	import { eventsToday, upcomingByDay, timeLabel } from '$lib/agenda';
+	import { eventsToday, upcomingByDay, timeRangeLabel } from '$lib/agenda';
 	import type { AgendaEvent } from '$lib/server/gcal/agenda';
 
 	let {
@@ -62,17 +63,7 @@
 <div class="date-row">
 	<p class="date">{heading}</p>
 	{#if gcalConfigured}
-		<button
-			type="button"
-			class="refresh-btn"
-			class:spinning={refreshing}
-			disabled={refreshing}
-			aria-label="Refresh calendar"
-			title="Refresh calendar"
-			onclick={refreshCalendar}
-		>
-			⟳
-		</button>
+		<RefreshButton label="Refresh calendar" spinning={refreshing} onclick={refreshCalendar} />
 	{/if}
 </div>
 
@@ -99,14 +90,12 @@
 		<p>Nothing today.</p>
 	</div>
 {:else}
-	<ul class="today-events">
+	<ul class="blocks">
 		{#each today as event (event.id)}
-			<li class="today-event">
-				<span class="today-time">{timeLabel(event)}</span>
-				<span class="detail">
-					<span class="title">{event.title}</span>
-					{#if event.location}<span class="location">{event.location}</span>{/if}
-				</span>
+			<li class="block" class:all-day={event.allDay}>
+				<span class="block-time">{timeRangeLabel(event)}</span>
+				<span class="block-title">{event.title}</span>
+				{#if event.location}<span class="block-location">{event.location}</span>{/if}
 			</li>
 		{/each}
 	</ul>
@@ -118,15 +107,15 @@
 		{#each upcoming as group (group.label)}
 			<div class="group">
 				<div class="day">{group.label}</div>
-				{#each group.items as event (event.id)}
-					<div class="event">
-						<span class="time">{timeLabel(event)}</span>
-						<span class="detail">
-							<span class="title">{event.title}</span>
-							{#if event.location}<span class="location">{event.location}</span>{/if}
-						</span>
-					</div>
-				{/each}
+				<ul class="blocks">
+					{#each group.items as event (event.id)}
+						<li class="block compact" class:all-day={event.allDay}>
+							<span class="block-time">{timeRangeLabel(event)}</span>
+							<span class="block-title">{event.title}</span>
+							{#if event.location}<span class="block-location">{event.location}</span>{/if}
+						</li>
+					{/each}
+				</ul>
 			</div>
 		{/each}
 	</div>
@@ -146,77 +135,79 @@
 		color: var(--muted);
 	}
 
-	.refresh-btn {
-		flex-shrink: 0;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 22px;
-		height: 22px;
-		padding: 0;
-		border: none;
-		border-radius: 50%;
-		background: transparent;
-		color: var(--muted);
-		font-size: 0.85rem;
-		line-height: 1;
-		cursor: pointer;
-		transition:
-			background 0.15s ease,
-			color 0.15s ease;
-	}
-
-	.refresh-btn:hover:not(:disabled) {
-		background: var(--surface-2);
-		color: var(--ink);
-	}
-
-	.refresh-btn:disabled {
-		cursor: default;
-	}
-
-	.refresh-btn.spinning {
-		animation: gcal-refresh-spin 0.8s linear infinite;
-	}
-
-	@keyframes gcal-refresh-spin {
-		to {
-			transform: rotate(360deg);
-		}
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.refresh-btn.spinning {
-			animation: none;
-		}
-	}
-
-	.today-events {
+	/* Events read as calendar blocks rather than as rows: a tinted card with the
+	   coloured rail down its leading edge, stacked tight the way a day column
+	   stacks them. Nothing here is to scale — a 280px panel has no room for a
+	   proportional grid, so an hour and a ten-minute stand-up are the same
+	   height and only the label says which is which. */
+	.blocks {
 		display: flex;
 		flex-direction: column;
-		gap: 0.55rem;
+		gap: 0.3rem;
 	}
 
-	.today-event {
+	.block {
 		display: flex;
-		gap: 0.6rem;
+		flex-direction: column;
 		min-width: 0;
+		padding: 0.35rem 0.5rem;
+		border-radius: var(--radius-s);
+		border-left: 3px solid var(--zone-sky-border);
+		background: var(--zone-sky-fill);
 	}
 
-	.today-time {
-		flex: 0 0 4rem;
-		font-size: 0.85rem;
-		font-weight: 600;
-		line-height: 1.35;
+	/* An all-day event frames the day instead of sitting at a point in it, so it
+	   drops the rail and reads as a band across the top of the stack. */
+	.block.all-day {
+		border-left-color: var(--border-strong);
+		background: var(--accent-soft);
+	}
+
+	.block-time {
+		font-size: 0.7rem;
+		line-height: 1.4;
 		color: var(--ink);
+		/* On the tinted fill --muted is too close to the background to read; the
+		   ink held back a little sits where the muted grey would have. */
+		opacity: 0.65;
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
 
-	.today-event .title {
-		font-size: 0.95rem;
+	.block-title {
+		font-size: 0.85rem;
+		font-weight: 600;
+		line-height: 1.3;
+		color: var(--ink);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.block-location {
+		font-size: 0.7rem;
+		line-height: 1.35;
+		color: var(--ink);
+		opacity: 0.55;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	/* Later days are context, not the agenda: the same block, one step quieter. */
+	.block.compact {
+		padding: 0.25rem 0.45rem;
+	}
+
+	.block.compact .block-title {
+		font-size: 0.8rem;
+		font-weight: 500;
+	}
+
+	.block.compact .block-time {
+		font-size: 0.68rem;
 	}
 
 	.upcoming {
@@ -236,12 +227,13 @@
 		color: var(--muted);
 	}
 
+	/* The rail the group used to carry on its left edge is gone: every block now
+	   draws one of its own, and two stacked verticals read as a nesting that is
+	   not there. The day label is the only separator the groups need. */
 	.group {
 		display: flex;
 		flex-direction: column;
-		gap: 0.45rem;
-		padding-left: 0.6rem;
-		border-left: 2px solid var(--border-strong);
+		gap: 0.3rem;
 	}
 
 	.day {
@@ -249,46 +241,6 @@
 		color: var(--muted);
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
-	}
-
-	.event {
-		display: flex;
-		gap: 0.5rem;
-		min-width: 0;
-	}
-
-	.time {
-		flex: 0 0 3.5rem;
-		font-size: 0.78rem;
-		line-height: 1.45;
-		color: var(--muted);
-		font-variant-numeric: tabular-nums;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.detail {
-		display: flex;
-		flex-direction: column;
-		min-width: 0;
-	}
-
-	.title {
-		font-size: 0.85rem;
-		line-height: 1.35;
-		color: var(--ink);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.location {
-		font-size: 0.72rem;
-		color: var(--muted);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
 	}
 
 	.empty {

@@ -39,6 +39,32 @@ export function timeLabel(event: AgendaEvent): string {
 	});
 }
 
+const MERIDIEM = /\s*[AP]\.?M\.?$/i;
+
+/**
+ * An event's span as "9:00 – 10:30 AM", or "all day".
+ *
+ * The meridiem is dropped from the start when both ends share one, the way a
+ * calendar writes a range: the panel is 280px wide and the block has a single
+ * line to say this in. A 24-hour locale writes no meridiem, matches neither
+ * end, and keeps both halves whole.
+ */
+export function timeRangeLabel(event: AgendaEvent): string {
+	if (event.allDay) return 'all day';
+	const start = timeLabel(event);
+	if (!event.end) return start;
+	const end = new Date(event.end).toLocaleTimeString(undefined, {
+		hour: 'numeric',
+		minute: '2-digit'
+	});
+	if (end === start) return start;
+	const startMeridiem = MERIDIEM.exec(start)?.[0];
+	const endMeridiem = MERIDIEM.exec(end)?.[0];
+	const head =
+		startMeridiem && startMeridiem === endMeridiem ? start.slice(0, -startMeridiem.length) : start;
+	return `${head} – ${end}`;
+}
+
 /**
  * Today's events, all-day first.
  *
