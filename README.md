@@ -77,7 +77,8 @@ billing account. Set it up once:
    own client for your own account.
 5. Optionally set `GCAL_CALENDAR_IDS` to a comma-separated list of calendar ids (Calendar
    settings > your calendar > **Integrate calendar** > **Calendar ID**). Unset reads your
-   primary calendar.
+   primary calendar. Note that `primary` and your account's own email address name the same
+   calendar, so listing both is redundant.
 
 Table asks only for `calendar.events.readonly`, the narrowest scope that works: it can read
 events on the calendars you name and nothing else — no writes, no calendar management.

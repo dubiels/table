@@ -115,7 +115,9 @@ describe('getAgenda', () => {
 		vi.advanceTimersByTime(11 * 60 * 1000);
 		getAccessToken.mockRejectedValueOnce(new Error('HTTP 400'));
 
+		const callsBeforeRetry = listEvents.mock.calls.length;
 		expect(await getAgenda()).toHaveLength(1);
+		expect(listEvents).toHaveBeenCalledTimes(callsBeforeRetry);
 	});
 
 	it('returns an empty agenda when the very first fetch fails', async () => {
@@ -123,5 +125,26 @@ describe('getAgenda', () => {
 		const { getAgenda } = await freshService();
 
 		expect(await getAgenda()).toEqual([]);
+	});
+
+	it('dedupes an event that appears on two calendars under the same id', async () => {
+		mockEnv.GCAL_CALENDAR_IDS = 'mine@example.com, team@example.com';
+		listEvents
+			.mockResolvedValueOnce([event('standup', '2026-08-11T09:00:00Z')])
+			.mockResolvedValueOnce([event('standup', '2026-08-11T09:00:00Z')]);
+
+		const { getAgenda } = await freshService();
+
+		expect((await getAgenda()).map((e) => e.title)).toEqual(['standup']);
+	});
+
+	it('fetches a repeated calendar id only once', async () => {
+		mockEnv.GCAL_CALENDAR_IDS = 'primary,primary';
+		listEvents.mockResolvedValue([event('standup', '2026-08-11T09:00:00Z')]);
+
+		const { getAgenda } = await freshService();
+		await getAgenda();
+
+		expect(listEvents).toHaveBeenCalledTimes(1);
 	});
 });

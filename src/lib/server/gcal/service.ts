@@ -13,7 +13,10 @@ function calendarIds(): string[] {
 		.split(',')
 		.map((s) => s.trim())
 		.filter(Boolean);
-	return ids.length > 0 ? ids : ['primary'];
+	// Deduped: a primary calendar's id is the account's own email address, so
+	// naming both (or repeating an id) would otherwise fetch the same calendar
+	// twice.
+	return ids.length > 0 ? [...new Set(ids)] : ['primary'];
 }
 
 /**
@@ -57,7 +60,18 @@ export async function getAgenda(): Promise<AgendaEvent[]> {
 
 	if (!anySucceeded) return cache?.events ?? [];
 
-	all.sort((a, b) => a.start.localeCompare(b.start));
-	cache = { at: Date.now(), events: all };
-	return all;
+	// One meeting can legitimately arrive twice with the same id — the
+	// attendee and organiser copies of an invite share an id when both their
+	// calendars are configured — and TodayPanel renders events in a keyed
+	// each, so a duplicate id must not reach the result.
+	const seen = new Set<string>();
+	const deduped = all.filter((event) => {
+		if (seen.has(event.id)) return false;
+		seen.add(event.id);
+		return true;
+	});
+
+	deduped.sort((a, b) => a.start.localeCompare(b.start));
+	cache = { at: Date.now(), events: deduped };
+	return deduped;
 }
