@@ -61,7 +61,35 @@ A sync only ever creates new tasks or refreshes the `dueDate` on ones it created
 
 ## Google Calendar agenda
 
-Set `GCAL_ICAL_URLS` to one or more comma-separated Google Calendar "secret address in iCal format" URLs (Calendar settings > your calendar > **Integrate calendar**) to fill the side panel's **Today** section: today's events at the top, then the next few days. It's display-only — nothing in it is editable — just a glance at what's on your calendars alongside your tasks. Leave it unset and the section explains how to connect one.
+Table reads your calendars through the Google Calendar API, which is free and needs no
+billing account. Set it up once:
+
+1. In the [Google Cloud console](https://console.cloud.google.com), create a project and
+   enable the **Google Calendar API**.
+2. Under **APIs & Services > Credentials**, create an **OAuth client ID** of type
+   **Desktop app**. Copy the client id and secret into `GCAL_CLIENT_ID` and
+   `GCAL_CLIENT_SECRET`.
+3. Under **APIs & Services > OAuth consent screen**, **publish** the app. A client left in
+   Testing mode expires its refresh token after seven days, which shows up later as an
+   agenda that empties itself a week after setup.
+4. Run `npm run gcal:auth`, approve the consent screen, and put the printed value in
+   `GCAL_REFRESH_TOKEN`. The unverified-app warning is expected — you are authorising your
+   own client for your own account.
+5. Optionally set `GCAL_CALENDAR_IDS` to a comma-separated list of calendar ids (Calendar
+   settings > your calendar > **Integrate calendar** > **Calendar ID**). Unset reads your
+   primary calendar.
+
+Table asks only for `calendar.events.readonly`, the narrowest scope that works: it can read
+events on the calendars you name and nothing else — no writes, no calendar management.
+
+Events fill the side panel's **Today** section: today's events at the top, then the next few
+days. It's display-only — nothing in it is editable — just a glance at what's on your
+calendars alongside your tasks. Events you've declined are hidden, and an event already in
+progress stays visible until it ends. Leave `GCAL_REFRESH_TOKEN` unset and the section
+explains how to connect one.
+
+If your account is on a Google Workspace domain you don't administer, the administrator may
+need to trust your client id under **Admin console > Security > API controls**.
 
 The panel is docked beside the board and open by default on screens ≥1100px. It shows both sections at once in a single scrolling column — **Today** above, **Canvas** below — so the day and the coursework are visible together rather than one at a time. Each section header collapses its own contents, and the ⟩ button at the top of the panel folds the whole thing into a slim edge strip you click to bring it back. All three choices are remembered. Below 1100px the panel becomes a drawer, opened from the **Panel** button above the board.
 
@@ -104,7 +132,7 @@ Note that the token travels in the URL, so it lands in server access logs and br
      PUBLIC_VAPID_PUBLIC_KEY=your_public_key \
      VAPID_SUBJECT=mailto:you@example.com
    ```
-   These cover core functionality. If you're using the optional integrations above, also set `LMS_ICAL_URL`, `GCAL_ICAL_URLS`, `TASKS_FEED_TOKEN`, and/or `DASHBOARD_TOKEN` as needed.
+   These cover core functionality. If you're using the optional integrations above, also set `LMS_ICAL_URL`, `GCAL_CLIENT_ID`, `GCAL_CLIENT_SECRET`, `GCAL_REFRESH_TOKEN`, `GCAL_CALENDAR_IDS`, `TASKS_FEED_TOKEN`, and/or `DASHBOARD_TOKEN` as needed.
 5. Deploy:
    ```sh
    flyctl deploy
