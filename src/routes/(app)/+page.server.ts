@@ -25,13 +25,21 @@ const LOAD_SYNC_BUDGET_MS = 4000;
  */
 async function syncGoogleTasksIfStale(): Promise<void> {
 	if (!isGoogleTasksEnabled()) return;
-	const lastSyncAt = await readSyncState('gtasks:lastSyncAt');
-	if (lastSyncAt && Date.now() - Date.parse(lastSyncAt) < STALE_MS) return;
 
-	await Promise.race([
-		syncGoogleTasks(),
-		new Promise((resolve) => setTimeout(resolve, LOAD_SYNC_BUDGET_MS))
-	]).catch((err) => console.error('gtasks: load-time sync failed', err));
+	// The whole body is guarded, not just the sync: reading the cursor touches
+	// SQLite, and a failure there is no more a reason to replace the board with
+	// an error page than a failure to reach Google is.
+	try {
+		const lastSyncAt = await readSyncState('gtasks:lastSyncAt');
+		if (lastSyncAt && Date.now() - Date.parse(lastSyncAt) < STALE_MS) return;
+
+		await Promise.race([
+			syncGoogleTasks(),
+			new Promise((resolve) => setTimeout(resolve, LOAD_SYNC_BUDGET_MS))
+		]);
+	} catch (err) {
+		console.error('gtasks: load-time sync failed', err);
+	}
 }
 
 export const load: PageServerLoad = async () => {

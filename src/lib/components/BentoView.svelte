@@ -123,6 +123,17 @@
 	// the modal would open every time a card is dropped.
 	let justDragged = false;
 
+	/**
+	 * Opens a card's detail panel.
+	 *
+	 * Called from both the drag wrapper and the card inside it, so it must stay
+	 * idempotent — see the comment on the wrapper for why both need it.
+	 */
+	function openDetail(task: BentoTask) {
+		if (justDragged) return;
+		openTaskId = task.id;
+	}
+
 	let creating = $state(false);
 	let newCategoryName = $state('');
 	let nameInputEl = $state<HTMLInputElement | null>(null);
@@ -465,8 +476,21 @@
 								     wrapper adds a pointer gesture over it and no new semantics,
 								     so a role here would announce a second control that is not
 								     there. Recategorizing has no keyboard path yet — the detail
-								     panel has no category control to offer one. -->
+								     panel has no category control to offer one.
+
+								     The click is handled here as well as on the card because
+								     startDrag captures the pointer on this wrapper, and a captured
+								     pointer retargets the click that follows to the capturing
+								     element — so a handler only on the descendant card never runs
+								     and the panel never opens. The card keeps its own handler
+								     because that is what gives it role="button" and Enter/Space.
+								     Both call the same idempotent opener, so it does not matter
+								     which of them the browser delivers the click to, or whether it
+								     delivers to both. A press on the done-toggle is unaffected:
+								     startDrag ignores buttons and forms before capturing anything,
+								     so that click keeps its own target and its stopPropagation. -->
 									<!-- svelte-ignore a11y_no_static_element_interactions -->
+									<!-- svelte-ignore a11y_click_events_have_key_events -->
 									<div
 										class="drag-wrap"
 										class:dragging={drag?.active && drag.task.id === task.id}
@@ -474,13 +498,9 @@
 										onpointermove={moveDrag}
 										onpointerup={endDrag}
 										onpointercancel={cancelDrag}
+										onclick={() => openDetail(task)}
 									>
-										<TaskCard
-											{task}
-											onclick={() => {
-												if (!justDragged) openTaskId = task.id;
-											}}
-										/>
+										<TaskCard {task} onclick={() => openDetail(task)} />
 									</div>
 								{/each}
 							</div>
