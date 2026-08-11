@@ -86,7 +86,7 @@ const server = createServer((req, res) => {
 
 server.on('error', (err: NodeJS.ErrnoException) => {
 	if (err.code === 'EADDRINUSE') {
-		console.error(`\nPort ${PORT} is already in use — is gcal-auth already running?`);
+		console.error(`\nPort ${PORT} is already in use — is google-auth already running?`);
 	} else {
 		console.error(`\nServer error: ${err.message}`);
 	}
@@ -94,7 +94,7 @@ server.on('error', (err: NodeJS.ErrnoException) => {
 });
 
 server.listen(PORT, () => {
-	console.log('\nOpen this URL in the browser signed in to the calendar account:\n');
+	console.log('\nOpen this URL in the browser signed in to the Google account:\n');
 	console.log(`${authUrl}\n`);
 	console.log(`Waiting for the redirect on ${REDIRECT_URI} ...`);
 });

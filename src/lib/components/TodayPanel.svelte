@@ -80,7 +80,7 @@
 			<code>GCAL_CLIENT_ID</code> and <code>GCAL_CLIENT_SECRET</code> in <code>.env</code>.
 		</li>
 		<li>
-			Run <code>npm run gcal:auth</code>, add the printed <code>GCAL_REFRESH_TOKEN</code> to
+			Run <code>npm run google:auth</code>, add the printed <code>GCAL_REFRESH_TOKEN</code> to
 			<code>.env</code>, and restart to pick it up.
 		</li>
 	</ol>
