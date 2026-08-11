@@ -193,6 +193,12 @@ GCAL_CALENDAR_IDS=primary
 
 Removed: `GCAL_ICAL_URLS`.
 
+`src/routes/(app)/+page.server.ts` derives `gcalConfigured` from the same variable
+`getAgenda()` reads, so the panel can distinguish "no calendar connected" from "a quiet
+week" — two empty states that want different copy. That test moves from
+`Boolean(env.GCAL_ICAL_URLS)` to `Boolean(env.GCAL_REFRESH_TOKEN)`. `TodayPanel.svelte`
+consumes the flag unchanged.
+
 **Scope:** `https://www.googleapis.com/auth/calendar.events.readonly` — the narrowest
 scope that serves the feature. It permits reading events on calendars named in the
 config and nothing else: no writes, no calendar management, no discovery of calendars the
