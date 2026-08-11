@@ -10,7 +10,7 @@ export interface PlacementBounds {
 /** Gap between auto-placed cards so a batch drop reads as a tidy grid. */
 export const PLACEMENT_GAP = 12;
 
-function overlapsAny(
+export function overlapsAny(
 	x: number,
 	y: number,
 	occupied: Point[],

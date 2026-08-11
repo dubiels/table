@@ -1,4 +1,5 @@
 import { zoneForTask, taskCenter, DEFAULT_CARD, type Point, type ZoneBounds } from './zones';
+import { nextFreeSlot, overlapsAny } from './placement';
 
 export const UNCATEGORIZED_ID = 'uncategorized';
 
@@ -145,12 +146,71 @@ export function zoneCenterPoint(zone: ZoneBounds): Point {
 const UNCATEGORIZED_STEP = 400;
 const UNCATEGORIZED_MAX_CANDIDATES = 25;
 
-/** Top-left point whose `taskCenter` falls outside every given zone, scanning a diagonal line in steps of 400px. */
-export function findUncategorizedPoint(zones: ZoneBounds[]): Point {
-	let center = { x: 0, y: 0 };
+/**
+ * Top-left point whose `taskCenter` falls outside every given zone, scanning a
+ * diagonal line in steps of 400px.
+ *
+ * `occupied` is the top-left of every card that must not be landed on. The
+ * steps are far wider than a card, so this only ever skips a candidate when a
+ * loose card is sitting on the diagonal itself.
+ */
+export function findUncategorizedPoint(zones: ZoneBounds[], occupied: Point[] = []): Point {
+	let point = { x: -DEFAULT_CARD.width / 2, y: -DEFAULT_CARD.height / 2 };
 	for (let i = 0; i < UNCATEGORIZED_MAX_CANDIDATES; i++) {
-		center = { x: i * UNCATEGORIZED_STEP, y: i * UNCATEGORIZED_STEP };
-		if (!zoneForTask(center, zones)) break;
+		const center = { x: i * UNCATEGORIZED_STEP, y: i * UNCATEGORIZED_STEP };
+		point = { x: center.x - DEFAULT_CARD.width / 2, y: center.y - DEFAULT_CARD.height / 2 };
+		if (!zoneForTask(center, zones) && !overlapsAny(point.x, point.y, occupied, DEFAULT_CARD)) {
+			break;
+		}
 	}
-	return { x: center.x - DEFAULT_CARD.width / 2, y: center.y - DEFAULT_CARD.height / 2 };
+	return point;
+}
+
+/** The box a task currently sits in — a zone id, or `UNCATEGORIZED_ID` when it is loose. */
+export function groupIdForTask(task: BentoTask, zones: BentoZone[]): string {
+	return zoneForTask(taskCenter(task), zones)?.id ?? UNCATEGORIZED_ID;
+}
+
+/**
+ * Where `task` must be moved to for `groupTasksByZone` to re-derive it into the
+ * box `groupId`, or null when the move is not one to make — the task is already
+ * in that box, or the box has since been deleted.
+ *
+ * Bento boxes are a view of canvas geometry, not a field on the task, so
+ * "change a task's category" can only ever mean "move it on the canvas". That
+ * makes tidiness this function's problem: the target is the first free slot in
+ * the zone, so dropping a handful of cards into one box leaves a readable grid
+ * on the canvas rather than a single stack.
+ */
+export function dropPointFor(
+	groupId: string,
+	task: BentoTask,
+	tasks: BentoTask[],
+	zones: BentoZone[]
+): Point | null {
+	if (groupIdForTask(task, zones) === groupId) return null;
+
+	// Its own current spot is not an obstacle — it is about to be vacated.
+	const others = tasks.filter((t) => t.id !== task.id);
+
+	if (groupId === UNCATEGORIZED_ID) {
+		const loose = others.filter((t) => groupIdForTask(t, zones) === UNCATEGORIZED_ID);
+		return findUncategorizedPoint(zones, loose);
+	}
+
+	const zone = zones.find((z) => z.id === groupId);
+	if (!zone) return null;
+
+	// A zone smaller than a card has no anchor that fits, and nextFreeSlot's
+	// last-row fallback would put the card's center outside it — which would
+	// land the task in Uncategorized instead of the box it was aimed at. The
+	// center point is the one spot guaranteed to resolve back to this zone.
+	if (zone.width < DEFAULT_CARD.width || zone.height < DEFAULT_CARD.height) {
+		return zoneCenterPoint(zone);
+	}
+
+	const occupied = others
+		.filter((t) => groupIdForTask(t, zones) === groupId)
+		.map((t) => ({ x: t.x, y: t.y }));
+	return nextFreeSlot(occupied, zone);
 }

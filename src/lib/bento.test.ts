@@ -7,6 +7,7 @@ import {
 	columnRows,
 	zoneCenterPoint,
 	findUncategorizedPoint,
+	dropPointFor,
 	HEADER_ROWS,
 	MIN_COLUMN_WIDTH,
 	MAX_COLUMNS,
@@ -186,5 +187,91 @@ describe('findUncategorizedPoint', () => {
 	it('handles no zones at all', () => {
 		const point = findUncategorizedPoint([]);
 		expect(zoneForTask(taskCenter(point), [])).toBeNull();
+	});
+
+	it('skips a candidate a loose card already sits on', () => {
+		const taken = findUncategorizedPoint([]);
+		const next = findUncategorizedPoint([], [taken]);
+		expect(next).not.toEqual(taken);
+		expect(zoneForTask(taskCenter(next), [])).toBeNull();
+	});
+});
+
+describe('dropPointFor', () => {
+	const zones = [work, home];
+
+	it('returns null for the box the task is already in, so a no-op drop saves nothing', () => {
+		const inWork = task({ id: '1', x: 100, y: 100 });
+		expect(dropPointFor('work', inWork, [inWork], zones)).toBeNull();
+
+		const loose = task({ id: '2', x: -1000, y: -1000 });
+		expect(dropPointFor(UNCATEGORIZED_ID, loose, [loose], zones)).toBeNull();
+	});
+
+	it('lands the task inside the target zone, where groupTasksByZone will re-derive it', () => {
+		const loose = task({ id: '1', x: -1000, y: -1000 });
+		const point = dropPointFor('home', loose, [loose], zones)!;
+		expect(point).not.toBeNull();
+		expect(zoneForTask(taskCenter(point), zones)?.id).toBe('home');
+
+		// The whole point of the feature: re-grouping the moved task puts it in
+		// the box it was dropped on.
+		const moved = { ...loose, ...point };
+		const groups = groupTasksByZone([moved], zones);
+		expect(groups.find((g) => g.id === 'home')!.tasks.map((t) => t.id)).toEqual(['1']);
+	});
+
+	it('does not stack the dropped card on one already in the zone', () => {
+		const sitting = task({ id: 'a', x: work.x, y: work.y });
+		const loose = task({ id: 'b', x: -1000, y: -1000 });
+		const point = dropPointFor('work', loose, [sitting, loose], zones)!;
+		expect(point).not.toEqual({ x: sitting.x, y: sitting.y });
+		expect(zoneForTask(taskCenter(point), zones)?.id).toBe('work');
+	});
+
+	it('ignores the dragged card itself when looking for a free slot', () => {
+		// Dragging out of home into work must not treat its own old spot as
+		// occupied — the only free-slot candidate here is work's first cell.
+		const dragged = task({ id: 'a', x: work.x, y: work.y });
+		const inHome = task({ id: 'b', x: home.x, y: home.y });
+		const point = dropPointFor('work', inHome, [dragged, inHome], zones)!;
+		expect(point).not.toEqual({ x: dragged.x, y: dragged.y });
+	});
+
+	it("falls back to the center of a zone too small to fit a card, rather than missing it", () => {
+		// nextFreeSlot has no in-bounds anchor here, and its last-row fallback
+		// would put the card's center outside the zone — which would silently
+		// drop the task into Uncategorized instead of the box it was aimed at.
+		const tiny: BentoZone = {
+			id: 'tiny',
+			name: 'Tiny',
+			color: 'sage',
+			x: 2000,
+			y: 2000,
+			width: 100,
+			height: 50
+		};
+		const loose = task({ id: '1', x: -1000, y: -1000 });
+		const point = dropPointFor('tiny', loose, [loose], [...zones, tiny])!;
+		expect(zoneForTask(taskCenter(point), [...zones, tiny])?.id).toBe('tiny');
+	});
+
+	it('sends a task dropped on Uncategorized somewhere outside every zone', () => {
+		const inWork = task({ id: '1', x: 100, y: 100 });
+		const point = dropPointFor(UNCATEGORIZED_ID, inWork, [inWork], zones)!;
+		expect(zoneForTask(taskCenter(point), zones)).toBeNull();
+	});
+
+	it('does not stack on a card already loose in Uncategorized', () => {
+		const loose = task({ id: 'a', ...findUncategorizedPoint(zones) });
+		const inWork = task({ id: 'b', x: 100, y: 100 });
+		const point = dropPointFor(UNCATEGORIZED_ID, inWork, [loose, inWork], zones)!;
+		expect(point).not.toEqual({ x: loose.x, y: loose.y });
+		expect(zoneForTask(taskCenter(point), zones)).toBeNull();
+	});
+
+	it('returns null for a group that no longer exists rather than guessing', () => {
+		const loose = task({ id: '1', x: -1000, y: -1000 });
+		expect(dropPointFor('deleted-zone', loose, [loose], zones)).toBeNull();
 	});
 });
