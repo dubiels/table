@@ -28,7 +28,8 @@
 	</div>
 	<ol class="setup">
 		<li>
-			In the <strong>Google Cloud console</strong>, enable the <strong>Calendar API</strong> and create a
+			In the <strong>Google Cloud console</strong>, enable the <strong>Calendar API</strong> and
+			create a
 			<strong>Desktop OAuth client</strong>.
 		</li>
 		<li>
