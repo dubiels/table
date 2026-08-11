@@ -57,6 +57,8 @@ export async function syncLmsAssignments(): Promise<LmsSyncResult> {
 			x: create.x,
 			y: create.y,
 			sortOrder: 0,
+			updatedAt: new Date().toISOString(),
+			googleSync: false,
 			createdAt: new Date().toISOString()
 		});
 	}
