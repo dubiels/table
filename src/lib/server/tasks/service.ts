@@ -12,7 +12,7 @@ export type Task = typeof tasks.$inferSelect;
  */
 const GOOGLE_VISIBLE_FIELDS = ['title', 'notes', 'dueDate'] as const;
 
-async function nextSortOrder(): Promise<number> {
+export async function nextSortOrder(): Promise<number> {
 	const existing = await db.query.tasks.findMany({
 		orderBy: (t, { desc }) => [desc(t.sortOrder)]
 	});
