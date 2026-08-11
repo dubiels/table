@@ -6,12 +6,32 @@
 
 	let { data } = $props();
 
+	let expanded = $state<Record<string, boolean>>({});
+
+	const startOfDay = (date: Date) =>
+		new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+
+	// Due dates are local YYYY-MM-DD; parsing the parts keeps the day from
+	// shifting the way new Date('YYYY-MM-DD') (UTC midnight) would.
+	function dueLabel(dueDate: string): string {
+		const [year, month, day] = dueDate.split('-').map(Number);
+		const due = new Date(year, month - 1, day);
+		const diffDays = Math.round((due.getTime() - startOfDay(new Date())) / 86_400_000);
+		if (diffDays === 0) return 'due today';
+		if (diffDays === 1) return 'due tomorrow';
+		if (diffDays < 0)
+			return `overdue — was due ${due.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+		return `due ${due.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+	}
+
+	function isOverdue(dueDate: string): boolean {
+		const [year, month, day] = dueDate.split('-').map(Number);
+		return new Date(year, month - 1, day).getTime() < startOfDay(new Date());
+	}
+
 	function dayLabel(iso: string): string {
 		const d = new Date(iso);
-		const now = new Date();
-		const startOfDay = (date: Date) =>
-			new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-		const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86_400_000);
+		const diffDays = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86_400_000);
 		if (diffDays === 0) return 'Today';
 		if (diffDays === 1) return 'Yesterday';
 		return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
@@ -59,11 +79,48 @@
 			<div class="day">{group.label}</div>
 			{#each group.items as n (n.id)}
 				<div class="notification" class:unread={!n.readAt}>
-					<div class="type">
-						{#if !n.readAt}<span class="dot"></span>{/if}
-						{n.type === 'morning_digest' ? 'Morning digest' : 'Due soon'}
-					</div>
-					<div class="content">{n.content.text}</div>
+					{#if n.tasks.length > 0}
+						<button
+							class="header"
+							aria-expanded={expanded[n.id] ?? false}
+							onclick={() => (expanded[n.id] = !expanded[n.id])}
+						>
+							<div class="type">
+								{#if !n.readAt}<span class="dot"></span>{/if}
+								{n.type === 'morning_digest' ? 'Morning digest' : 'Due soon'}
+							</div>
+							<div class="content">{n.content.text}</div>
+							<div class="disclosure">
+								<span class="chevron" class:open={expanded[n.id]}>›</span>
+								{expanded[n.id] ? 'Hide' : 'Show'}
+								{n.tasks.length} task{n.tasks.length === 1 ? '' : 's'}
+							</div>
+						</button>
+						{#if expanded[n.id]}
+							<ul class="tasks">
+								{#each n.tasks as task (task.id)}
+									<li class:done={task.done}>
+										<span class="title">{task.title}</span>
+										{#if task.done}
+											<span class="meta">done</span>
+										{:else if task.dueDate}
+											<span class="meta" class:late={isOverdue(task.dueDate)}
+												>{dueLabel(task.dueDate)}</span
+											>
+										{/if}
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					{:else}
+						<div class="header static">
+							<div class="type">
+								{#if !n.readAt}<span class="dot"></span>{/if}
+								{n.type === 'morning_digest' ? 'Morning digest' : 'Due soon'}
+							</div>
+							<div class="content">{n.content.text}</div>
+						</div>
+					{/if}
 					<time
 						>{new Date(n.sentAt).toLocaleTimeString(undefined, {
 							hour: 'numeric',
@@ -118,6 +175,77 @@
 	.notification.unread {
 		background: var(--surface);
 		border-color: var(--border-strong);
+	}
+
+	.header {
+		display: block;
+		width: 100%;
+		padding: 0;
+		background: none;
+		border: none;
+		font: inherit;
+		color: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.header.static {
+		cursor: default;
+	}
+
+	.disclosure {
+		display: flex;
+		align-items: center;
+		gap: 0.3rem;
+		margin-top: 0.45rem;
+		font-size: 0.78rem;
+		color: var(--muted);
+	}
+
+	.header:hover .disclosure {
+		color: var(--ink);
+	}
+
+	.chevron {
+		display: inline-block;
+		transition: transform 120ms ease;
+	}
+
+	.chevron.open {
+		transform: rotate(90deg);
+	}
+
+	.tasks {
+		list-style: none;
+		margin: 0.6rem 0 0;
+		padding: 0.6rem 0 0;
+		border-top: 1px solid var(--border);
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+	}
+
+	.tasks li {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 0.75rem;
+		font-size: 0.9rem;
+	}
+
+	.tasks li.done .title {
+		text-decoration: line-through;
+		color: var(--muted);
+	}
+
+	.meta {
+		flex-shrink: 0;
+		font-size: 0.78rem;
+		color: var(--muted);
+	}
+
+	.meta.late {
+		color: var(--danger);
 	}
 
 	.type {

@@ -1,7 +1,12 @@
 import type { PageServerLoad } from './$types';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '$lib/server/db';
-import { notifications } from '$lib/server/db/schema';
+import { notifications, tasks } from '$lib/server/db/schema';
+
+interface NotificationContent {
+	text: string;
+	taskIds?: string[];
+}
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const rows = await db.query.notifications.findMany({
@@ -16,7 +21,28 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.where(and(eq(notifications.userId, locals.user!.id), isNull(notifications.readAt)));
 	}
 
+	const parsed = rows.map((r) => ({
+		...r,
+		content: JSON.parse(r.content) as NotificationContent
+	}));
+
+	// The notification body is a frozen snapshot of counts; the task rows are
+	// looked up live so an opened digest shows current titles and done state
+	// rather than what was true at 7am.
+	const referencedIds = [...new Set(parsed.flatMap((r) => r.content.taskIds ?? []))];
+	const taskRows = referencedIds.length
+		? await db.query.tasks.findMany({ where: inArray(tasks.id, referencedIds) })
+		: [];
+	const tasksById = new Map(taskRows.map((t) => [t.id, t]));
+
 	return {
-		notifications: rows.map((r) => ({ ...r, content: JSON.parse(r.content) as { text: string } }))
+		notifications: parsed.map((r) => ({
+			...r,
+			// Dropping unknown ids covers tasks deleted since the digest was sent.
+			tasks: (r.content.taskIds ?? [])
+				.map((id) => tasksById.get(id))
+				.filter((t) => t !== undefined)
+				.map((t) => ({ id: t.id, title: t.title, dueDate: t.dueDate, done: t.done }))
+		}))
 	};
 };
