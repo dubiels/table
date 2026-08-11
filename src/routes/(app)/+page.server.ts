@@ -8,6 +8,7 @@ import { newTaskSchema } from '$lib/server/tasks/forms';
 import { evictedTaskPoints } from '$lib/bento';
 import { getAgenda } from '$lib/server/gcal/service';
 import { syncGoogleTasks, isGoogleTasksEnabled, readSyncState } from '$lib/server/gtasks/sync';
+import { pushTaskNow, pushDeletionNow } from '$lib/server/gtasks/push';
 
 /** Long enough that a reload is not a sync, short enough to catch the walk back from the bus. */
 const STALE_MS = 60_000;
@@ -78,33 +79,51 @@ export const actions: Actions = {
 		const data = Object.fromEntries(await request.formData());
 		const parsed = newTaskSchema.safeParse(data);
 		if (!parsed.success) return fail(400, { error: 'Invalid task' });
-		await tasksService.createTask({
+		const task = await tasksService.createTask({
 			title: parsed.data.title,
 			dueDate: parsed.data.dueDate || undefined,
 			priority: parsed.data.priority,
+			// Honoured only with a due date: an undated Google task never reaches
+			// the calendar grid, which is the whole point of pushing it.
+			googleSync: parsed.data.googleSync === true && Boolean(parsed.data.dueDate),
 			x: parsed.data.x,
 			y: parsed.data.y
 		});
+		await pushTaskNow(task.id);
 	},
 
 	updateTask: async ({ request }) => {
 		const data = Object.fromEntries(await request.formData());
-		await tasksService.updateTask(String(data.id), {
+		const id = String(data.id);
+		await tasksService.updateTask(id, {
 			title: data.title ? String(data.title) : undefined,
 			notes: data.notes ? String(data.notes) : null,
 			dueDate: data.dueDate ? String(data.dueDate) : null,
 			priority: (data.priority as 'low' | 'med' | 'high') || null
 		});
+		// An unchecked checkbox is not submitted at all, so absence is a real
+		// "off" — but only when the control was rendered. Guarded on the feature
+		// flag, or turning the integration off for a day and editing a task would
+		// silently clear an opt-in that nothing on screen was showing.
+		if (isGoogleTasksEnabled()) await tasksService.setGoogleSync(id, data.googleSync === 'on');
+		await pushTaskNow(id);
 	},
 
 	toggleTaskDone: async ({ request }) => {
 		const data = await request.formData();
-		await tasksService.toggleTaskDone(String(data.get('id')));
+		const task = await tasksService.toggleTaskDone(String(data.get('id')));
+		await pushTaskNow(task.id);
 	},
 
 	deleteTask: async ({ request }) => {
 		const data = await request.formData();
-		await tasksService.deleteTask(String(data.get('id')));
+		const id = String(data.get('id'));
+		// Read before the delete: afterwards there is no row left to tell us which
+		// Google task it owned. deleteTask() writes the tombstone that makes this
+		// retry-safe if the Google call below fails.
+		const existing = await tasksService.getTask(id).catch(() => null);
+		await tasksService.deleteTask(id);
+		if (existing?.googleTaskId) await pushDeletionNow(existing.googleTaskId);
 	},
 
 	createZone: async ({ request }) => {

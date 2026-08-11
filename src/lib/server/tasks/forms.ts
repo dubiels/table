@@ -11,6 +11,9 @@ export const newTaskSchema = z.object({
 	title: z.string().min(1),
 	dueDate: z.preprocess(blankToUndefined, z.string().optional()),
 	priority: z.preprocess(blankToUndefined, z.enum(['low', 'med', 'high']).optional()),
+	// An unchecked checkbox is never submitted, so absence means false. A checked
+	// one posts the string "on".
+	googleSync: z.preprocess((value) => value === 'on', z.boolean()),
 	x: z.coerce.number().optional(),
 	y: z.coerce.number().optional()
 });
