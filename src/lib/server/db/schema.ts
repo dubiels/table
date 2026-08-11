@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const users = sqliteTable('users', {
 	id: text('id').primaryKey(),
@@ -25,23 +25,61 @@ export const zones = sqliteTable('zones', {
 	createdAt: text('created_at').notNull()
 });
 
-export const tasks = sqliteTable('tasks', {
-	id: text('id').primaryKey(),
-	title: text('title').notNull(),
-	notes: text('notes'),
-	dueDate: text('due_date'),
-	priority: text('priority', { enum: ['low', 'med', 'high'] }),
-	done: integer('done', { mode: 'boolean' }).notNull().default(false),
-	completedAt: text('completed_at'),
-	source: text('source', { enum: ['manual', 'canvas'] })
-		.notNull()
-		.default('manual'),
-	externalId: text('external_id'),
-	courseName: text('course_name'),
-	x: integer('x').notNull().default(0),
-	y: integer('y').notNull().default(0),
-	sortOrder: integer('sort_order').notNull().default(0),
-	createdAt: text('created_at').notNull()
+export const tasks = sqliteTable(
+	'tasks',
+	{
+		id: text('id').primaryKey(),
+		title: text('title').notNull(),
+		notes: text('notes'),
+		dueDate: text('due_date'),
+		priority: text('priority', { enum: ['low', 'med', 'high'] }),
+		done: integer('done', { mode: 'boolean' }).notNull().default(false),
+		completedAt: text('completed_at'),
+		source: text('source', { enum: ['manual', 'canvas', 'google'] })
+			.notNull()
+			.default('manual'),
+		externalId: text('external_id'),
+		courseName: text('course_name'),
+		x: integer('x').notNull().default(0),
+		y: integer('y').notNull().default(0),
+		sortOrder: integer('sort_order').notNull().default(0),
+		// Bumped only by a field Google can see: title, notes, dueDate, done.
+		// Position, category and priority deliberately leave it alone — dirtiness
+		// is `updatedAt !== googleSyncedAt`, so a drag that bumped it would fire
+		// pointless API calls and let that drag win a conflict against a real edit
+		// made on the phone.
+		updatedAt: text('updated_at').notNull().default(''),
+		// Intent (do I want this in Google?) kept separate from achievement
+		// (is it?). Collapsed into one column, opting in could only succeed while
+		// Google was reachable, and a failed create would leave nothing to retry.
+		googleSync: integer('google_sync', { mode: 'boolean' }).notNull().default(false),
+		googleTaskId: text('google_task_id'),
+		/** The `updatedAt` value Google last received. */
+		googleSyncedAt: text('google_synced_at'),
+		/** Google's own `updated` stamp as of the last reconcile. */
+		googleUpdatedAt: text('google_updated_at'),
+		/** Last push failure, cleared on success. Drives the badge's error state. */
+		googleError: text('google_error'),
+		createdAt: text('created_at').notNull()
+	},
+	(t) => ({
+		// An index rather than a column constraint: SQLite cannot ALTER TABLE ADD
+		// COLUMN ... UNIQUE. A unique index also permits many NULLs, which is what
+		// "most tasks are not linked" needs.
+		googleTaskIdIdx: uniqueIndex('tasks_google_task_id_idx').on(t.googleTaskId)
+	})
+);
+
+export const googleTaskTombstones = sqliteTable('google_task_tombstones', {
+	// Written in the same transaction as a linked task's local delete. Without it
+	// a failed Google delete would leave nothing recording what to delete.
+	googleTaskId: text('google_task_id').primaryKey(),
+	deletedAt: text('deleted_at').notNull()
+});
+
+export const syncState = sqliteTable('sync_state', {
+	key: text('key').primaryKey(),
+	value: text('value').notNull()
 });
 
 export const pushSubscriptions = sqliteTable('push_subscriptions', {

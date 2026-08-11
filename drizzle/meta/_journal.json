@@ -1,41 +1,48 @@
 {
-	"version": "7",
-	"dialect": "sqlite",
-	"entries": [
-		{
-			"idx": 0,
-			"version": "6",
-			"when": 1784405554338,
-			"tag": "0000_blushing_stark_industries",
-			"breakpoints": true
-		},
-		{
-			"idx": 1,
-			"version": "6",
-			"when": 1784409456815,
-			"tag": "0001_bizarre_guardian",
-			"breakpoints": true
-		},
-		{
-			"idx": 2,
-			"version": "6",
-			"when": 1784586796912,
-			"tag": "0002_outstanding_warstar",
-			"breakpoints": true
-		},
-		{
-			"idx": 3,
-			"version": "6",
-			"when": 1784589372725,
-			"tag": "0003_tired_lilith",
-			"breakpoints": true
-		},
-		{
-			"idx": 4,
-			"version": "6",
-			"when": 1784593588574,
-			"tag": "0004_adorable_sir_ram",
-			"breakpoints": true
-		}
-	]
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1784405554338,
+      "tag": "0000_blushing_stark_industries",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1784409456815,
+      "tag": "0001_bizarre_guardian",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784586796912,
+      "tag": "0002_outstanding_warstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1784589372725,
+      "tag": "0003_tired_lilith",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1784593588574,
+      "tag": "0004_adorable_sir_ram",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1786486755031,
+      "tag": "0005_third_electro",
+      "breakpoints": true
+    }
+  ]
 }
