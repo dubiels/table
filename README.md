@@ -78,7 +78,7 @@ billing account. Set it up once:
 3. Under **APIs & Services > OAuth consent screen**, **publish** the app. A client left in
    Testing mode expires its refresh token after seven days, which shows up later as an
    agenda that empties itself a week after setup.
-4. Run `npm run gcal:auth`, approve the consent screen, and put the printed value in
+4. Run `npm run google:auth`, approve the consent screen, and put the printed value in
    `GCAL_REFRESH_TOKEN`. The unverified-app warning is expected — you are authorising your
    own client for your own account.
 5. Optionally set `GCAL_CALENDAR_IDS` to a comma-separated list of calendar ids (Calendar
@@ -86,8 +86,9 @@ billing account. Set it up once:
    primary calendar. Note that `primary` and your account's own email address name the same
    calendar, so listing both is redundant.
 
-Table asks only for `calendar.events.readonly`, the narrowest scope that works: it can read
-events on the calendars you name and nothing else — no writes, no calendar management.
+Table asks for `calendar.events.readonly` and `tasks`: read-only on the calendars
+you name, read and write on your Google Tasks list, and nothing else — no
+calendar writes, no calendar management.
 
 Events fill the side panel's **Today** section: today's events at the top, then the next few
 days. It's display-only — nothing in it is editable — just a glance at what's on your
@@ -100,16 +101,45 @@ need to trust your client id under **Admin console > Security > API controls**.
 
 The panel is docked beside the board and open by default on screens ≥1100px. It shows both sections at once in a single scrolling column — **Today** above, **Canvas** below — so the day and the coursework are visible together rather than one at a time. Each section header collapses its own contents, and the ⟩ button at the top of the panel folds the whole thing into a slim edge strip you click to bring it back. All three choices are remembered. Below 1100px the panel becomes a drawer, opened from the **Panel** button above the board.
 
-## Tasks → Google Calendar
+## Google Tasks sync
 
-Table can also publish its own tasks as an `.ics` feed so you can subscribe to them from Google Calendar or any calendar app:
+Table mirrors tasks two ways with Google Tasks. Badged tasks become real Google
+Tasks — visible on the Google Calendar grid on their due date, and in the Google
+Tasks mobile app — and anything you add in Google Tasks comes back into Table.
 
-1. Set `TASKS_FEED_TOKEN` to a long random string.
-2. In Google Calendar, go to **Other calendars > From URL** and paste `https://your-app/calendar.ics?token=<TASKS_FEED_TOKEN>`.
+The relationship is deliberately one-sided: **everything in Google is in Table,
+but not everything in Table is in Google.** Table stays the place for everything;
+Google holds the subset you chose, and those cards carry a badge.
 
-Active tasks with a due date show up as all-day events. As with the dashboard token below, leaving `TASKS_FEED_TOKEN` unset disables the route entirely (404) — no config means no exposure.
+Setup, on top of the Calendar steps above:
 
-Note that the token travels in the URL, so it lands in server access logs and browser history like any other query string. Rotate `TASKS_FEED_TOKEN` if you share those logs or hand the URL to someone you didn't mean to give your task list to.
+1. Enable the **Google Tasks API** in the same Google Cloud project.
+2. Run `npm run google:auth` and replace `GCAL_REFRESH_TOKEN` with the new value.
+   The existing token carries only the calendar scope, so every Tasks call would
+   return 403 until it is replaced.
+3. Set `GTASKS_ENABLED=true`. `GTASKS_SYNC_CRON` controls the inbound poll
+   (default every five minutes); you can also sync on demand from the user menu.
+
+How it behaves:
+
+- **Opting in.** Tick "Send to Google Tasks" in a task's detail modal, or "Also
+  add to Google Tasks" in the composer, which remembers its last setting. A task
+  needs a due date before it can be sent — an undated Google Task never appears
+  on the calendar grid, only in the Tasks side panel.
+- **Coming back.** Tasks created in Google Tasks are imported as Uncategorized.
+  Tasks already completed in Google are never imported, so connecting to a
+  long-lived list does not dump its archive into Table's history.
+- **Edits and completion** flow both ways. If the same task changed on both
+  sides between syncs, the more recent edit wins the whole task.
+- **Deletion is mirrored** — delete on either side and it goes from both. Table
+  only ever acts on an explicit deletion from Google, never on a task merely
+  going missing, so an outage cannot quietly destroy your tasks.
+- **Failures are visible.** A task Google rejected keeps a warning badge with
+  the reason, and retries on every sync. Table never blocks on Google being up:
+  the change is saved locally either way.
+
+Canvas assignments can be pushed like any other task. Priority and the course
+name stay in Table — Google Tasks has no field for either.
 
 ## Dashboard API
 
@@ -139,7 +169,7 @@ Note that the token travels in the URL, so it lands in server access logs and br
      PUBLIC_VAPID_PUBLIC_KEY=your_public_key \
      VAPID_SUBJECT=mailto:you@example.com
    ```
-   These cover core functionality. If you're using the optional integrations above, also set `LMS_ICAL_URL`, `GCAL_CLIENT_ID`, `GCAL_CLIENT_SECRET`, `GCAL_REFRESH_TOKEN`, `GCAL_CALENDAR_IDS`, `TASKS_FEED_TOKEN`, and/or `DASHBOARD_TOKEN` as needed.
+   These cover core functionality. If you're using the optional integrations above, also set `LMS_ICAL_URL`, `GCAL_CLIENT_ID`, `GCAL_CLIENT_SECRET`, `GCAL_REFRESH_TOKEN`, `GCAL_CALENDAR_IDS`, `GTASKS_ENABLED`, and/or `DASHBOARD_TOKEN` as needed.
 5. Deploy:
    ```sh
    flyctl deploy
@@ -176,6 +206,5 @@ A few more pure-logic modules are the ones most worth reading before extending a
 - `src/lib/server/lms/plan.ts` — decides what a Canvas sync run creates or updates, independent of the database or scheduler.
 - `src/lib/server/dashboard/serialize.ts` — shapes tasks/zones into the dashboard API payload.
 - `src/lib/server/gcal/agenda.ts` — parses and windows Google Calendar events for the side panel's Today section.
-- `src/lib/server/ics/export.ts` — renders tasks as an RFC 5545 `.ics` feed.
 
 These are called the same way by the UI routes and by the in-process scheduler (`src/lib/server/scheduler/index.ts`), which is also what drives the periodic LMS sync. A future integration can call these same functions directly to create tasks and trigger notifications, without going through HTTP routes or duplicating scheduling logic.

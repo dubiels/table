@@ -26,20 +26,3 @@ export function decideDashboardAuth(
 	if (!match) return 'unauthorized';
 	return tokensMatch(configuredToken, match[1]) ? 'ok' : 'unauthorized';
 }
-
-/**
- * TASKS_FEED_TOKEN unset/empty means the feed is disabled (404). Google
- * Calendar's fetcher can't send headers, so the token travels as a query
- * param instead of an Authorization header. Same session/timing-safe rules
- * as decideDashboardAuth.
- */
-export function decideFeedAuth(
-	configuredToken: string | undefined,
-	presentedToken: string | null,
-	hasSession: boolean
-): DashboardAuthDecision {
-	if (!configuredToken) return 'disabled';
-	if (hasSession) return 'ok';
-	if (!presentedToken) return 'unauthorized';
-	return tokensMatch(configuredToken, presentedToken) ? 'ok' : 'unauthorized';
-}
