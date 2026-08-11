@@ -238,7 +238,7 @@ describe('dropPointFor', () => {
 		expect(point).not.toEqual({ x: dragged.x, y: dragged.y });
 	});
 
-	it("falls back to the center of a zone too small to fit a card, rather than missing it", () => {
+	it('falls back to the center of a zone too small to fit a card, rather than missing it', () => {
 		// nextFreeSlot has no in-bounds anchor here, and its last-row fallback
 		// would put the card's center outside the zone — which would silently
 		// drop the task into Uncategorized instead of the box it was aimed at.
