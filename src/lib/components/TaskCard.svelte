@@ -13,6 +13,9 @@
 			done: boolean;
 			priority: string | null;
 			dueDate: string | null;
+			googleSync?: boolean;
+			googleTaskId?: string | null;
+			googleError?: string | null;
 		};
 		zoneColor?: { fill: string; border: string } | null;
 		onclick?: () => void;
@@ -20,6 +23,26 @@
 
 	let today = localDateString();
 	let overdue = $derived(!!task.dueDate && task.dueDate < today && !task.done);
+
+	// null hides the badge entirely: a task nobody asked to mirror should carry
+	// no mark at all, or every card on the board grows one.
+	let googleState = $derived(
+		!task.googleSync && !task.googleTaskId
+			? null
+			: task.googleError
+				? 'error'
+				: task.googleSync && task.googleTaskId
+					? 'synced'
+					: 'pending'
+	);
+
+	let googleLabel = $derived(
+		googleState === 'error'
+			? `Google Tasks: ${task.googleError}`
+			: googleState === 'pending'
+				? 'Waiting to reach Google Tasks'
+				: 'In Google Tasks'
+	);
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (!onclick) return;
@@ -46,6 +69,27 @@
 			style="background:{zoneColor.fill}; border-color:{zoneColor.border};"
 			aria-hidden="true"
 		></span>
+	{/if}
+	{#if googleState}
+		<span class="gmark gmark-{googleState}" title={googleLabel}>
+			<!-- Drawn rather than set in type, like the topbar icons: a glyph would
+			     ignore the span's colour and so could not carry the three states. -->
+			<svg
+				viewBox="0 0 24 24"
+				width="11"
+				height="11"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2.5"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				aria-hidden="true"
+			>
+				<circle cx="12" cy="12" r="9" />
+				<path d="M8 12.5l2.5 2.5L16 9.5" />
+			</svg>
+			<span class="sr-only">{googleLabel}</span>
+		</span>
 	{/if}
 	<div class="row-main">
 		<!-- Keydown is guarded alongside click: Enter on the submit button would
@@ -102,11 +146,36 @@
 		border-radius: 50%;
 		border: 1px solid;
 	}
+	.gmark {
+		position: absolute;
+		top: 0.3rem;
+		right: 1.15rem;
+		display: inline-flex;
+		line-height: 0;
+	}
+	.gmark-synced {
+		color: var(--ok);
+	}
+	.gmark-pending {
+		color: var(--muted);
+	}
+	.gmark-error {
+		color: var(--danger);
+	}
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
 	.row-main {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		padding-right: 0.9rem;
+		padding-right: 1.8rem;
 	}
 	.done-toggle {
 		flex-shrink: 0;

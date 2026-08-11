@@ -10,6 +10,9 @@ export type ListTask = {
 	source: string;
 	x: number;
 	y: number;
+	googleSync?: boolean;
+	googleTaskId?: string | null;
+	googleError?: string | null;
 };
 
 /** The fields category resolution actually reads. */

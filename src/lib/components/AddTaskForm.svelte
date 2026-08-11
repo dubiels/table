@@ -1,7 +1,36 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	let { x = 60, y = 60 }: { x?: number; y?: number } = $props();
 	let open = $state(false);
+
+	const STORAGE_KEY = 'table:gtasks-default';
+
+	let dueDate = $state('');
+	// Sticky, because pushing everything should cost one click ever rather than
+	// one per task.
+	let googleSync = $state(false);
+	let gtasksConfigured = $derived(page.data.gtasksConfigured === true);
+	let canSync = $derived(Boolean(dueDate));
+
+	// No reactive dependencies, so this runs once after mount to seed the sticky
+	// preference. The server has no localStorage to read and renders it unticked.
+	$effect(() => {
+		try {
+			googleSync = localStorage.getItem(STORAGE_KEY) === 'true';
+		} catch {
+			// Blocked storage: the checkbox still works, it just will not persist.
+		}
+	});
+
+	function rememberGoogleSync(on: boolean) {
+		googleSync = on;
+		try {
+			localStorage.setItem(STORAGE_KEY, String(on));
+		} catch {
+			// As above.
+		}
+	}
 </script>
 
 <form
@@ -12,6 +41,7 @@
 		async ({ update }) => {
 			await update();
 			open = false;
+			dueDate = '';
 		}}
 >
 	<input type="hidden" name="x" value={x} />
@@ -27,7 +57,7 @@
 	</div>
 	{#if open}
 		<div class="extra">
-			<label><span>Due</span><input type="date" name="dueDate" /></label>
+			<label><span>Due</span><input type="date" name="dueDate" bind:value={dueDate} /></label>
 			<label
 				><span>Priority</span>
 				<select name="priority">
@@ -38,6 +68,18 @@
 				</select>
 			</label>
 		</div>
+		{#if gtasksConfigured}
+			<label class="gsync">
+				<input
+					type="checkbox"
+					name="googleSync"
+					checked={googleSync}
+					disabled={!canSync}
+					onchange={(e) => rememberGoogleSync(e.currentTarget.checked)}
+				/>
+				<span>Also add to Google Tasks{canSync ? '' : ' — needs a due date'}</span>
+			</label>
+		{/if}
 	{/if}
 </form>
 
@@ -71,6 +113,15 @@
 		gap: 0.2rem;
 	}
 	.extra span {
+		font-size: 0.72rem;
+		color: var(--muted);
+	}
+	.gsync {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+	.gsync span {
 		font-size: 0.72rem;
 		color: var(--muted);
 	}

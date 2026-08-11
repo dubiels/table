@@ -20,6 +20,9 @@ export type BentoTask = {
 	notes: string | null;
 	x: number;
 	y: number;
+	googleSync?: boolean;
+	googleTaskId?: string | null;
+	googleError?: string | null;
 };
 
 export type BentoZone = ZoneBounds & { name: string; color: string };

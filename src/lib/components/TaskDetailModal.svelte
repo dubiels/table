@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
+	import { untrack } from 'svelte';
 
 	let {
 		task,
@@ -11,9 +13,31 @@
 			notes?: string | null;
 			dueDate?: string | null;
 			priority?: string | null;
+			googleSync?: boolean;
+			googleTaskId?: string | null;
+			googleError?: string | null;
 		};
 		onclose: () => void;
 	} = $props();
+
+	// Mirrors the date input rather than the saved value, so the toggle enables
+	// the moment a date is typed instead of after a save-and-reopen. Read once,
+	// untracked: the modal is remounted fresh for each task it opens (there is
+	// no in-place "next task" navigation), so re-syncing to `task` here is
+	// neither needed nor wanted — it would fight the user's own edits to a
+	// field that already carries the initial value.
+	let dueDate = $state(untrack(() => task.dueDate ?? ''));
+	let googleSync = $state(untrack(() => task.googleSync ?? false));
+	// From the layout load, so this component does not have to be handed the flag
+	// through the two views that render it.
+	let gtasksConfigured = $derived(page.data.gtasksConfigured === true);
+	// Creation needs a date; an existing link does not, and is maintained with a
+	// null due date rather than severed.
+	let canSync = $derived(Boolean(dueDate) || Boolean(task.googleTaskId));
+
+	$effect(() => {
+		if (!canSync) googleSync = false;
+	});
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') onclose();
@@ -53,7 +77,7 @@
 
 			<label>
 				<span>Due date</span>
-				<input type="date" name="dueDate" value={task.dueDate ?? ''} />
+				<input type="date" name="dueDate" bind:value={dueDate} />
 			</label>
 
 			<label>
@@ -65,6 +89,19 @@
 					<option value="high" selected={task.priority === 'high'}>High</option>
 				</select>
 			</label>
+
+			{#if gtasksConfigured}
+				<label class="check">
+					<input type="checkbox" name="googleSync" bind:checked={googleSync} disabled={!canSync} />
+					<span>Send to Google Tasks</span>
+				</label>
+				{#if !canSync}
+					<p class="hint">Needs a due date — an undated task never reaches the calendar grid.</p>
+				{/if}
+				{#if task.googleError}
+					<p class="hint hint-error">Google Tasks: {task.googleError}</p>
+				{/if}
+			{/if}
 		</form>
 
 		<form
@@ -134,6 +171,27 @@
 	textarea {
 		min-height: 80px;
 		resize: vertical;
+	}
+
+	.check {
+		flex-direction: row;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.check span {
+		font-size: 0.88rem;
+		color: var(--ink);
+	}
+
+	.hint {
+		margin: -0.35rem 0 0;
+		font-size: 0.74rem;
+		color: var(--muted);
+	}
+
+	.hint-error {
+		color: var(--danger);
 	}
 
 	.footer {
