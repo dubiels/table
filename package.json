@@ -16,7 +16,7 @@
 		"test": "npm run test:unit -- --run",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "tsx src/lib/server/db/migrate.ts",
-		"gcal:auth": "tsx --env-file=.env scripts/gcal-auth.ts"
+		"google:auth": "tsx --env-file=.env scripts/google-auth.ts"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",

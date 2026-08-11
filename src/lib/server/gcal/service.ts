@@ -1,5 +1,5 @@
 import { env } from '$env/dynamic/private';
-import { getAccessToken } from './oauth';
+import { getAccessToken } from '../google/oauth';
 import { listEvents } from './client';
 import { toAgendaEvents, type AgendaEvent } from './agenda';
 

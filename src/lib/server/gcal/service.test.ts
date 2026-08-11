@@ -7,7 +7,7 @@ const { mockEnv, getAccessToken, listEvents } = vi.hoisted(() => ({
 }));
 
 vi.mock('$env/dynamic/private', () => ({ env: mockEnv }));
-vi.mock('./oauth', () => ({ getAccessToken }));
+vi.mock('../google/oauth', () => ({ getAccessToken }));
 vi.mock('./client', () => ({ listEvents }));
 
 function event(summary: string, dateTime: string) {

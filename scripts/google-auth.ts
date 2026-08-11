@@ -1,18 +1,23 @@
 /**
- * One-time Google Calendar authorisation.
+ * One-time Google authorisation for the Calendar and Tasks APIs.
  *
  * Runs the consent flow against a loopback redirect and prints the refresh
  * token. Deliberately writes nothing: you paste the value into .env locally
  * and into `flyctl secrets set` for production, which keeps the credential out
  * of the repository like every other secret in this project.
  *
- * Usage: npm run gcal:auth
+ * Usage: npm run google:auth
  */
 import { createServer } from 'node:http';
 
 const PORT = 8123;
 const REDIRECT_URI = `http://localhost:${PORT}`;
-const SCOPE = 'https://www.googleapis.com/auth/calendar.events.readonly';
+// Both scopes on one token: the Calendar agenda reads events, Google Tasks sync
+// reads and writes tasks. Google returns a single refresh token covering both.
+const SCOPE = [
+	'https://www.googleapis.com/auth/calendar.events.readonly',
+	'https://www.googleapis.com/auth/tasks'
+].join(' ');
 
 const clientId = process.env.GCAL_CLIENT_ID;
 const clientSecret = process.env.GCAL_CLIENT_SECRET;
