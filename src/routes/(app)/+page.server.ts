@@ -4,6 +4,7 @@ import { fail } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import * as zonesService from '$lib/server/zones/service';
 import * as tasksService from '$lib/server/tasks/service';
+import { newTaskSchema } from '$lib/server/tasks/forms';
 import { getAgenda } from '$lib/server/gcal/service';
 
 export const load: PageServerLoad = async () => {
@@ -23,14 +24,6 @@ export const load: PageServerLoad = async () => {
 	const gcalConfigured = Boolean(env.GCAL_ICAL_URLS);
 	return { tasks, zones, agenda, lmsConfigured, gcalConfigured };
 };
-
-const newTaskSchema = z.object({
-	title: z.string().min(1),
-	dueDate: z.string().optional(),
-	priority: z.enum(['low', 'med', 'high']).optional(),
-	x: z.coerce.number().optional(),
-	y: z.coerce.number().optional()
-});
 
 const zoneColors = ['sage', 'sky', 'butter', 'blush', 'lilac', 'clay'] as const;
 const zoneColor = z.enum(zoneColors);
