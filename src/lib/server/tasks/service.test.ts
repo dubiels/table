@@ -7,7 +7,12 @@ vi.mock('../db', () => ({
 	db: {
 		insert: () => ({
 			values: (r: Task) => {
-				rows.push(r);
+				// Store a copy, not the caller's own object: a real database row is
+				// never the same object the caller constructed, and callers that hold
+				// on to their return value (e.g. `const t = await createTask(...)`)
+				// must see a stable snapshot even as the "database" row is mutated
+				// later by updates.
+				rows.push({ ...r });
 				return Promise.resolve();
 			}
 		}),
@@ -82,10 +87,19 @@ describe('tasks service', () => {
 	});
 
 	it('bumps updatedAt when a field Google can see changes', async () => {
-		const t = await tasksService.createTask({ title: 'Before' });
-		await tasksService.updateTask(t.id, { title: 'After' });
-		expect(rows[0].updatedAt).not.toBe('');
-		expect(Date.parse(rows[0].updatedAt)).toBeGreaterThanOrEqual(Date.parse(t.updatedAt));
+		// Fake timers plus a strict `toBeGreaterThan` avoid a same-millisecond
+		// false pass: with real timers and `toBeGreaterThanOrEqual`, a build that
+		// never bumps `updatedAt` at all would still satisfy the assertion.
+		vi.useFakeTimers();
+		try {
+			const t = await tasksService.createTask({ title: 'Before' });
+			vi.advanceTimersByTime(1000);
+			await tasksService.updateTask(t.id, { title: 'After' });
+			expect(rows[0].updatedAt).not.toBe('');
+			expect(Date.parse(rows[0].updatedAt)).toBeGreaterThan(Date.parse(t.updatedAt));
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('bumps updatedAt when a due date is cleared', async () => {
@@ -98,15 +112,10 @@ describe('tasks service', () => {
 		vi.useFakeTimers();
 		try {
 			const t = await tasksService.createTask({ title: 'Due today', dueDate: '2026-08-11' });
-			// createTask returns the same object reference that lives in `rows`, so
-			// snapshot the primitive now — otherwise the coming mutation would move
-			// this value along with rows[0].updatedAt and the comparison below
-			// would compare a value against itself.
-			const createdAt = t.updatedAt;
 			vi.advanceTimersByTime(1000);
 			await tasksService.updateTask(t.id, { dueDate: null });
 			expect(rows[0].dueDate).toBeNull();
-			expect(Date.parse(rows[0].updatedAt)).toBeGreaterThan(Date.parse(createdAt));
+			expect(Date.parse(rows[0].updatedAt)).toBeGreaterThan(Date.parse(t.updatedAt));
 		} finally {
 			vi.useRealTimers();
 		}
@@ -120,27 +129,53 @@ describe('tasks service', () => {
 	});
 
 	it('does NOT bump updatedAt when only the priority changes', async () => {
-		const t = await tasksService.createTask({ title: 'Priority only' });
-		await tasksService.updateTask(t.id, { priority: 'high' });
-		expect(rows[0].priority).toBe('high');
-		expect(rows[0].updatedAt).toBe(t.updatedAt);
+		// Fake timers plus a clock advance mean a regression that bumps
+		// `updatedAt` produces a visibly different timestamp instead of risking a
+		// same-millisecond coincidence that would let the assertion pass anyway.
+		vi.useFakeTimers();
+		try {
+			const t = await tasksService.createTask({ title: 'Priority only' });
+			vi.advanceTimersByTime(1000);
+			await tasksService.updateTask(t.id, { priority: 'high' });
+			expect(rows[0].priority).toBe('high');
+			expect(rows[0].updatedAt).toBe(t.updatedAt);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('does NOT bump updatedAt when a card is moved', async () => {
-		const t = await tasksService.createTask({ title: 'Dragged' });
-		await tasksService.updateTaskPosition(t.id, 500, 500);
 		// Dirtiness is `updatedAt !== googleSyncedAt`, so a drag that bumped this
 		// would fire a pointless push and could win a conflict against a real edit
-		// made on the phone.
-		expect(rows[0].x).toBe(500);
-		expect(rows[0].updatedAt).toBe(t.updatedAt);
+		// made on the phone. Fake timers + a clock advance make a regression that
+		// bumps `updatedAt` show up as a changed timestamp rather than risking a
+		// same-millisecond coincidence.
+		vi.useFakeTimers();
+		try {
+			const t = await tasksService.createTask({ title: 'Dragged' });
+			vi.advanceTimersByTime(1000);
+			await tasksService.updateTaskPosition(t.id, 500, 500);
+			expect(rows[0].x).toBe(500);
+			expect(rows[0].updatedAt).toBe(t.updatedAt);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('records the opt-in without marking the task dirty', async () => {
-		const t = await tasksService.createTask({ title: 'Opt me in' });
-		await tasksService.setGoogleSync(t.id, true);
-		expect(rows[0].googleSync).toBe(true);
-		expect(rows[0].updatedAt).toBe(t.updatedAt);
+		// Fake timers + a clock advance make a regression that bumps `updatedAt`
+		// show up as a changed timestamp rather than risking a same-millisecond
+		// coincidence that would let the assertion pass anyway.
+		vi.useFakeTimers();
+		try {
+			const t = await tasksService.createTask({ title: 'Opt me in' });
+			vi.advanceTimersByTime(1000);
+			await tasksService.setGoogleSync(t.id, true);
+			expect(rows[0].googleSync).toBe(true);
+			expect(rows[0].updatedAt).toBe(t.updatedAt);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('records a tombstone carrying the googleTaskId when deleting a linked task', async () => {
@@ -159,7 +194,13 @@ describe('tasks service', () => {
 		expect(rows).toHaveLength(0);
 	});
 
-	it('is a no-op when deleting a task id that does not exist', async () => {
+	// The mock's `findFirst` ignores the id it is passed and always returns
+	// `rows[0]`, so this can only exercise "no rows at all" — not "wrong id
+	// while other rows exist." Making the mock id-aware would mean introspecting
+	// the drizzle `eq(tasks.id, id)` fragment `deleteTask` passes as `where`,
+	// which is internal drizzle structure this mock has no business depending
+	// on. Named narrowly instead of widening the mock for one test.
+	it('is a no-op when there are no tasks to delete', async () => {
 		await expect(tasksService.deleteTask('missing-id')).resolves.toBeUndefined();
 		expect(tombstones).toEqual([]);
 		expect(rows).toHaveLength(0);
