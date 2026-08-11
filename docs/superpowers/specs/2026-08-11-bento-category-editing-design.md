@@ -55,8 +55,11 @@ geometry primitives live — gains:
 rectsOverlap(a: Rect, b: Rect, gap = 0): boolean
 ```
 
-`BlobView`'s local `intersects` is exactly this function; it delegates to the
-shared one rather than keeping a second copy.
+`BlobView`'s local `intersects` looks like the same function but is not, and is
+left alone. It treats touching edges as overlapping, deliberately and by its own
+comment, because its job is spotting a near miss before it happens. The new
+primitive treats touching as clear, matching `overlapsAny`: a rect laid flush
+against another covers none of it. Two predicates, not one duplicated.
 
 ### 2. Create a category
 

@@ -8,6 +8,7 @@ import {
 	zoneColorVars,
 	visibleWorldBounds,
 	boundsIncluding,
+	rectsOverlap,
 	type ZoneBounds
 } from './zones';
 
@@ -140,5 +141,31 @@ describe('boundsIncluding', () => {
 			maxX: 1000,
 			maxY: 600
 		});
+	});
+});
+
+describe('rectsOverlap', () => {
+	const box = { x: 100, y: 100, width: 200, height: 200 };
+
+	it('reports overlap for rects sharing area', () => {
+		expect(rectsOverlap(box, { x: 250, y: 250, width: 100, height: 100 })).toBe(true);
+	});
+
+	it('reports no overlap for separated rects', () => {
+		expect(rectsOverlap(box, { x: 400, y: 100, width: 100, height: 100 })).toBe(false);
+	});
+
+	it('treats touching edges as clear', () => {
+		expect(rectsOverlap(box, { x: 300, y: 100, width: 100, height: 100 })).toBe(false);
+	});
+
+	it('counts a neighbour closer than the gap as overlapping', () => {
+		const neighbour = { x: 310, y: 100, width: 100, height: 100 };
+		expect(rectsOverlap(box, neighbour)).toBe(false);
+		expect(rectsOverlap(box, neighbour, 20)).toBe(true);
+	});
+
+	it('reports overlap when one rect contains the other', () => {
+		expect(rectsOverlap(box, { x: 150, y: 150, width: 20, height: 20 })).toBe(true);
 	});
 });

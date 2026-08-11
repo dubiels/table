@@ -8,6 +8,9 @@ import {
 	zoneCenterPoint,
 	findUncategorizedPoint,
 	dropPointFor,
+	nextFreeZoneRect,
+	NEW_ZONE_SIZE,
+	NEW_ZONE_GAP,
 	HEADER_ROWS,
 	MIN_COLUMN_WIDTH,
 	MAX_COLUMNS,
@@ -17,7 +20,7 @@ import {
 	type BentoTask,
 	type BentoZone
 } from './bento';
-import { taskCenter, zoneForTask, type ZoneBounds } from './zones';
+import { taskCenter, zoneForTask, rectsOverlap, type ZoneBounds } from './zones';
 
 function task(overrides: Partial<BentoTask> & { id: string }): BentoTask {
 	return {
@@ -91,6 +94,22 @@ describe('groupTasksByZone', () => {
 		const groups = groupTasksByZone([], []);
 		expect(groups.map((g) => g.id)).toEqual([UNCATEGORIZED_ID]);
 		expect(groups[0].tasks).toEqual([]);
+	});
+
+	it('adds an empty Uncategorized on request, so a drag always has somewhere to land', () => {
+		const groups = groupTasksByZone([task({ id: '1', x: 100, y: 100 })], [work], {
+			alwaysIncludeUncategorized: true
+		});
+		expect(groups.map((g) => g.id)).toEqual(['work', UNCATEGORIZED_ID]);
+		expect(groups[1].tasks).toEqual([]);
+	});
+
+	it('does not add a second Uncategorized when tasks are already loose', () => {
+		const groups = groupTasksByZone([task({ id: '1', x: -1000, y: -1000 })], [work], {
+			alwaysIncludeUncategorized: true
+		});
+		expect(groups.map((g) => g.id)).toEqual(['work', UNCATEGORIZED_ID]);
+		expect(groups[1].tasks.map((t) => t.id)).toEqual(['1']);
 	});
 });
 
@@ -273,5 +292,54 @@ describe('dropPointFor', () => {
 	it('returns null for a group that no longer exists rather than guessing', () => {
 		const loose = task({ id: '1', x: -1000, y: -1000 });
 		expect(dropPointFor('deleted-zone', loose, [loose], zones)).toBeNull();
+	});
+});
+
+describe('nextFreeZoneRect', () => {
+	function zone(id: string, x: number, y: number, width = 320, height = 320): ZoneBounds {
+		return { id, x, y, width, height };
+	}
+
+	it('returns a default-sized rect at the origin for an empty board', () => {
+		const rect = nextFreeZoneRect([]);
+		expect(rect.width).toBe(NEW_ZONE_SIZE);
+		expect(rect.height).toBe(NEW_ZONE_SIZE);
+		expect(rect.x).toBeGreaterThanOrEqual(0);
+		expect(rect.y).toBeGreaterThanOrEqual(0);
+	});
+
+	it('steps past a zone sitting on the first slot', () => {
+		const first = nextFreeZoneRect([]);
+		const rect = nextFreeZoneRect([zone('a', first.x, first.y)]);
+		expect(rect).not.toEqual(first);
+		expect(rectsOverlap(rect, zone('a', first.x, first.y))).toBe(false);
+	});
+
+	it('leaves the configured gap between the new rect and its neighbours', () => {
+		const first = nextFreeZoneRect([]);
+		const taken = zone('a', first.x, first.y);
+		const rect = nextFreeZoneRect([taken]);
+		expect(rectsOverlap(rect, taken, NEW_ZONE_GAP - 1)).toBe(false);
+	});
+
+	it('avoids zones that are off the slot grid and oddly sized', () => {
+		const odd = [zone('a', 12, 7, 517, 133), zone('b', 400, 260, 90, 640)];
+		const rect = nextFreeZoneRect(odd);
+		for (const z of odd) expect(rectsOverlap(rect, z)).toBe(false);
+	});
+
+	it('finds free space below a band of zones that covers every scanned row', () => {
+		// Wide enough that no slot in these rows can fit beside them.
+		const band = Array.from({ length: 12 }, (_, i) =>
+			zone(`b${i}`, 0, i * (NEW_ZONE_SIZE + NEW_ZONE_GAP), 100_000, NEW_ZONE_SIZE)
+		);
+		const rect = nextFreeZoneRect(band);
+		for (const z of band) expect(rectsOverlap(rect, z)).toBe(false);
+	});
+
+	it('never returns a rect with a negative anchor', () => {
+		const rect = nextFreeZoneRect([zone('a', -500, -500, 2000, 2000)]);
+		expect(rect.x).toBeGreaterThanOrEqual(0);
+		expect(rect.y).toBeGreaterThanOrEqual(0);
 	});
 });

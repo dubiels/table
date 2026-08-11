@@ -65,6 +65,31 @@ export function zoneColorVars(key: string): { fill: string; border: string } {
 	return { fill: `var(--zone-${safe}-fill)`, border: `var(--zone-${safe}-border)` };
 }
 
+export interface Rect {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+/**
+ * Whether two rects share any area, optionally requiring `gap` clear space
+ * between them.
+ *
+ * Edges that merely touch are clear, matching `overlapsAny`'s card test — a new
+ * rect laid flush against an existing one covers none of it. BlobView keeps its
+ * own inclusive `intersects` for the opposite job: spotting a near miss before
+ * one happens, where "touching" is exactly the case worth reacting to.
+ */
+export function rectsOverlap(a: Rect, b: Rect, gap = 0): boolean {
+	return !(
+		a.x + a.width + gap <= b.x ||
+		b.x + b.width + gap <= a.x ||
+		a.y + a.height + gap <= b.y ||
+		b.y + b.height + gap <= a.y
+	);
+}
+
 export interface ViewportBounds {
 	minX: number;
 	minY: number;

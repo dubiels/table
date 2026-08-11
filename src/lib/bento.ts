@@ -1,4 +1,12 @@
-import { zoneForTask, taskCenter, DEFAULT_CARD, type Point, type ZoneBounds } from './zones';
+import {
+	zoneForTask,
+	taskCenter,
+	rectsOverlap,
+	DEFAULT_CARD,
+	type Point,
+	type Rect,
+	type ZoneBounds
+} from './zones';
 import { nextFreeSlot, overlapsAny } from './placement';
 
 export const UNCATEGORIZED_ID = 'uncategorized';
@@ -23,7 +31,20 @@ export interface BentoGroup {
 	tasks: BentoTask[];
 }
 
-export function groupTasksByZone(tasks: BentoTask[], zones: BentoZone[]): BentoGroup[] {
+export interface GroupOptions {
+	/**
+	 * Render the Uncategorized box even when nothing is loose. A drag needs
+	 * somewhere to drop a task that is leaving its category, and on a board where
+	 * every task is filed the box would otherwise not exist.
+	 */
+	alwaysIncludeUncategorized?: boolean;
+}
+
+export function groupTasksByZone(
+	tasks: BentoTask[],
+	zones: BentoZone[],
+	options: GroupOptions = {}
+): BentoGroup[] {
 	const byZone = new Map<string, BentoTask[]>(zones.map((z) => [z.id, []]));
 	const uncategorized: BentoTask[] = [];
 
@@ -41,9 +62,10 @@ export function groupTasksByZone(tasks: BentoTask[], zones: BentoZone[]): BentoG
 	}));
 
 	// An empty "Uncategorized" is a box that exists to say nothing lives in it.
-	// It earns its place only when something is actually loose, or when there are
-	// no zones at all and dropping it would leave the board blank.
-	if (uncategorized.length > 0 || zones.length === 0) {
+	// It earns its place only when something is actually loose, when there are no
+	// zones at all and dropping it would leave the board blank, or when a caller
+	// needs it as a drop target.
+	if (uncategorized.length > 0 || zones.length === 0 || options.alwaysIncludeUncategorized) {
 		groups.push({
 			id: UNCATEGORIZED_ID,
 			name: 'Uncategorized',
@@ -164,6 +186,52 @@ export function findUncategorizedPoint(zones: ZoneBounds[], occupied: Point[] = 
 		}
 	}
 	return point;
+}
+
+/** Side of a zone created from bento, matching `createZone`'s default size. */
+export const NEW_ZONE_SIZE = 320;
+
+/** Clear space left between a bento-created zone and every existing one. */
+export const NEW_ZONE_GAP = 40;
+
+/** Where the slot grid starts, matching `createZone`'s default anchor. */
+export const NEW_ZONE_ORIGIN = 60;
+
+/** How far the slot scan reaches before giving up and starting a fresh row. */
+const SCAN_COLUMNS = 6;
+const SCAN_ROWS = 6;
+
+/**
+ * Bounds for a zone created from bento, where there is no canvas to click and
+ * so no pointer position to place it at.
+ *
+ * Walks a grid of default-sized slots and takes the first that clears every
+ * existing zone by `NEW_ZONE_GAP`. Placing them by grid rather than at a fixed
+ * default anchor is not only tidiness: `zoneForTask` resolves a task to the
+ * smallest zone containing it, so zones stacked on one spot would silently
+ * change which box existing tasks appear in.
+ *
+ * When the scan finds nothing — a board whose zones span every scanned row —
+ * it starts a fresh row under everything, which cannot overlap by
+ * construction.
+ */
+export function nextFreeZoneRect(zones: ZoneBounds[]): Rect {
+	const step = NEW_ZONE_SIZE + NEW_ZONE_GAP;
+	const size = { width: NEW_ZONE_SIZE, height: NEW_ZONE_SIZE };
+
+	for (let row = 0; row < SCAN_ROWS; row++) {
+		for (let col = 0; col < SCAN_COLUMNS; col++) {
+			const candidate = {
+				x: NEW_ZONE_ORIGIN + col * step,
+				y: NEW_ZONE_ORIGIN + row * step,
+				...size
+			};
+			if (!zones.some((z) => rectsOverlap(candidate, z, NEW_ZONE_GAP))) return candidate;
+		}
+	}
+
+	const lowest = zones.reduce((bottom, z) => Math.max(bottom, z.y + z.height), 0);
+	return { x: NEW_ZONE_ORIGIN, y: lowest + NEW_ZONE_GAP, ...size };
 }
 
 /** The box a task currently sits in — a zone id, or `UNCATEGORIZED_ID` when it is loose. */

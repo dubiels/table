@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 	import TaskCard from './TaskCard.svelte';
 	import AddTaskForm from './AddTaskForm.svelte';
@@ -14,6 +14,7 @@
 		zoneCenterPoint,
 		findUncategorizedPoint,
 		dropPointFor,
+		nextFreeZoneRect,
 		UNCATEGORIZED_ID,
 		type BentoTask,
 		type BentoZone
@@ -54,9 +55,6 @@
 		});
 	});
 
-	let groups = $derived(groupTasksByZone(boardTasks, zones));
-	let columns = $derived(packColumns(groups, columnCount(containerWidth)));
-
 	function colorOf(color: string | null) {
 		return color ? zoneColorVars(color) : null;
 	}
@@ -94,6 +92,27 @@
 	let drag = $state<DragState | null>(null);
 	let hoverGroupId = $state<string | null>(null);
 
+	// Taking a task out of its category means dropping it somewhere no zone
+	// covers, so the drag needs an Uncategorized box to aim at — and on a board
+	// where everything is filed there is none. It appears for the length of the
+	// drag and goes again if nothing landed in it.
+	let groups = $derived(
+		groupTasksByZone(boardTasks, zones, { alwaysIncludeUncategorized: drag?.active ?? false })
+	);
+
+	/** Sentinel group id for the trailing "+ New category" box. */
+	const NEW_CATEGORY_ID = 'new-category';
+
+	// Laid out as a group so the packer treats it like any other box and it lands
+	// wherever the shortest column is, rather than being pinned under one of them.
+	// Holding no tasks, it costs a header row, which is all it draws.
+	let columns = $derived(
+		packColumns(
+			[...groups, { id: NEW_CATEGORY_ID, name: '', color: null, tasks: [] }],
+			columnCount(containerWidth)
+		)
+	);
+
 	// Box rects are measured once when the drag arms rather than per move: the
 	// board cannot reflow while a pointer is held down, and re-reading every
 	// rect on every pointermove is layout thrash for an answer that cannot have
@@ -103,6 +122,49 @@
 	// A drag ends with a click event on the card it started from. Without this
 	// the modal would open every time a card is dropped.
 	let justDragged = false;
+
+	let creating = $state(false);
+	let newCategoryName = $state('');
+	let nameInputEl = $state<HTMLInputElement | null>(null);
+
+	async function startCreating() {
+		creating = true;
+		newCategoryName = '';
+		await tick();
+		nameInputEl?.focus();
+	}
+
+	/**
+	 * Commits if a name was typed, discards silently otherwise — the same
+	 * commit-on-blur-if-non-empty pattern BlobView renames zones with.
+	 *
+	 * A category is a rectangle on the canvas, and bento has no canvas to pick a
+	 * spot on, so the geometry comes from nextFreeZoneRect. Color is left to the
+	 * server, which hands out the next one in the palette.
+	 */
+	async function commitCategory() {
+		const name = newCategoryName.trim();
+		creating = false;
+		newCategoryName = '';
+		if (!name) return;
+
+		const rect = nextFreeZoneRect(zones);
+		const body = new FormData();
+		body.set('name', name);
+		body.set('x', String(rect.x));
+		body.set('y', String(rect.y));
+		body.set('width', String(rect.width));
+		body.set('height', String(rect.height));
+		try {
+			const res = await fetch('?/createZone', { method: 'POST', body });
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+		} catch (err) {
+			console.error(`Could not create category ${name}`, err);
+			toast('Could not create category', 'error');
+			return;
+		}
+		await invalidateAll();
+	}
 
 	function boxRef(node: HTMLElement, id: string) {
 		boxEls.set(id, node);
@@ -137,7 +199,7 @@
 		card.setPointerCapture(e.pointerId);
 	}
 
-	function moveDrag(e: PointerEvent) {
+	async function moveDrag(e: PointerEvent) {
 		if (!drag || e.pointerId !== drag.pointerId) return;
 		drag.x = e.clientX;
 		drag.y = e.clientY;
@@ -146,6 +208,11 @@
 			const travel = Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY);
 			if (travel < CLICK_MOVE_THRESHOLD) return;
 			drag.active = true;
+			// Going active is what adds the Uncategorized box, so the rects can only
+			// be read once Svelte has put it on screen — measuring first would leave
+			// the one box this drag might be aiming for out of the list entirely.
+			await tick();
+			if (!drag || e.pointerId !== drag.pointerId) return; // dropped mid-tick
 			dropTargets = [...boxEls].map(([id, node]) => ({ id, rect: node.getBoundingClientRect() }));
 		}
 
@@ -208,69 +275,107 @@
 	{#each columns as column, index (index)}
 		<div class="column" style="flex-grow:{columnRows(column)}">
 			{#each column as group (group.id)}
-				{@const c = colorOf(group.color)}
-				{@const point = addPointFor(group.id)}
-				{@const adding = openAddId === group.id}
-				<div
-					class="box"
-					class:drop-target={hoverGroupId === group.id && drag?.active}
-					use:boxRef={group.id}
-					style="flex-grow:{boxRows(group)}; background:{c?.fill ??
-						'var(--surface)'}; border-color:{c?.border ?? 'var(--border)'};"
-				>
-					<div class="box-head">
-						<span class="box-name">{group.name}</span>
-						<span class="box-count">{group.tasks.length}</span>
-						<!-- The + lives in the header rather than a footer of its own: a
+				{#if group.id === NEW_CATEGORY_ID}
+					<!-- No boxRef: this box is not somewhere a task can be dropped, and
+					     registering it would light it up as a drop target that does
+					     nothing. -->
+					<div class="box new-category" style="flex-grow:{boxRows(group)}">
+						{#if creating}
+							<input
+								class="new-category-input"
+								bind:this={nameInputEl}
+								bind:value={newCategoryName}
+								placeholder="Category name"
+								aria-label="New category name"
+								onblur={commitCategory}
+								onkeydown={(e) => {
+									if (e.key === 'Enter') e.currentTarget.blur();
+									// Blurring with the field cleared is how a cancel reaches
+									// commitCategory, which discards an empty name.
+									if (e.key === 'Escape') {
+										newCategoryName = '';
+										e.currentTarget.blur();
+									}
+								}}
+							/>
+						{:else}
+							<button type="button" class="new-category-open" onclick={startCreating}>
+								+ New category
+							</button>
+						{/if}
+					</div>
+				{:else}
+					{@const c = colorOf(group.color)}
+					{@const point = addPointFor(group.id)}
+					{@const adding = openAddId === group.id}
+					{@const hint = group.id === UNCATEGORIZED_ID && group.tasks.length === 0}
+					<div
+						class="box"
+						class:drop-target={hoverGroupId === group.id && drag?.active}
+						class:drop-hint={hint}
+						use:boxRef={group.id}
+						style="flex-grow:{boxRows(group)}; background:{hint
+							? 'transparent'
+							: (c?.fill ?? 'var(--surface)')}; border-color:{c?.border ?? 'var(--border)'};"
+					>
+						<div class="box-head">
+							<span class="box-name">{group.name}</span>
+							<span class="box-count">{group.tasks.length}</span>
+							<!-- The + lives in the header rather than a footer of its own: a
 						     reserved footer row cost every box a card's worth of height,
 						     which is most of a small box. -->
-						<button
-							type="button"
-							class="add-plus"
-							class:open={adding}
-							aria-expanded={adding}
-							onclick={() => (openAddId = adding ? null : group.id)}
-							aria-label={adding ? 'Close add task' : `Add task to ${group.name}`}
-						>
-							+
-						</button>
-					</div>
+							<button
+								type="button"
+								class="add-plus"
+								class:open={adding}
+								aria-expanded={adding}
+								onclick={() => (openAddId = adding ? null : group.id)}
+								aria-label={adding ? 'Close add task' : `Add task to ${group.name}`}
+							>
+								+
+							</button>
+						</div>
 
-					{#if adding}
-						<AddTaskForm x={point.x} y={point.y} />
-					{/if}
+						{#if adding}
+							<AddTaskForm x={point.x} y={point.y} />
+						{/if}
 
-					{#if group.tasks.length > 0}
-						<div class="box-body">
-							{#each group.tasks as task (task.id)}
-								<!-- The interactive element is the TaskCard inside, which already
+						{#if group.tasks.length > 0}
+							<div class="box-body">
+								{#each group.tasks as task (task.id)}
+									<!-- The interactive element is the TaskCard inside, which already
 								     carries role="button" and its own keyboard handling. This
 								     wrapper adds a pointer gesture over it and no new semantics,
 								     so a role here would announce a second control that is not
-								     there. Keyboard users reach the same move via the card's
-								     detail panel. -->
-								<!-- svelte-ignore a11y_no_static_element_interactions -->
-								<div
-									class="drag-wrap"
-									class:dragging={drag?.active && drag.task.id === task.id}
-									onpointerdown={(e) => startDrag(e, task)}
-									onpointermove={moveDrag}
-									onpointerup={endDrag}
-									onpointercancel={cancelDrag}
-								>
-									<TaskCard
-										{task}
-										onclick={() => {
-											if (!justDragged) openTaskId = task.id;
-										}}
-									/>
-								</div>
-							{/each}
-						</div>
-					{:else if !adding}
-						<p class="empty">No tasks yet</p>
-					{/if}
-				</div>
+								     there. Recategorizing has no keyboard path yet — the detail
+								     panel has no category control to offer one. -->
+									<!-- svelte-ignore a11y_no_static_element_interactions -->
+									<div
+										class="drag-wrap"
+										class:dragging={drag?.active && drag.task.id === task.id}
+										onpointerdown={(e) => startDrag(e, task)}
+										onpointermove={moveDrag}
+										onpointerup={endDrag}
+										onpointercancel={cancelDrag}
+									>
+										<TaskCard
+											{task}
+											onclick={() => {
+												if (!justDragged) openTaskId = task.id;
+											}}
+										/>
+									</div>
+								{/each}
+							</div>
+						{:else if !adding}
+							<p class="empty">
+								{group.id === UNCATEGORIZED_ID && drag?.active
+									? 'Drop to uncategorize'
+									: 'No tasks yet'}
+							</p>
+						{/if}
+					</div>
+				{/if}
 			{/each}
 		</div>
 	{/each}
@@ -428,6 +533,48 @@
 	.box.drop-target {
 		outline: 2px solid var(--accent);
 		outline-offset: 1px;
+	}
+
+	/* The Uncategorized box while it holds nothing — it is on screen only for the
+	   length of a drag, so it reads as a target rather than as a real box. Its
+	   fill is dropped inline, not here: the box sets background in a style
+	   attribute, which no rule in this block can outrank. */
+	.box.drop-hint {
+		border-style: dashed;
+	}
+
+	/* Dashed and unfilled for the same reason: it is a place to start something,
+	   not a box with contents. */
+	.box.new-category {
+		border-style: dashed;
+		border-color: var(--border);
+		background: transparent;
+		justify-content: center;
+	}
+
+	.new-category-open {
+		width: 100%;
+		border: none;
+		background: transparent;
+		color: var(--muted);
+		font-family: var(--font-display);
+		font-weight: 600;
+		font-size: 0.9rem;
+		padding: 0.25rem;
+		cursor: pointer;
+		border-radius: var(--radius-s, 6px);
+	}
+
+	.new-category-open:hover {
+		color: var(--ink);
+		background: var(--surface);
+	}
+
+	.new-category-input {
+		width: 100%;
+		min-width: 0;
+		font-family: var(--font-display);
+		font-weight: 600;
 	}
 
 	.ghost {
