@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Task } from './service';
 
 let rows: Task[] = [];
+let tombstones: { googleTaskId: string; deletedAt: string }[] = [];
 vi.mock('../db', () => ({
 	db: {
 		insert: () => ({
@@ -33,7 +34,13 @@ vi.mock('../db', () => ({
 		transaction: (fn: (tx: unknown) => void) => {
 			fn({
 				insert: () => ({
-					values: () => ({ onConflictDoNothing: () => ({ run: () => {} }) })
+					values: (v: { googleTaskId: string; deletedAt: string }) => ({
+						onConflictDoNothing: () => ({
+							run: () => {
+								tombstones.push(v);
+							}
+						})
+					})
 				}),
 				delete: () => ({
 					where: () => ({
@@ -52,6 +59,7 @@ import * as tasksService from './service';
 describe('tasks service', () => {
 	beforeEach(() => {
 		rows = [];
+		tombstones = [];
 	});
 
 	it('creates a standalone task with a position and no topic', async () => {
@@ -78,6 +86,30 @@ describe('tasks service', () => {
 		await tasksService.updateTask(t.id, { title: 'After' });
 		expect(rows[0].updatedAt).not.toBe('');
 		expect(Date.parse(rows[0].updatedAt)).toBeGreaterThanOrEqual(Date.parse(t.updatedAt));
+	});
+
+	it('bumps updatedAt when a due date is cleared', async () => {
+		// `field in patch` must stay true for `{ dueDate: null }` — clearing a due
+		// date is itself a change Google needs to know about, so a refactor to
+		// `field in patch && patch[field]` (falsy-checking the new value) would
+		// silently stop treating this as dirty. Fake timers make the clock move
+		// deterministically, so a missed bump shows up as an unchanged updatedAt
+		// rather than a coin-flip on same-millisecond timestamps.
+		vi.useFakeTimers();
+		try {
+			const t = await tasksService.createTask({ title: 'Due today', dueDate: '2026-08-11' });
+			// createTask returns the same object reference that lives in `rows`, so
+			// snapshot the primitive now — otherwise the coming mutation would move
+			// this value along with rows[0].updatedAt and the comparison below
+			// would compare a value against itself.
+			const createdAt = t.updatedAt;
+			vi.advanceTimersByTime(1000);
+			await tasksService.updateTask(t.id, { dueDate: null });
+			expect(rows[0].dueDate).toBeNull();
+			expect(Date.parse(rows[0].updatedAt)).toBeGreaterThan(Date.parse(createdAt));
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('bumps updatedAt on completion', async () => {
@@ -109,5 +141,27 @@ describe('tasks service', () => {
 		await tasksService.setGoogleSync(t.id, true);
 		expect(rows[0].googleSync).toBe(true);
 		expect(rows[0].updatedAt).toBe(t.updatedAt);
+	});
+
+	it('records a tombstone carrying the googleTaskId when deleting a linked task', async () => {
+		const t = await tasksService.createTask({ title: 'Linked' });
+		rows[0].googleTaskId = 'g-123';
+		await tasksService.deleteTask(t.id);
+		expect(tombstones).toEqual([{ googleTaskId: 'g-123', deletedAt: expect.any(String) }]);
+		expect(rows).toHaveLength(0);
+	});
+
+	it('records no tombstone when deleting an unlinked task', async () => {
+		const t = await tasksService.createTask({ title: 'Unlinked' });
+		// googleTaskId defaults to null from createTask, i.e. never synced.
+		await tasksService.deleteTask(t.id);
+		expect(tombstones).toEqual([]);
+		expect(rows).toHaveLength(0);
+	});
+
+	it('is a no-op when deleting a task id that does not exist', async () => {
+		await expect(tasksService.deleteTask('missing-id')).resolves.toBeUndefined();
+		expect(tombstones).toEqual([]);
+		expect(rows).toHaveLength(0);
 	});
 });
