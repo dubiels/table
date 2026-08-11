@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import Mascot from './Mascot.svelte';
+	import RefreshButton from './RefreshButton.svelte';
 	import { localDateString, CANVAS_SOURCE } from '$lib/listView';
 	import { toast } from '$lib/toast.svelte';
 
@@ -123,9 +124,12 @@
 </script>
 
 {#if lmsConfigured}
-	<button type="button" class="btn btn-primary sync-btn" disabled={syncing} onclick={syncNow}>
-		{syncing ? 'Syncing…' : 'Sync now'}
-	</button>
+	<!-- The same control the Today panel puts against its date, in the same place
+	     and at the same size: both panels re-pull an upstream feed, and a primary
+	     button here made the two read as different kinds of action. -->
+	<div class="sync-row">
+		<RefreshButton label="Sync assignments" spinning={syncing} onclick={syncNow} />
+	</div>
 
 	{#if assignmentCount === 0}
 		<div class="empty">
@@ -167,8 +171,14 @@
 {/if}
 
 <style>
-	.sync-btn {
-		align-self: flex-start;
+	/* Right-aligned so it sits under the panel head's fold arrow, the way the
+	   calendar's refresh sits under Today's. */
+	.sync-row {
+		display: flex;
+		justify-content: flex-end;
+		/* The panel body's 1rem gap is sized for blocks of content; against a
+		   28px icon it opens a hole above the first course heading. */
+		margin-bottom: -0.5rem;
 	}
 
 	.empty {
