@@ -8,6 +8,7 @@
 	import SidePanel from '$lib/components/SidePanel.svelte';
 	import TodayPanel from '$lib/components/TodayPanel.svelte';
 	import CanvasPanel from '$lib/components/CanvasPanel.svelte';
+	import canvasLogo from '$lib/assets/canvas-logo.png';
 	import { eventsToday } from '$lib/agenda';
 	import { localDateString, CANVAS_SOURCE } from '$lib/listView';
 	let { data } = $props();
@@ -239,6 +240,14 @@
 		onopen={openCanvas}
 		onclose={closeCanvas}
 	>
+		{#snippet icon()}
+			<!-- The mark is white, which is invisible on this palette in either
+			     theme, so it rides on a Canvas-red chip rather than bare. The
+			     heading already says "Canvas", so the image is decorative. -->
+			<span class="canvas-chip">
+				<img src={canvasLogo} alt="" width="14" height="14" />
+			</span>
+		{/snippet}
 		<CanvasPanel tasks={data.tasks} lmsConfigured={data.lmsConfigured} />
 	</SidePanel>
 </div>
@@ -256,6 +265,21 @@
 		padding: 0.32rem 0.85rem;
 		font-size: 0.82rem;
 		font-weight: 600;
+	}
+
+	/* Canvas red, left at full chroma: it is a brand mark, and muting it into the
+	   warm palette would only make it read as a generic red square. Fixed px
+	   rather than em — it should track the 14px logo inside it, not the heading. */
+	.canvas-chip {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 20px;
+		height: 20px;
+		/* Not --radius-s: 10px on a 20px box is a full circle, and a red disc
+		   directly behind a circular mark reads as a halo. */
+		border-radius: 6px;
+		background: #d64027;
 	}
 
 	/* The bento stand-in for .board-mascot. margin-left: auto parks it at the far

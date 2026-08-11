@@ -8,6 +8,7 @@
 		label,
 		id,
 		count = null,
+		icon,
 		anchor,
 		onopen,
 		onclose,
@@ -23,6 +24,9 @@
 		id: string;
 		/** Shown beside the label; the caller owns what it counts. */
 		count?: string | number | null;
+		/** Optional mark rendered before the heading — decorative, so the caller
+		    is responsible for hiding it from assistive tech. */
+		icon?: Snippet;
 		/** The button that opens the drawer — excluded from the outside-click test. */
 		anchor: HTMLElement | null;
 		onopen: () => void;
@@ -99,6 +103,7 @@
 		aria-hidden={mode === 'overlay' && !open}
 	>
 		<div class="panel-head">
+			{#if icon}<span class="panel-icon">{@render icon()}</span>{/if}
 			<h2 class="panel-title">{label}</h2>
 			{#if count !== null}
 				<span class="count">{count}</span>
@@ -230,6 +235,14 @@
 		gap: 0.4rem;
 		padding: 0.5rem 0.9rem;
 		border-bottom: 1px solid var(--border);
+	}
+
+	/* The head aligns on the baseline for label and count; a replaced element has
+	   no useful baseline, so the mark opts out and centres on the heading. */
+	.panel-icon {
+		display: flex;
+		align-self: center;
+		flex-shrink: 0;
 	}
 
 	.panel-title {
