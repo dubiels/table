@@ -21,7 +21,7 @@ export const load: PageServerLoad = async () => {
 	// disagree. An empty agenda alone would not distinguish "no calendar set up"
 	// from "a quiet week", and those want different empty states.
 	const lmsConfigured = Boolean(env.LMS_ICAL_URL ?? env.CANVAS_ICAL_URL);
-	const gcalConfigured = Boolean(env.GCAL_ICAL_URLS);
+	const gcalConfigured = Boolean(env.GCAL_REFRESH_TOKEN);
 	return { tasks, zones, agenda, lmsConfigured, gcalConfigured };
 };
 

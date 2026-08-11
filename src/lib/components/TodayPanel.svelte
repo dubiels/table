@@ -28,12 +28,13 @@
 	</div>
 	<ol class="setup">
 		<li>
-			In Google Calendar, open <strong>Settings → your calendar</strong> and copy the
-			<strong>Secret address in iCal format</strong>.
+			In the <strong>Google Cloud console</strong>, enable the <strong>Calendar API</strong> and create a
+			<strong>Desktop OAuth client</strong>.
 		</li>
 		<li>
-			Add <code>GCAL_ICAL_URLS=&lt;url&gt;</code> to <code>.env</code> — comma-separated for several calendars
-			— and restart to pick it up.
+			Run <code>npm run gcal:auth</code>, then add <code>GCAL_CLIENT_ID</code>,
+			<code>GCAL_CLIENT_SECRET</code>, and the printed <code>GCAL_REFRESH_TOKEN</code> to
+			<code>.env</code> — and restart to pick it up.
 		</li>
 	</ol>
 {:else if today.length === 0}
