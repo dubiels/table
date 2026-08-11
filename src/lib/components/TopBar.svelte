@@ -7,10 +7,15 @@
 	import { toast } from '$lib/toast.svelte';
 	import { env } from '$env/dynamic/public';
 
-	let { user, unreadCount }: { user: { email: string } | null; unreadCount: number } = $props();
+	let {
+		user,
+		unreadCount,
+		gtasksConfigured = false
+	}: { user: { email: string } | null; unreadCount: number; gtasksConfigured?: boolean } = $props();
 	let menuOpen = $state(false);
 	let syncing = $state(false);
 	let digesting = $state(false);
+	let gtasksSyncing = $state(false);
 	let avatarEl = $state<HTMLButtonElement | null>(null);
 
 	// Seeded from the DOM rather than from localStorage: the pre-paint script in
@@ -60,6 +65,10 @@
 		updated?: number;
 		/** Still worth surfacing: it means LMS_ZONE_ID named no zone this run. */
 		placedLoose?: boolean;
+		imported?: number;
+		updatedLocally?: number;
+		pushed?: number;
+		failed?: number;
 	};
 
 	// A proxy error or a crashed route answers with an HTML page; res.json() would
@@ -95,6 +104,34 @@
 			toast('Sync failed', 'error');
 		} finally {
 			syncing = false;
+		}
+	}
+
+	async function syncGoogleTasksNow() {
+		closeMenu();
+		gtasksSyncing = true;
+		toast('Syncing Google Tasks…');
+		try {
+			const res = await fetch('/api/gtasks/sync', { method: 'POST' });
+			const body = await readJson(res);
+			if (!res.ok) {
+				toast(body?.error ?? `Google Tasks sync failed (HTTP ${res.status})`, 'error');
+			} else if (!body?.ok) {
+				// ok:false is the runner reporting it never reached Google, not a
+				// crash — say so rather than claiming a successful empty sync.
+				toast('Google Tasks sync failed — could not reach Google', 'error');
+			} else {
+				toast(
+					`Google Tasks synced — ${body.imported} in, ${body.pushed} out` +
+						(body.failed ? `, ${body.failed} failed` : ''),
+					body.failed ? 'error' : 'success'
+				);
+				await invalidateAll();
+			}
+		} catch {
+			toast('Google Tasks sync failed', 'error');
+		} finally {
+			gtasksSyncing = false;
 		}
 	}
 
@@ -225,6 +262,16 @@
 						<button type="button" class="item" disabled={syncing} onclick={syncNow}>
 							Sync assignments
 						</button>
+						{#if gtasksConfigured}
+							<button
+								type="button"
+								class="item"
+								disabled={gtasksSyncing}
+								onclick={syncGoogleTasksNow}
+							>
+								Sync Google Tasks
+							</button>
+						{/if}
 						<button type="button" class="item" disabled={digesting} onclick={sendDigest}>
 							Send digest now
 						</button>

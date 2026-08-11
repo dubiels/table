@@ -7,8 +7,35 @@ import * as tasksService from '$lib/server/tasks/service';
 import { newTaskSchema } from '$lib/server/tasks/forms';
 import { evictedTaskPoints } from '$lib/bento';
 import { getAgenda } from '$lib/server/gcal/service';
+import { syncGoogleTasks, isGoogleTasksEnabled, readSyncState } from '$lib/server/gtasks/sync';
+
+/** Long enough that a reload is not a sync, short enough to catch the walk back from the bus. */
+const STALE_MS = 60_000;
+/** A board that renders now beats a board that renders correct-to-the-second. */
+const LOAD_SYNC_BUDGET_MS = 4000;
+
+/**
+ * Brings Google Tasks up to date before the board renders, but only when it is
+ * actually stale and only for as long as it is worth waiting.
+ *
+ * The cron job is what keeps the mirror fresh in general; this exists for the
+ * case the cron cannot serve — you ticked something off on your phone a minute
+ * ago and just opened Table. On timeout or failure the board renders whatever
+ * the database already holds.
+ */
+async function syncGoogleTasksIfStale(): Promise<void> {
+	if (!isGoogleTasksEnabled()) return;
+	const lastSyncAt = await readSyncState('gtasks:lastSyncAt');
+	if (lastSyncAt && Date.now() - Date.parse(lastSyncAt) < STALE_MS) return;
+
+	await Promise.race([
+		syncGoogleTasks(),
+		new Promise((resolve) => setTimeout(resolve, LOAD_SYNC_BUDGET_MS))
+	]).catch((err) => console.error('gtasks: load-time sync failed', err));
+}
 
 export const load: PageServerLoad = async () => {
+	await syncGoogleTasksIfStale();
 	// getAgenda() already swallows per-calendar failures; the catch is a belt for
 	// anything unexpected, because a calendar must never stop the board loading.
 	const [tasks, zones, agenda] = await Promise.all([

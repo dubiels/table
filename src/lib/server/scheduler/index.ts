@@ -7,6 +7,7 @@ import { buildDueSoonContent, findTasksNeedingDueAlert } from '../notifications/
 import { sendPushToUser } from '../notifications/push';
 import { logNotification } from '../notifications/log';
 import { syncLmsAssignments } from '../lms/sync';
+import { syncGoogleTasks } from '../gtasks/sync';
 
 let started = false;
 
@@ -20,6 +21,7 @@ export function startScheduler() {
 	const digestCron = env.DIGEST_CRON ?? '0 8 * * *';
 	const dueCheckCron = env.DUE_CHECK_CRON ?? '0 * * * *';
 	const lmsSyncCron = env.LMS_SYNC_CRON ?? env.CANVAS_SYNC_CRON ?? '0 */6 * * *';
+	const gtasksSyncCron = env.GTASKS_SYNC_CRON ?? '*/5 * * * *';
 	const leadHours = Number(env.DUE_ALERT_LEAD_HOURS ?? '24');
 
 	cron.schedule(digestCron, () =>
@@ -30,6 +32,12 @@ export function startScheduler() {
 	);
 	cron.schedule(lmsSyncCron, () =>
 		syncLmsAssignments().catch((err) => console.error('LMS sync job failed', err))
+	);
+	// syncGoogleTasks() already swallows its own failures and reports ok:false;
+	// the catch is a belt for anything unexpected, so one bad round never kills
+	// the scheduled job.
+	cron.schedule(gtasksSyncCron, () =>
+		syncGoogleTasks().catch((err) => console.error('Google Tasks sync job failed', err))
 	);
 }
 
