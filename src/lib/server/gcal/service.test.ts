@@ -147,4 +147,45 @@ describe('getAgenda', () => {
 
 		expect(listEvents).toHaveBeenCalledTimes(1);
 	});
+
+	it('refetches inside the TTL when forced', async () => {
+		listEvents
+			.mockResolvedValueOnce([event('standup', '2026-08-11T09:00:00Z')])
+			.mockResolvedValueOnce([event('standup-2', '2026-08-11T10:00:00Z')]);
+		const { getAgenda } = await freshService();
+
+		await getAgenda();
+		const forced = await getAgenda({ force: true });
+
+		expect(listEvents).toHaveBeenCalledTimes(2);
+		expect(forced.map((e) => e.title)).toEqual(['standup-2']);
+	});
+});
+
+describe('refreshAgenda', () => {
+	it('reports ok and the event count on success', async () => {
+		listEvents.mockResolvedValue([event('standup', '2026-08-11T09:00:00Z')]);
+		const { refreshAgenda } = await freshService();
+
+		expect(await refreshAgenda()).toEqual({ ok: true, events: 1 });
+	});
+
+	it('reports ok:false when every calendar fails, without blanking the previous agenda', async () => {
+		listEvents.mockResolvedValueOnce([event('standup', '2026-08-11T09:00:00Z')]);
+		const { getAgenda, refreshAgenda } = await freshService();
+		await getAgenda();
+
+		listEvents.mockRejectedValueOnce(new Error('HTTP 500'));
+		expect(await refreshAgenda()).toEqual({ ok: false, events: 0 });
+
+		expect(await getAgenda()).toHaveLength(1);
+	});
+
+	it('reports ok:false when no refresh token is configured', async () => {
+		delete mockEnv.GCAL_REFRESH_TOKEN;
+		const { refreshAgenda } = await freshService();
+
+		expect(await refreshAgenda()).toEqual({ ok: false, events: 0 });
+		expect(getAccessToken).not.toHaveBeenCalled();
+	});
 });

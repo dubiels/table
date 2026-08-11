@@ -1,5 +1,7 @@
 <script lang="ts">
 	import Mascot from './Mascot.svelte';
+	import { invalidateAll } from '$app/navigation';
+	import { toast } from '$lib/toast.svelte';
 	import { eventsToday, upcomingByDay, timeLabel } from '$lib/agenda';
 	import type { AgendaEvent } from '$lib/server/gcal/agenda';
 
@@ -17,9 +19,62 @@
 
 	let today = $derived(eventsToday(agenda));
 	let upcoming = $derived(upcomingByDay(agenda));
+
+	let refreshing = $state(false);
+
+	type RefreshBody = { ok?: boolean; events?: number; error?: string };
+
+	// A proxy error or a crashed route answers with an HTML page; res.json()
+	// would throw and lose the status we could have reported instead.
+	async function readJson(res: Response): Promise<RefreshBody | null> {
+		if (!res.headers.get('content-type')?.includes('application/json')) return null;
+		try {
+			return (await res.json()) as RefreshBody;
+		} catch {
+			return null;
+		}
+	}
+
+	// getAgenda()'s 10-minute cache means a just-added Google event would
+	// otherwise take up to 10 minutes to show up here; this bypasses it. A
+	// failure must never claim success — the last agenda stays on screen either
+	// way, so the toast is the only thing telling the user which one they have.
+	async function refreshCalendar() {
+		refreshing = true;
+		try {
+			const res = await fetch('/api/gcal/refresh', { method: 'POST' });
+			const body = await readJson(res);
+			if (res.ok && body?.ok) {
+				await invalidateAll();
+				const count = body.events ?? 0;
+				toast(`Calendar refreshed — ${count} event${count === 1 ? '' : 's'}`, 'success');
+			} else {
+				toast('Could not reach the calendar — showing the last agenda', 'error');
+			}
+		} catch {
+			toast('Could not reach the calendar — showing the last agenda', 'error');
+		} finally {
+			refreshing = false;
+		}
+	}
 </script>
 
-<p class="date">{heading}</p>
+<div class="date-row">
+	<p class="date">{heading}</p>
+	{#if gcalConfigured}
+		<button
+			type="button"
+			class="refresh-btn"
+			class:spinning={refreshing}
+			disabled={refreshing}
+			aria-label="Refresh calendar"
+			title="Refresh calendar"
+			onclick={refreshCalendar}
+		>
+			⟳
+		</button>
+	{/if}
+</div>
 
 {#if !gcalConfigured}
 	<div class="empty">
@@ -78,10 +133,62 @@
 {/if}
 
 <style>
+	.date-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+	}
+
 	.date {
 		margin: 0;
 		font-size: 0.78rem;
 		color: var(--muted);
+	}
+
+	.refresh-btn {
+		flex-shrink: 0;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 22px;
+		height: 22px;
+		padding: 0;
+		border: none;
+		border-radius: 50%;
+		background: transparent;
+		color: var(--muted);
+		font-size: 0.85rem;
+		line-height: 1;
+		cursor: pointer;
+		transition:
+			background 0.15s ease,
+			color 0.15s ease;
+	}
+
+	.refresh-btn:hover:not(:disabled) {
+		background: var(--surface-2);
+		color: var(--ink);
+	}
+
+	.refresh-btn:disabled {
+		cursor: default;
+	}
+
+	.refresh-btn.spinning {
+		animation: gcal-refresh-spin 0.8s linear infinite;
+	}
+
+	@keyframes gcal-refresh-spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.refresh-btn.spinning {
+			animation: none;
+		}
 	}
 
 	.today-events {
