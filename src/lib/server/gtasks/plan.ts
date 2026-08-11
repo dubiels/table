@@ -37,7 +37,19 @@ export interface SyncPlan {
 	 * from unlinking a task whose Google copy still exists.
 	 */
 	deleteInGoogle: { googleTaskId: string; taskId: string | null }[];
-	createInGoogle: { taskId: string; title: string; notes: string | null; dueDate: string }[];
+	/**
+	 * `done` rides along because a create is the only chance to state it: the
+	 * task is clean the moment it is pushed, so nothing would ever follow up
+	 * with a patch and a task completed before its first push would read as open
+	 * in Google forever.
+	 */
+	createInGoogle: {
+		taskId: string;
+		title: string;
+		notes: string | null;
+		dueDate: string;
+		done: boolean;
+	}[];
 	patchInGoogle: {
 		taskId: string;
 		googleTaskId: string;
@@ -208,7 +220,8 @@ export function planGoogleTaskSync(input: {
 					taskId: t.id,
 					title: t.title,
 					notes: t.notes,
-					dueDate: t.dueDate
+					dueDate: t.dueDate,
+					done: t.done
 				});
 			}
 			continue;
@@ -219,12 +232,38 @@ export function planGoogleTaskSync(input: {
 			continue;
 		}
 
-		if (t.googleSync && t.googleTaskId && !seenGoogleIds.has(t.googleTaskId) && input.fullFetch) {
-			// Deliberately not a deletion. Google purges deleted tasks after a
-			// retention window, so for a Table that was down across it, absence is
-			// indistinguishable from "never existed". Unlinking preserves the task;
-			// deleting would destroy it on a guess.
-			plan.unlinkInTable.push({ taskId: t.id, reason: 'no longer in Google Tasks' });
+		if (t.googleSync && t.googleTaskId && !seenGoogleIds.has(t.googleTaskId)) {
+			// "Linked but absent" means two opposite things depending on the fetch,
+			// so `fullFetch` picks the branch and the two can never both fire for
+			// one task.
+			//
+			// Full fetch: the response is every task Google holds, so absence means
+			// the row really is gone. Deliberately not a deletion — Google purges
+			// deleted tasks after a retention window, so for a Table that was down
+			// across it, absence is indistinguishable from "never existed".
+			// Unlinking preserves the task; deleting would destroy it on a guess.
+			// Patching is not an option either: there is no row left to patch, and
+			// the attempt would just 404 every round.
+			//
+			// Incremental fetch: the response is only what Google touched since the
+			// cursor, so absence means "Google has not changed it" and the row is
+			// still there. A task that is dirty is then dirty on Table's side alone
+			// — the write-through push failed, or Table changed while offline — and
+			// this is the only place that push can be retried. Without it the task
+			// stays dirty forever, because the cursor advances past its window and
+			// only a manual full refresh would ever look at it again.
+			if (input.fullFetch) {
+				plan.unlinkInTable.push({ taskId: t.id, reason: 'no longer in Google Tasks' });
+			} else if (t.updatedAt !== t.googleSyncedAt) {
+				plan.patchInGoogle.push({
+					taskId: t.id,
+					googleTaskId: t.googleTaskId,
+					title: t.title,
+					notes: t.notes,
+					dueDate: t.dueDate,
+					done: t.done
+				});
+			}
 		}
 	}
 

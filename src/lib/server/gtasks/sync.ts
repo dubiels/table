@@ -83,25 +83,45 @@ function toPlanGoogleTask(g: GoogleTask): PlanGoogleTask {
  * completed tasks is not re-fetched every few minutes; the manual refresh and
  * the very first run are full.
  *
- * Never throws. A round that cannot reach Google reports `ok: false` and leaves
- * every local record untouched, so the next round retries from the same state.
+ * Never throws, and this wrapper is what makes that true rather than aspirational.
+ * The round's own guards handle the expected failures — an unreachable Google,
+ * one task Google refuses — and this one catches the rest: a locked or failing
+ * database during the local phase, which is systemic rather than per-task. Such
+ * a round reports `ok: false` and, because the sync cursor is written last, the
+ * next round replans the same work from the same window.
  */
-export async function syncGoogleTasks(
-	options?: { full?: boolean }
-): Promise<GoogleTaskSyncResult> {
+export async function syncGoogleTasks(options?: { full?: boolean }): Promise<GoogleTaskSyncResult> {
+	try {
+		return await runSyncRound(options);
+	} catch (err) {
+		console.error('gtasks: sync round failed, leaving the cursor where it was', err);
+		return { ...EMPTY };
+	}
+}
+
+async function runSyncRound(options?: { full?: boolean }): Promise<GoogleTaskSyncResult> {
 	if (!isGoogleTasksEnabled()) return { ...EMPTY };
 
 	const lastSyncAt = await readSyncState(LAST_SYNC_KEY);
-	const full = options?.full === true || lastSyncAt === null;
+	const lastSyncMs = lastSyncAt === null ? Number.NaN : Date.parse(lastSyncAt);
+	if (lastSyncAt !== null && Number.isNaN(lastSyncMs)) {
+		// A corrupt cursor must not be able to kill sync outright: `new Date(NaN)`
+		// throws on `toISOString`, and inside the fetch guard below that would be
+		// logged as a Google failure, round after round, forever. A full fetch is
+		// the safe reading of "we don't know how far we got", and the round ends
+		// by writing a well-formed cursor again.
+		console.warn(
+			`gtasks: ignoring unparseable ${LAST_SYNC_KEY} (${lastSyncAt}); doing a full fetch`
+		);
+	}
+	const full = options?.full === true || Number.isNaN(lastSyncMs);
 
 	let token: string;
 	let googleRows: GoogleTask[];
 	try {
 		token = await getAccessToken();
 		googleRows = await listTasks(token, {
-			updatedMin: full
-				? undefined
-				: new Date(Date.parse(lastSyncAt as string) - SKEW_MS).toISOString()
+			updatedMin: full ? undefined : new Date(lastSyncMs - SKEW_MS).toISOString()
 		});
 	} catch (err) {
 		console.error('gtasks: fetch failed, keeping local state', err);
@@ -112,6 +132,12 @@ export async function syncGoogleTasks(
 		db.query.tasks.findMany(),
 		db.query.googleTaskTombstones.findMany()
 	]);
+
+	// The version of each task the plan is computed from, and so the version any
+	// push in this round actually sends. `markPushed` records this rather than
+	// re-reading `updatedAt` afterwards: an edit made while the push was in
+	// flight would otherwise be stamped as already in Google and never sync.
+	const sentUpdatedAt = new Map(tableRows.map((t) => [t.id, t.updatedAt]));
 
 	const plan = planGoogleTaskSync({
 		tableTasks: tableRows.map((t) => ({
@@ -172,9 +198,13 @@ export async function syncGoogleTasks(
 				title: create.title,
 				notes: create.notes,
 				due: toGoogleDue(create.dueDate),
-				status: 'needsAction'
+				// A task can be completed before it is ever pushed. The create is
+				// the only chance to say so: `markPushed` leaves it clean, so no
+				// patch would ever follow and it would read as open in Google for
+				// good.
+				status: create.done ? 'completed' : 'needsAction'
 			});
-			await markPushed(create.taskId, created);
+			await markPushed(create.taskId, created, sentUpdatedAt.get(create.taskId));
 			result.pushed++;
 		} catch (err) {
 			await recordError(create.taskId, err);
@@ -190,7 +220,7 @@ export async function syncGoogleTasks(
 				due: toGoogleDue(patch.dueDate),
 				status: patch.done ? 'completed' : 'needsAction'
 			});
-			await markPushed(patch.taskId, updated);
+			await markPushed(patch.taskId, updated, sentUpdatedAt.get(patch.taskId));
 			result.pushed++;
 		} catch (err) {
 			await recordError(patch.taskId, err);
@@ -279,15 +309,44 @@ export async function syncGoogleTasks(
  * fetch. Google stamps `updated` at write time, so without this the next
  * reconcile would see Google as newer than Table and echo our own push back
  * down as an inbound change.
+ *
+ * `pushedUpdatedAt` is the task's `updatedAt` as of the snapshot the plan was
+ * built from — the version that was actually sent — and is passed in rather
+ * than re-read here for the mirror-image reason: the user can edit the task
+ * while the push is in flight, and stamping that newer version as synced would
+ * make the edit clean, so no later round would ever push it.
  */
-export async function markPushed(taskId: string, googleTask: GoogleTask): Promise<void> {
+export async function markPushed(
+	taskId: string,
+	googleTask: GoogleTask,
+	pushedUpdatedAt: string | undefined
+): Promise<void> {
 	const row = await db.query.tasks.findFirst({ where: eq(tasks.id, taskId) });
-	if (!row) return;
+	if (!row) {
+		// Deleted between the snapshot and this write. Its own delete could not
+		// leave a tombstone for a task it created here — the row had no
+		// `googleTaskId` yet — so the Google task would be orphaned: live in
+		// Google, unreferenced in Table, and invisible to every later round.
+		// Tombstoning it hands the cleanup to the next round's deleteInGoogle.
+		// For a patch the delete already wrote the same tombstone, hence
+		// onConflictDoNothing.
+		console.warn(
+			`gtasks: task ${taskId} was deleted mid-round; tombstoning google task ${googleTask.id} for cleanup`
+		);
+		await db
+			.insert(googleTaskTombstones)
+			.values({ googleTaskId: googleTask.id, deletedAt: new Date().toISOString() })
+			.onConflictDoNothing();
+		return;
+	}
 	await db
 		.update(tasks)
 		.set({
 			googleTaskId: googleTask.id,
-			googleSyncedAt: row.updatedAt,
+			// Falling back to the stored value leaves the task dirty, so a missing
+			// snapshot entry costs one redundant push next round instead of losing
+			// the edit. Unreachable today: every plan entry comes from the snapshot.
+			googleSyncedAt: pushedUpdatedAt ?? row.googleSyncedAt,
 			googleUpdatedAt: googleTask.updated,
 			googleError: null
 		})
@@ -297,5 +356,12 @@ export async function markPushed(taskId: string, googleTask: GoogleTask): Promis
 export async function recordError(taskId: string, err: unknown): Promise<void> {
 	const message = err instanceof Error ? err.message : String(err);
 	console.error(`gtasks: push for task ${taskId} failed`, err);
-	await db.update(tasks).set({ googleError: message }).where(eq(tasks.id, taskId));
+	try {
+		await db.update(tasks).set({ googleError: message }).where(eq(tasks.id, taskId));
+	} catch (dbErr) {
+		// This runs inside a push loop's catch block, where throwing would abandon
+		// every remaining push and replace the failure just logged above with a
+		// database error. The task simply keeps whatever `googleError` it had.
+		console.error(`gtasks: could not record the push failure on task ${taskId}`, dbErr);
+	}
 }

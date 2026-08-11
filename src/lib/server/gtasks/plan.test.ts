@@ -101,7 +101,9 @@ describe('the four-case matrix', () => {
 	it('pulls google changes down when only google changed', () => {
 		const result = plan({
 			tableTasks: [tableTask()],
-			googleTasks: [googleTask({ title: 'Renamed on the phone', updated: '2026-08-11T12:00:00.000Z' })]
+			googleTasks: [
+				googleTask({ title: 'Renamed on the phone', updated: '2026-08-11T12:00:00.000Z' })
+			]
 		});
 
 		expect(result.patchInTable).toHaveLength(1);
@@ -114,14 +116,15 @@ describe('the four-case matrix', () => {
 
 	it('pushes table changes up when only table changed', () => {
 		const result = plan({
-			tableTasks: [
-				tableTask({ title: 'Renamed in Table', updatedAt: '2026-08-11T12:00:00.000Z' })
-			],
+			tableTasks: [tableTask({ title: 'Renamed in Table', updatedAt: '2026-08-11T12:00:00.000Z' })],
 			googleTasks: [googleTask()]
 		});
 
 		expect(result.patchInGoogle).toHaveLength(1);
-		expect(result.patchInGoogle[0]).toMatchObject({ googleTaskId: 'g1', title: 'Renamed in Table' });
+		expect(result.patchInGoogle[0]).toMatchObject({
+			googleTaskId: 'g1',
+			title: 'Renamed in Table'
+		});
 	});
 
 	it('gives the later edit the whole task when both changed', () => {
@@ -212,6 +215,46 @@ describe('deletion', () => {
 	});
 });
 
+describe('outbound retry for a task the fetch could not show', () => {
+	it('pushes a dirty linked task that an incremental fetch left out', () => {
+		const result = plan({
+			tableTasks: [tableTask({ title: 'Renamed in Table', updatedAt: '2026-08-11T12:00:00.000Z' })],
+			googleTasks: [],
+			fullFetch: false
+		});
+
+		expect(result.patchInGoogle).toHaveLength(1);
+		expect(result.patchInGoogle[0]).toMatchObject({
+			taskId: 't1',
+			googleTaskId: 'g1',
+			title: 'Renamed in Table',
+			dueDate: '2026-08-20',
+			done: false
+		});
+		expect(result.unlinkInTable).toEqual([]);
+	});
+
+	it('leaves a clean linked task alone when an incremental fetch leaves it out', () => {
+		const result = plan({ tableTasks: [tableTask()], googleTasks: [], fullFetch: false });
+
+		expect(result.patchInGoogle).toEqual([]);
+		expect(result.unlinkInTable).toEqual([]);
+		expect(result.deleteInGoogle).toEqual([]);
+	});
+
+	it('unlinks rather than pushes when a dirty linked task is absent from a full fetch', () => {
+		const result = plan({
+			tableTasks: [tableTask({ title: 'Renamed in Table', updatedAt: '2026-08-11T12:00:00.000Z' })],
+			googleTasks: [],
+			fullFetch: true
+		});
+
+		// Absence is authoritative here, so there is no row left to patch.
+		expect(result.patchInGoogle).toEqual([]);
+		expect(result.unlinkInTable).toEqual([{ taskId: 't1', reason: 'no longer in Google Tasks' }]);
+	});
+});
+
 describe('outbound creation', () => {
 	it('creates in google once intent is set and a due date exists', () => {
 		const result = plan({
@@ -219,14 +262,36 @@ describe('outbound creation', () => {
 		});
 
 		expect(result.createInGoogle).toEqual([
-			{ taskId: 't1', title: 'Write the spec', notes: null, dueDate: '2026-08-20' }
+			{ taskId: 't1', title: 'Write the spec', notes: null, dueDate: '2026-08-20', done: false }
 		]);
+	});
+
+	it('carries completion on the create, since no patch would ever follow', () => {
+		const result = plan({
+			tableTasks: [
+				tableTask({
+					googleTaskId: null,
+					googleSyncedAt: null,
+					googleUpdatedAt: null,
+					done: true,
+					completedAt: '2026-08-11T09:00:00.000Z'
+				})
+			]
+		});
+
+		expect(result.createInGoogle).toHaveLength(1);
+		expect(result.createInGoogle[0].done).toBe(true);
 	});
 
 	it('holds the intent, creating nothing, while there is no due date', () => {
 		const result = plan({
 			tableTasks: [
-				tableTask({ googleTaskId: null, googleSyncedAt: null, googleUpdatedAt: null, dueDate: null })
+				tableTask({
+					googleTaskId: null,
+					googleSyncedAt: null,
+					googleUpdatedAt: null,
+					dueDate: null
+				})
 			]
 		});
 
