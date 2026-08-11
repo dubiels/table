@@ -1,26 +1,22 @@
 import { describe, it, expect } from 'vitest';
-import { upcomingEvents } from './agenda';
+import { toAgendaEvents } from './agenda';
+import type { GoogleEvent } from './client';
 
-function ics(body: string[]): string {
-	return ['BEGIN:VCALENDAR', ...body, 'END:VCALENDAR'].join('\r\n');
+function event(overrides: Partial<GoogleEvent> = {}): GoogleEvent {
+	return {
+		id: 'e1',
+		summary: 'Advising meeting',
+		start: { dateTime: '2026-08-11T14:00:00Z' },
+		end: { dateTime: '2026-08-11T15:00:00Z' },
+		...overrides
+	};
 }
 
-const from = new Date('2026-08-09T00:00:00Z');
-
-describe('upcomingEvents', () => {
-	it('includes a timed event inside the window', () => {
-		const text = ics([
-			'BEGIN:VEVENT',
-			'UID:t1',
-			'SUMMARY:Advising meeting',
-			'DTSTART:20260811T140000Z',
-			'DTEND:20260811T150000Z',
-			'LOCATION:Room 5',
-			'END:VEVENT'
-		]);
-		const events = upcomingEvents(text, from, 7);
-		expect(events).toHaveLength(1);
-		expect(events[0]).toMatchObject({
+describe('toAgendaEvents', () => {
+	it('maps a timed event to UTC ISO strings', () => {
+		const [mapped] = toAgendaEvents([event({ location: 'Room 5' })]);
+		expect(mapped).toEqual({
+			id: 'e1',
 			title: 'Advising meeting',
 			start: '2026-08-11T14:00:00.000Z',
 			end: '2026-08-11T15:00:00.000Z',
@@ -29,101 +25,71 @@ describe('upcomingEvents', () => {
 		});
 	});
 
-	it('excludes events outside the window', () => {
-		const text = ics([
-			'BEGIN:VEVENT',
-			'UID:t2',
-			'SUMMARY:Far future',
-			'DTSTART:20261001T140000Z',
-			'DTEND:20261001T150000Z',
-			'END:VEVENT'
+	it('normalises a dateTime carrying an offset to UTC', () => {
+		const [mapped] = toAgendaEvents([
+			event({ start: { dateTime: '2026-08-11T10:00:00-04:00' }, end: undefined })
 		]);
-		expect(upcomingEvents(text, from, 7)).toHaveLength(0);
+		expect(mapped.start).toBe('2026-08-11T14:00:00.000Z');
 	});
 
-	it('flags all-day events', () => {
-		const text = ics([
-			'BEGIN:VEVENT',
-			'UID:a1',
-			'SUMMARY:Reading day',
-			'DTSTART;VALUE=DATE:20260812',
-			'DTEND;VALUE=DATE:20260813',
-			'END:VEVENT'
+	it('maps an all-day event to local midnight and flags it', () => {
+		const [mapped] = toAgendaEvents([
+			event({ start: { date: '2026-08-11' }, end: { date: '2026-08-12' } })
 		]);
-		const events = upcomingEvents(text, from, 7);
-		expect(events).toHaveLength(1);
-		expect(events[0].allDay).toBe(true);
+		// Tests are pinned to America/New_York; August is UTC-4.
+		expect(mapped.start).toBe('2026-08-11T04:00:00.000Z');
+		expect(mapped.allDay).toBe(true);
 	});
 
-	it('expands weekly recurrences into window occurrences', () => {
-		const text = ics([
-			'BEGIN:VEVENT',
-			'UID:r1',
-			'SUMMARY:CS lecture',
-			'DTSTART:20260803T140000Z',
-			'DTEND:20260803T152000Z',
-			'RRULE:FREQ=WEEKLY;BYDAY=MO,WE',
-			'END:VEVENT'
+	it("passes an all-day event's exclusive end date through unchanged", () => {
+		// Google reports a one-day event as ending on the following day. The ICS
+		// path did the same, so the panel's arithmetic is unaffected.
+		const [mapped] = toAgendaEvents([
+			event({ start: { date: '2026-08-11' }, end: { date: '2026-08-12' } })
 		]);
-		const events = upcomingEvents(text, from, 7);
-		// window 8/9–8/16 contains Mon 8/10 and Wed 8/12
-		expect(events).toHaveLength(2);
-		expect(events.every((e) => e.title === 'CS lecture')).toBe(true);
-		// occurrences keep the master's duration
-		const first = events[0];
-		expect(new Date(first.end!).getTime() - new Date(first.start).getTime()).toBe(80 * 60000);
-		// distinct ids per occurrence
-		expect(new Set(events.map((e) => e.id)).size).toBe(2);
+		expect(mapped.end).toBe('2026-08-12T04:00:00.000Z');
 	});
 
-	it('respects the half-open window boundary for recurring events', () => {
-		const text = ics([
-			'BEGIN:VEVENT',
-			'UID:w1',
-			'SUMMARY:Boundary check',
-			'DTSTART:20260809T000000Z',
-			'DTEND:20260809T010000Z',
-			'RRULE:FREQ=WEEKLY;COUNT=2',
-			'END:VEVENT'
-		]);
-		// occurrences: 8/9T00:00Z (== from, included) and 8/16T00:00Z (== windowEnd, excluded)
-		const events = upcomingEvents(text, from, 7);
-		expect(events).toHaveLength(1);
-		expect(events[0].start).toBe('2026-08-09T00:00:00.000Z');
+	it('returns a null end when the payload has none', () => {
+		const [mapped] = toAgendaEvents([event({ end: undefined })]);
+		expect(mapped.end).toBeNull();
 	});
 
-	it('excludes occurrences listed in exdate', () => {
-		const text = ics([
-			'BEGIN:VEVENT',
-			'UID:r2',
-			'SUMMARY:CS lecture',
-			'DTSTART:20260803T140000Z',
-			'DTEND:20260803T152000Z',
-			'RRULE:FREQ=WEEKLY;BYDAY=MO,WE',
-			'EXDATE:20260810T140000Z',
-			'END:VEVENT'
-		]);
-		// window 8/9–8/16 would contain Mon 8/10 and Wed 8/12; 8/10 is excluded
-		const events = upcomingEvents(text, from, 7);
-		expect(events).toHaveLength(1);
-		expect(events[0].start).toBe('2026-08-12T14:00:00.000Z');
+	it('drops cancelled instances of a recurring series', () => {
+		expect(toAgendaEvents([event({ status: 'cancelled' })])).toEqual([]);
 	});
 
-	it('sorts by start time', () => {
-		const text = ics([
-			'BEGIN:VEVENT',
-			'UID:b',
-			'SUMMARY:Later',
-			'DTSTART:20260811T170000Z',
-			'DTEND:20260811T180000Z',
-			'END:VEVENT',
-			'BEGIN:VEVENT',
-			'UID:a',
-			'SUMMARY:Earlier',
-			'DTSTART:20260810T090000Z',
-			'DTEND:20260810T100000Z',
-			'END:VEVENT'
-		]);
-		expect(upcomingEvents(text, from, 7).map((e) => e.title)).toEqual(['Earlier', 'Later']);
+	it('drops an event this account declined', () => {
+		const declined = event({
+			attendees: [{ self: true, responseStatus: 'declined' }]
+		});
+		expect(toAgendaEvents([declined])).toEqual([]);
+	});
+
+	it('keeps an event this account accepted', () => {
+		const accepted = event({
+			attendees: [{ self: true, responseStatus: 'accepted' }]
+		});
+		expect(toAgendaEvents([accepted])).toHaveLength(1);
+	});
+
+	it('keeps an event someone else declined', () => {
+		const otherDeclined = event({
+			attendees: [
+				{ self: true, responseStatus: 'accepted' },
+				{ responseStatus: 'declined' }
+			]
+		});
+		expect(toAgendaEvents([otherDeclined])).toHaveLength(1);
+	});
+
+	it('falls back to a placeholder title and a null location', () => {
+		const [mapped] = toAgendaEvents([event({ summary: undefined, location: undefined })]);
+		expect(mapped.title).toBe('(untitled)');
+		expect(mapped.location).toBeNull();
+	});
+
+	it('skips an event with no usable start', () => {
+		expect(toAgendaEvents([event({ start: undefined })])).toEqual([]);
 	});
 });

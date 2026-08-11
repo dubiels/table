@@ -1,4 +1,4 @@
-import ical from 'ical';
+import type { GoogleEvent, GoogleEventTime } from './client';
 
 export interface AgendaEvent {
 	id: string;
@@ -10,53 +10,60 @@ export interface AgendaEvent {
 }
 
 /**
- * Expands an ICS text into concrete event occurrences inside [from, from+days).
- * Recurring events are expanded via the parsed rrule; exdates are respected.
- * Display-only: nothing here ever touches tasks.
+ * `YYYY-MM-DD` at midnight in the server's local zone.
+ *
+ * All-day events carry a bare date with no zone. Anchoring them to local
+ * midnight — rather than UTC midnight — keeps them in the day the panel
+ * buckets them into, and matches the convention the rest of the app uses.
  */
-export function upcomingEvents(icsText: string, from: Date, days: number): AgendaEvent[] {
-	const windowEnd = new Date(from.getTime() + days * 86_400_000);
-	const parsed = ical.parseICS(icsText);
+function localMidnight(date: string): string {
+	const [year, month, day] = date.split('-').map(Number);
+	return new Date(year, month - 1, day).toISOString();
+}
+
+function toIso(time: GoogleEventTime | undefined): string | null {
+	if (!time) return null;
+	if (time.date) return localMidnight(time.date);
+	if (time.dateTime) return new Date(time.dateTime).toISOString();
+	return null;
+}
+
+/** True when this account is on the invite and turned it down. */
+function declinedBySelf(event: GoogleEvent): boolean {
+	return (event.attendees ?? []).some(
+		(attendee) => attendee.self === true && attendee.responseStatus === 'declined'
+	);
+}
+
+/**
+ * Maps Calendar API items to the shape the Today panel renders.
+ *
+ * Display-only: nothing here ever touches tasks. Recurrence is already
+ * expanded by the API (`singleEvents=true`), so each item is one concrete
+ * occurrence with its own stable id. Sorting belongs to the caller, which is
+ * the only place that sees more than one calendar.
+ */
+export function toAgendaEvents(items: GoogleEvent[]): AgendaEvent[] {
 	const out: AgendaEvent[] = [];
 
-	for (const [uid, ev] of Object.entries(parsed)) {
-		if (ev.type !== 'VEVENT' || !ev.start) continue;
-		const title = ev.summary ?? '(untitled)';
-		const location = ev.location || null;
-		const allDay = (ev.start as Date & { dateOnly?: boolean }).dateOnly === true;
-		const durationMs = ev.end ? ev.end.getTime() - ev.start.getTime() : 0;
+	for (const event of items) {
+		// Expanding a recurring series returns its cancelled occurrences as
+		// tombstones rather than omitting them.
+		if (event.status === 'cancelled') continue;
+		if (declinedBySelf(event)) continue;
 
-		if (ev.rrule) {
-			const exdates = new Set(Object.values(ev.exdate ?? {}).map((d) => d.getTime()));
-			for (const occurrence of ev.rrule.between(from, windowEnd, true)) {
-				// .between(..., inclusive: true) includes both edges; the window
-				// contract is half-open [from, windowEnd), so only the `from` edge
-				// should survive — drop anything landing exactly on windowEnd.
-				if (occurrence.getTime() >= windowEnd.getTime()) continue;
-				if (exdates.has(occurrence.getTime())) continue;
-				out.push({
-					id: `${uid}:${occurrence.toISOString()}`,
-					title,
-					start: occurrence.toISOString(),
-					end: durationMs > 0 ? new Date(occurrence.getTime() + durationMs).toISOString() : null,
-					allDay,
-					location
-				});
-			}
-		} else {
-			if (ev.start >= from && ev.start < windowEnd) {
-				out.push({
-					id: uid,
-					title,
-					start: ev.start.toISOString(),
-					end: ev.end ? ev.end.toISOString() : null,
-					allDay,
-					location
-				});
-			}
-		}
+		const start = toIso(event.start);
+		if (!start) continue;
+
+		out.push({
+			id: event.id,
+			title: event.summary ?? '(untitled)',
+			start,
+			end: toIso(event.end),
+			allDay: Boolean(event.start?.date),
+			location: event.location || null
+		});
 	}
 
-	out.sort((a, b) => a.start.localeCompare(b.start));
 	return out;
 }
