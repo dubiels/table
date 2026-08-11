@@ -5,6 +5,7 @@
 	import TaskCard from './TaskCard.svelte';
 	import AddTaskForm from './AddTaskForm.svelte';
 	import TaskDetailModal from './TaskDetailModal.svelte';
+	import CategoryMenu from './CategoryMenu.svelte';
 	import {
 		groupTasksByZone,
 		columnCount,
@@ -28,8 +29,7 @@
 
 	// A dropped card has to change boxes now, but the boxes are derived from the
 	// server's tasks prop, which only catches up after invalidateAll returns. So
-	// a moved task shadows its loaded position until the two agree — the same
-	// hold-until-the-server-confirms shape BlobView uses for canvas drags.
+	// a moved task shadows its loaded position until the two agree.
 	let moved = new SvelteMap<string, Point>();
 	let boardTasks = $derived(
 		tasks.map((t) => {
@@ -127,6 +127,90 @@
 	let newCategoryName = $state('');
 	let nameInputEl = $state<HTMLInputElement | null>(null);
 
+	// The board is now the only place a category can be edited, so the box header
+	// carries the whole of it. Three controls would crowd a header that is mostly
+	// an ellipsized name, so they live behind one ⋯ trigger.
+	let menuZoneId = $state<string | null>(null);
+	let menuAnchor = $state<HTMLElement | null>(null);
+	let menuZone = $derived(zones.find((z) => z.id === menuZoneId) ?? null);
+
+	function openMenu(e: MouseEvent, zoneId: string) {
+		// A second press on the same trigger closes it. The menu's outside-click
+		// test deliberately ignores its own anchor, so without this the press would
+		// land here and reopen what it was meant to dismiss.
+		if (menuZoneId === zoneId) return closeMenu();
+		menuAnchor = e.currentTarget as HTMLElement;
+		menuZoneId = zoneId;
+	}
+
+	function closeMenu() {
+		menuZoneId = null;
+		menuAnchor = null;
+	}
+
+	let renamingId = $state<string | null>(null);
+	let renameValue = $state('');
+	let renameInputEl = $state<HTMLInputElement | null>(null);
+
+	async function startRename(zoneId: string, current: string) {
+		closeMenu();
+		renamingId = zoneId;
+		renameValue = current;
+		await tick();
+		renameInputEl?.focus();
+		renameInputEl?.select();
+	}
+
+	/**
+	 * Commits a typed name, discards an empty one — the same
+	 * commit-on-blur-if-non-empty shape the create field uses, so renaming and
+	 * naming behave identically.
+	 */
+	async function commitRename(zoneId: string) {
+		const name = renameValue.trim();
+		const previous = zones.find((z) => z.id === zoneId)?.name;
+		renamingId = null;
+		renameValue = '';
+		// An unchanged name is not worth a round trip, and re-rendering the board
+		// for it would only make the field flicker.
+		if (!name || name === previous) return;
+
+		const body = new FormData();
+		body.set('id', zoneId);
+		body.set('name', name);
+		await mutateCategory('?/renameZone', body, 'Could not rename category');
+	}
+
+	async function recolor(zoneId: string, color: string) {
+		closeMenu();
+		const body = new FormData();
+		body.set('id', zoneId);
+		body.set('color', color);
+		await mutateCategory('?/updateZoneColor', body, 'Could not recolour category');
+	}
+
+	async function removeCategory(zoneId: string) {
+		closeMenu();
+		const body = new FormData();
+		body.set('id', zoneId);
+		// Only the zone goes. The tasks keep their coordinates and resurface in
+		// Uncategorized, which is why the confirm can promise they survive.
+		await mutateCategory('?/deleteZone', body, 'Could not delete category');
+	}
+
+	/** Posts a zone form action, reporting a failure rather than swallowing it. */
+	async function mutateCategory(action: string, body: FormData, failure: string) {
+		try {
+			const res = await fetch(action, { method: 'POST', body });
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+		} catch (err) {
+			console.error(`${failure} (${action})`, err);
+			toast(failure, 'error');
+			return;
+		}
+		await invalidateAll();
+	}
+
 	async function startCreating() {
 		creating = true;
 		newCategoryName = '';
@@ -135,12 +219,12 @@
 	}
 
 	/**
-	 * Commits if a name was typed, discards silently otherwise — the same
-	 * commit-on-blur-if-non-empty pattern BlobView renames zones with.
+	 * Commits if a name was typed, discards silently otherwise.
 	 *
-	 * A category is a rectangle on the canvas, and bento has no canvas to pick a
-	 * spot on, so the geometry comes from nextFreeZoneRect. Color is left to the
-	 * server, which hands out the next one in the palette.
+	 * A category is still stored as a rectangle — that geometry is what sorts
+	 * tasks into groups — but no view draws it any more, so nobody picks the spot:
+	 * it comes from nextFreeZoneRect. Color is left to the server, which hands out
+	 * the next one in the palette.
 	 */
 	async function commitCategory() {
 		const name = newCategoryName.trim();
@@ -319,8 +403,41 @@
 							: (c?.fill ?? 'var(--surface)')}; border-color:{c?.border ?? 'var(--border)'};"
 					>
 						<div class="box-head">
-							<span class="box-name">{group.name}</span>
+							{#if renamingId === group.id}
+								<input
+									class="box-name-input"
+									bind:this={renameInputEl}
+									bind:value={renameValue}
+									aria-label="Rename {group.name}"
+									onblur={() => commitRename(group.id)}
+									onkeydown={(e) => {
+										if (e.key === 'Enter') e.currentTarget.blur();
+										// Same cancel route as the create field: clear, then blur into
+										// the commit, which discards an empty name.
+										if (e.key === 'Escape') {
+											renameValue = '';
+											e.currentTarget.blur();
+										}
+									}}
+								/>
+							{:else}
+								<span class="box-name">{group.name}</span>
+							{/if}
 							<span class="box-count">{group.tasks.length}</span>
+							<!-- Uncategorized is not a zone — it is the absence of one — so it
+						     has no name, colour or row to edit. -->
+							{#if group.id !== UNCATEGORIZED_ID}
+								<button
+									type="button"
+									class="box-menu"
+									aria-haspopup="true"
+									aria-expanded={menuZoneId === group.id}
+									aria-label="Edit {group.name}"
+									onclick={(e) => openMenu(e, group.id)}
+								>
+									⋯
+								</button>
+							{/if}
 							<!-- The + lives in the header rather than a footer of its own: a
 						     reserved footer row cost every box a card's worth of height,
 						     which is most of a small box. -->
@@ -392,6 +509,18 @@
 	</div>
 {/if}
 
+{#if menuZone && menuAnchor}
+	<CategoryMenu
+		name={menuZone.name}
+		color={menuZone.color}
+		anchor={menuAnchor}
+		onrename={() => startRename(menuZone.id, menuZone.name)}
+		onrecolor={(key) => recolor(menuZone.id, key)}
+		ondelete={() => removeCategory(menuZone.id)}
+		onclose={closeMenu}
+	/>
+{/if}
+
 {#if openTask}
 	<TaskDetailModal task={openTask} onclose={() => (openTaskId = null)} />
 {/if}
@@ -458,6 +587,43 @@
 		color: var(--muted);
 		font-weight: 500;
 		font-variant-numeric: tabular-nums;
+	}
+
+	/* Sized and shaped like .add-plus so the pair reads as one control cluster;
+	   the glyph sits low in its em box, so it is nudged up to look centred. */
+	.box-menu {
+		flex-shrink: 0;
+		width: 1.15rem;
+		height: 1.15rem;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		border: none;
+		border-radius: 50%;
+		background: transparent;
+		color: var(--muted);
+		font-size: 0.95rem;
+		line-height: 0.6;
+		padding: 0 0 0.2rem;
+		cursor: pointer;
+		transition:
+			background 0.15s ease,
+			color 0.15s ease;
+	}
+
+	.box-menu:hover,
+	.box-menu[aria-expanded='true'] {
+		background: var(--surface-2);
+		color: var(--ink);
+	}
+
+	/* Matches .box-name's slot exactly, so committing a rename does not jog the
+	   header by a pixel as the input is swapped back for the text. */
+	.box-name-input {
+		flex: 1;
+		min-width: 0;
+		font-family: var(--font-display);
+		font-weight: 600;
 	}
 
 	.add-plus {

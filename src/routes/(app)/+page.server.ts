@@ -5,6 +5,7 @@ import { env } from '$env/dynamic/private';
 import * as zonesService from '$lib/server/zones/service';
 import * as tasksService from '$lib/server/tasks/service';
 import { newTaskSchema } from '$lib/server/tasks/forms';
+import { evictedTaskPoints } from '$lib/bento';
 import { getAgenda } from '$lib/server/gcal/service';
 
 export const load: PageServerLoad = async () => {
@@ -103,6 +104,19 @@ export const actions: Actions = {
 
 	deleteZone: async ({ request }) => {
 		const data = await request.formData();
-		await zonesService.deleteZone(String(data.get('id')));
+		const id = String(data.get('id'));
+
+		// Read before the delete, because both the zone's own rectangle and the
+		// tasks it holds are needed to work out who is orphaned by its removal.
+		const [zones, tasks] = await Promise.all([
+			zonesService.listZones(),
+			tasksService.listActiveTasks()
+		]);
+		const moves = evictedTaskPoints(id, zones, tasks);
+
+		await zonesService.deleteZone(id);
+		// After the delete, so a failure here leaves tasks loose on old ground
+		// rather than moved out of a category that still exists.
+		await Promise.all(moves.map((m) => tasksService.updateTaskPosition(m.id, m.x, m.y)));
 	}
 };

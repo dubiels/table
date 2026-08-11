@@ -1,6 +1,4 @@
 <script lang="ts">
-	import BlobView from '$lib/components/BlobView.svelte';
-	import MobileColumns from '$lib/components/MobileColumns.svelte';
 	import ListView from '$lib/components/ListView.svelte';
 	import BentoView from '$lib/components/BentoView.svelte';
 	import ViewSwitcher from '$lib/components/ViewSwitcher.svelte';
@@ -72,10 +70,13 @@
 	// Bento is the opening view for anyone who has not picked one: it reads at a
 	// glance and needs no dragging to be useful. The $effect below still lets a
 	// stored choice win, so this only ever decides a first visit.
-	let view = $state<'blob' | 'list' | 'bento'>('bento');
+	//
+	// The saved-value check doubles as the migration off the retired freeform
+	// board: a browser still holding 'blob' matches nothing and keeps the default.
+	let view = $state<'list' | 'bento'>('bento');
 	$effect(() => {
 		const saved = readSetting(VIEW_KEY);
-		if (saved === 'blob' || saved === 'list' || saved === 'bento') view = saved;
+		if (saved === 'list' || saved === 'bento') view = saved;
 	});
 	$effect(() => saveSetting(VIEW_KEY, view));
 
@@ -93,15 +94,6 @@
 	});
 	$effect(() => saveSetting(PANEL_TODAY_KEY, flagValue(todayOpen)));
 	$effect(() => saveSetting(PANEL_CANVAS_KEY, flagValue(canvasOpen)));
-
-	let isMobile = $state(false);
-	$effect(() => {
-		const mq = window.matchMedia('(max-width: 720px)');
-		const apply = () => (isMobile = mq.matches);
-		apply();
-		mq.addEventListener('change', apply);
-		return () => mq.removeEventListener('change', apply);
-	});
 
 	// Wide enough to keep both panels docked beside the board. Two 280px panels
 	// plus the row's gaps and the shell's padding leave the board ~630px here,
@@ -164,7 +156,6 @@
 	<ViewSwitcher
 		bind:value={view}
 		options={[
-			{ value: 'blob', label: 'Table' },
 			{ value: 'list', label: 'List' },
 			{ value: 'bento', label: 'Bento' }
 		]}
@@ -217,14 +208,10 @@
 	<div class="board-main">
 		{#if view === 'list'}
 			<ListView tasks={data.tasks} zones={data.zones} />
-		{:else if view === 'bento'}
-			<BentoView tasks={boardTasks} zones={data.zones} />
-		{:else if isMobile}
-			<MobileColumns tasks={boardTasks} zones={data.zones} />
 		{:else}
-			<BlobView tasks={boardTasks} zones={data.zones} />
+			<BentoView tasks={boardTasks} zones={data.zones} />
 		{/if}
-		{#if view !== 'bento'}
+		{#if view === 'list'}
 			<div class="board-mascot"><Mascot mood={mascotMood} /></div>
 		{/if}
 	</div>
@@ -299,7 +286,7 @@
 		min-height: 0;
 	}
 
-	/* BlobView's .canvas sizes itself with flex: 1 / min-height: 0, so every
+	/* BentoView's grid sizes itself with flex: 1 / min-height: 0, so every
 	   wrapper between <main> and it has to keep that chain intact. */
 	.board-main {
 		flex: 1;
@@ -312,11 +299,10 @@
 		position: relative;
 	}
 
-	/* A companion, not a control: it sits over the board's bottom-right corner and
-	   passes every click straight through to the canvas beneath it. Cards carry
-	   z-indexes up to 900 and the composer 950, so clearing those is what keeps it
-	   from being buried; 960 still leaves the panel drawers (980), topbar (999) and
-	   task modal (1000) above it. */
+	/* A companion, not a control: it sits over the list's bottom-right corner and
+	   passes every click straight through to the rows beneath it. 960 is chosen
+	   from the top down — it stays under the panel drawers (980), topbar (999) and
+	   task modal (1000), all of which must be able to cover it. */
 	.board-mascot {
 		position: absolute;
 		right: 0.25rem;

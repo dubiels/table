@@ -1,6 +1,12 @@
 # Table
 
-Table is a personal command center: a spatial task canvas (drag tasks and zones around a pannable, zoomable board — "blob view") plus list and bento views, email magic-link login, Canvas LMS assignment sync, a read-only Google Calendar agenda, morning digest emails, due-date push notifications, an in-app notification inbox, and a read-only dashboard API for external displays (e.g. a Raspberry Pi wall panel). It's built with SvelteKit and Drizzle/SQLite, designed to be self-hosted as a single always-on instance on Fly.io.
+Table is a personal command center: a task board in two views — a filterable, sortable list and a bento grid of drag-between categories — plus email magic-link login, Canvas LMS assignment sync, a read-only Google Calendar agenda, morning digest emails, due-date push notifications, an in-app notification inbox, and a read-only dashboard API for external displays (e.g. a Raspberry Pi wall panel). It's built with SvelteKit and Drizzle/SQLite, designed to be self-hosted as a single always-on instance on Fly.io.
+
+## Views and categories
+
+The switcher above the board picks between **List** and **Bento**. List filters and sorts every task, Canvas assignments included. Bento tiles the board into one box per category, and is where categories are managed: **+ New category** adds one, and each box's **⋯** renames it, recolours it, or deletes it. Deleting a category keeps its tasks — they reappear in **Uncategorized**, which is also what you drag a card onto to take its category off.
+
+Categories are stored as rectangles, a leftover from the freeform canvas this board replaced. Nothing draws those rectangles any more; a task belongs to whichever one its coordinates fall inside, and `nextFreeZoneRect` picks a free spot when you add one.
 
 ## Local development
 
@@ -53,7 +59,7 @@ Table can pull assignments from Canvas's calendar feed in as tasks.
 
 Each sync imports assignments due from today through 14 days out: a reading list of what's actually coming up, not an archive of the semester.
 
-Assignments live in the side panel's **Canvas** section, grouped by course, and in the list view, where they carry the category **Canvas** and can be filtered like any other category. They deliberately don't appear on the spatial views (table, bento, mobile columns) — a fortnight of deadlines would bury the handful of things you arranged there by hand. `LMS_ZONE_ID` is a leftover from when they did, and is no longer needed.
+Assignments live in the side panel's **Canvas** section, grouped by course, and in the list view, where they carry the category **Canvas** and can be filtered like any other category. They deliberately don't appear in the bento grid — a fortnight of deadlines would bury the handful of things you arranged there by hand. `LMS_ZONE_ID` is a leftover from when they did, and is no longer needed.
 
 Before `LMS_ICAL_URL` is set, the Canvas section shows the setup guide instead.
 
@@ -166,7 +172,7 @@ Task-creation and notification-content logic live in plain, route- and scheduler
 
 A few more pure-logic modules are the ones most worth reading before extending a given feature:
 
-- `src/lib/placement.ts` — grid/collision math shared by the canvas and LMS sync, so newly placed tasks don't stack on top of each other.
+- `src/lib/placement.ts` — grid/collision math shared by the bento grid and LMS sync, so newly placed tasks don't stack on top of each other.
 - `src/lib/server/lms/plan.ts` — decides what a Canvas sync run creates or updates, independent of the database or scheduler.
 - `src/lib/server/dashboard/serialize.ts` — shapes tasks/zones into the dashboard API payload.
 - `src/lib/server/gcal/agenda.ts` — parses and windows Google Calendar events for the side panel's Today section.

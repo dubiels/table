@@ -9,6 +9,7 @@ import {
 	findUncategorizedPoint,
 	dropPointFor,
 	nextFreeZoneRect,
+	evictedTaskPoints,
 	NEW_ZONE_SIZE,
 	NEW_ZONE_GAP,
 	HEADER_ROWS,
@@ -341,5 +342,75 @@ describe('nextFreeZoneRect', () => {
 		const rect = nextFreeZoneRect([zone('a', -500, -500, 2000, 2000)]);
 		expect(rect.x).toBeGreaterThanOrEqual(0);
 		expect(rect.y).toBeGreaterThanOrEqual(0);
+	});
+});
+
+describe('evictedTaskPoints', () => {
+	const zones = [work, home];
+
+	it('moves a deleted zone’s tasks off the rect it frees, so the next category cannot adopt them', () => {
+		const inWork = task({ id: '1', x: 100, y: 100 });
+		const moves = evictedTaskPoints('work', zones, [inWork]);
+
+		expect(moves).toHaveLength(1);
+		// The freed rect is what nextFreeZoneRect hands to the next category, so
+		// the test is whether that category would re-adopt the task: recreate the
+		// zone on exactly the ground just vacated and the task must stay out of it.
+		expect(zoneForTask(taskCenter(moves[0]), [work])).toBeNull();
+	});
+
+	it('leaves the moved tasks uncategorized against the surviving zones', () => {
+		const inWork = task({ id: '1', x: 100, y: 100 });
+		const moves = evictedTaskPoints('work', zones, [inWork]);
+		const remaining = zones.filter((z) => z.id !== 'work');
+
+		expect(zoneForTask(taskCenter(moves[0]), remaining)).toBeNull();
+	});
+
+	it('does not move tasks that belong to a zone which is staying', () => {
+		const inHome = task({ id: '1', x: 520, y: 20 });
+		expect(evictedTaskPoints('work', zones, [inHome])).toEqual([]);
+	});
+
+	it('does not move tasks that are already loose', () => {
+		const loose = task({ id: '1', x: -1000, y: -1000 });
+		expect(evictedTaskPoints('work', zones, [loose])).toEqual([]);
+	});
+
+	it('leaves a task alone when a surviving zone covers it once the deleted one is gone', () => {
+		// Nested inside work, so zoneForTask picks it while both exist; deleting the
+		// inner zone hands its task straight to work rather than to open ground.
+		const inner: BentoZone = {
+			id: 'inner',
+			name: 'Inner',
+			color: 'sage',
+			x: 50,
+			y: 50,
+			width: 100,
+			height: 100
+		};
+		const nested = task({ id: '1', x: 60, y: 60 });
+		expect(evictedTaskPoints('inner', [...zones, inner], [nested])).toEqual([]);
+	});
+
+	it('spreads several evicted tasks instead of stacking them on one point', () => {
+		const tasks = [
+			task({ id: '1', x: 10, y: 10 }),
+			task({ id: '2', x: 40, y: 40 }),
+			task({ id: '3', x: 80, y: 80 })
+		];
+		const moves = evictedTaskPoints('work', zones, tasks);
+
+		expect(moves).toHaveLength(3);
+		expect(new Set(moves.map((m) => `${m.x},${m.y}`)).size).toBe(3);
+	});
+
+	it('avoids landing an evicted task on a card that was already loose', () => {
+		const loose = task({ id: 'loose', ...findUncategorizedPoint(zones) });
+		const inWork = task({ id: '1', x: 100, y: 100 });
+		const moves = evictedTaskPoints('work', zones, [loose, inWork]);
+
+		expect(moves).toHaveLength(1);
+		expect(moves[0]).not.toMatchObject({ x: loose.x, y: loose.y });
 	});
 });

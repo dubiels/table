@@ -1,6 +1,6 @@
 <script lang="ts" generics="T extends string">
 	// Generic over the option type so callers keep their narrow union
-	// (e.g. 'blob' | 'list' | 'bento') through the two-way binding.
+	// (e.g. 'list' | 'bento') through the two-way binding.
 	let {
 		value = $bindable(),
 		options

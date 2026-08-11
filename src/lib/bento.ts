@@ -282,3 +282,48 @@ export function dropPointFor(
 		.map((t) => ({ x: t.x, y: t.y }));
 	return nextFreeSlot(occupied, zone);
 }
+
+/**
+ * Where the tasks of a deleted zone must move to so they stay uncategorized.
+ *
+ * Deleting a zone only removes a rectangle; the tasks keep their coordinates and
+ * fall out of every box, which is the promised behaviour. But the rectangle is
+ * freed too, and `nextFreeZoneRect` scans from the origin — so the next category
+ * created is likely to be handed that exact spot, silently adopting the orphans
+ * still sitting in it. Moving them off the freed ground is what makes
+ * "uncategorized" stick rather than last until the next category is made.
+ *
+ * A task that lands inside a surviving zone once the deleted one is gone is left
+ * alone: it has a real box to belong to, and that overlap already decided its
+ * category before the delete. Returns only the tasks that actually move.
+ */
+export function evictedTaskPoints(
+	zoneId: string,
+	zones: BentoZone[],
+	tasks: BentoTask[]
+): { id: string; x: number; y: number }[] {
+	const remaining = zones.filter((z) => z.id !== zoneId);
+
+	// The scan avoids the doomed rectangle as well as the surviving ones. Landing
+	// clear of the remaining zones alone is not enough: the first free point is
+	// the canvas origin, which is exactly the ground being freed, so the orphans
+	// would be moved onto the very spot the next category is handed.
+	const deleted = zones.find((z) => z.id === zoneId);
+	const avoid = deleted ? [...remaining, deleted] : remaining;
+
+	// Cards already loose are obstacles from the start, so an evicted task never
+	// lands on one — and each new point joins them, so they do not stack either.
+	const occupied = tasks
+		.filter((t) => groupIdForTask(t, zones) === UNCATEGORIZED_ID)
+		.map((t) => ({ x: t.x, y: t.y }));
+
+	const moves: { id: string; x: number; y: number }[] = [];
+	for (const task of tasks) {
+		if (groupIdForTask(task, zones) !== zoneId) continue;
+		if (zoneForTask(taskCenter(task), remaining)) continue;
+		const point = findUncategorizedPoint(avoid, occupied);
+		occupied.push(point);
+		moves.push({ id: task.id, x: Math.round(point.x), y: Math.round(point.y) });
+	}
+	return moves;
+}

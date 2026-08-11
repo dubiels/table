@@ -77,9 +77,7 @@ export interface Rect {
  * between them.
  *
  * Edges that merely touch are clear, matching `overlapsAny`'s card test — a new
- * rect laid flush against an existing one covers none of it. BlobView keeps its
- * own inclusive `intersects` for the opposite job: spotting a near miss before
- * one happens, where "touching" is exactly the case worth reacting to.
+ * rect laid flush against an existing one covers none of it.
  */
 export function rectsOverlap(a: Rect, b: Rect, gap = 0): boolean {
 	return !(
