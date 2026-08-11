@@ -97,9 +97,15 @@ export function planGoogleTaskSync(input: {
 		unlinkInTable: []
 	};
 
-	// First, so a delete never races a create that could reuse its slot.
+	// Order doesn't matter for correctness here — deleteInGoogle and
+	// createInTable are independent arrays and the runner applies them in
+	// whatever order it chooses — but building the tombstone set first lets
+	// the inbound loop below consult it before deciding what to do with each
+	// Google row.
+	const tombstonedGoogleIds = new Set<string>();
 	for (const tombstone of input.tombstones) {
 		plan.deleteInGoogle.push({ googleTaskId: tombstone.googleTaskId, taskId: null });
+		tombstonedGoogleIds.add(tombstone.googleTaskId);
 	}
 
 	const byGoogleId = new Map<string, PlanTableTask>();
@@ -114,6 +120,16 @@ export function planGoogleTaskSync(input: {
 
 	for (const g of input.googleTasks) {
 		seenGoogleIds.add(g.id);
+
+		// A tombstone means the Table task is already gone locally and this
+		// round already queued the matching deleteInGoogle above. The row's
+		// Table counterpart never exists (byGoogleId can't find it, since the
+		// Table task was deleted), so without this guard it falls into the
+		// unknown-task import branch below and comes back to life as a fresh
+		// createInTable — the exact delete-then-resurrect this plan must not
+		// produce for the same googleTaskId.
+		if (tombstonedGoogleIds.has(g.id)) continue;
+
 		const t = byGoogleId.get(g.id);
 
 		if (g.deleted) {
@@ -151,8 +167,12 @@ export function planGoogleTaskSync(input: {
 		const tableDirty = t.updatedAt !== t.googleSyncedAt;
 		if (!googleChanged && !tableDirty) continue;
 
-		// Parsed rather than compared as strings, so the result does not depend on
-		// both sides formatting their timestamps to the same precision.
+		// Change detection above is a plain !== on the raw strings — any
+		// difference means "something changed", so precision doesn't matter.
+		// Picking the winner is different: it needs an actual ordering, so
+		// timestamps are parsed here rather than compared as strings — that
+		// way the result doesn't depend on both sides formatting to the same
+		// precision.
 		const googleWins =
 			!tableDirty || (googleChanged && Date.parse(t.updatedAt) <= Date.parse(g.updated));
 

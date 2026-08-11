@@ -81,6 +81,13 @@ describe('inbound capture', () => {
 
 		const slots = result.createInTable.map((c) => `${c.x},${c.y}`);
 		expect(new Set(slots).size).toBe(2);
+		// The seeded table task sits at looseBounds()'s first grid anchor
+		// (40,40) on purpose: if `occupied` were not seeded from tableTasks,
+		// the first import would land right on top of it and only the
+		// mutual-distinctness assertion above would still pass.
+		for (const c of result.createInTable) {
+			expect(`${c.x},${c.y}`).not.toBe('40,40');
+		}
 	});
 });
 
@@ -168,6 +175,16 @@ describe('deletion', () => {
 	it('plans a google delete for each tombstone', () => {
 		const result = plan({ tombstones: [{ googleTaskId: 'gone' }] });
 		expect(result.deleteInGoogle).toEqual([{ googleTaskId: 'gone', taskId: null }]);
+	});
+
+	it('does not resurrect a tombstoned task when its google row is still live', () => {
+		const result = plan({
+			tombstones: [{ googleTaskId: 'gone' }],
+			googleTasks: [googleTask({ id: 'gone' })]
+		});
+
+		expect(result.deleteInGoogle).toEqual([{ googleTaskId: 'gone', taskId: null }]);
+		expect(result.createInTable).toEqual([]);
 	});
 
 	it('deletes in google and unlinks when the toggle is turned off', () => {
