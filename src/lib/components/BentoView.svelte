@@ -4,10 +4,12 @@
 	import TaskDetailModal from './TaskDetailModal.svelte';
 	import {
 		groupTasksByZone,
-		computeTreemap,
+		columnCount,
+		packColumns,
+		boxRows,
+		columnRows,
 		zoneCenterPoint,
 		findUncategorizedPoint,
-		insetRect,
 		UNCATEGORIZED_ID,
 		type BentoTask,
 		type BentoZone
@@ -17,24 +19,9 @@
 	let { tasks, zones }: { tasks: BentoTask[]; zones: BentoZone[] } = $props();
 
 	let containerWidth = $state(0);
-	let containerHeight = $state(0);
-
-	const GUTTER = 8;
 
 	let groups = $derived(groupTasksByZone(tasks, zones));
-	let rects = $derived(
-		containerWidth > 0 && containerHeight > 0
-			? computeTreemap(
-					groups.map((g) => ({ id: g.id, weight: g.weight })),
-					containerWidth,
-					containerHeight
-				)
-			: []
-	);
-
-	function rectFor(id: string) {
-		return rects.find((r) => r.id === id) ?? null;
-	}
+	let columns = $derived(packColumns(groups, columnCount(containerWidth)));
 
 	function colorOf(color: string | null) {
 		return color ? zoneColorVars(color) : null;
@@ -52,57 +39,52 @@
 	let openAddId = $state<string | null>(null);
 </script>
 
-<div class="bento" bind:clientWidth={containerWidth} bind:clientHeight={containerHeight}>
-	{#each groups as group (group.id)}
-		{@const rect = rectFor(group.id)}
-		{#if rect}
-			{@const c = colorOf(group.color)}
-			{@const point = addPointFor(group.id)}
-			{@const box = insetRect(rect, GUTTER)}
-			<div
-				class="box"
-				style="left:{box.x}px; top:{box.y}px; width:{box.width}px; height:{box.height}px; background:{c?.fill ??
-					'var(--surface)'}; border-color:{c?.border ?? 'var(--border)'};"
-			>
-				<div class="box-head">
-					<span class="box-name">{group.name}</span>
-					<span class="box-count">{group.tasks.length}</span>
-				</div>
-				<div class="box-body">
-					{#if group.tasks.length === 0}
-						<p class="empty">No tasks yet</p>
-					{:else}
-						{#each group.tasks as task (task.id)}
-							<TaskCard {task} onclick={() => (openTaskId = task.id)} />
-						{/each}
-					{/if}
-				</div>
-				<div class="box-foot">
-					{#if openAddId === group.id}
-						<div class="add-form-row">
-							<AddTaskForm x={point.x} y={point.y} />
-							<button
-								type="button"
-								class="btn btn-ghost btn-icon"
-								onclick={() => (openAddId = null)}
-								aria-label="Close add task"
-							>
-								×
-							</button>
-						</div>
-					{:else}
+<div class="bento" bind:clientWidth={containerWidth}>
+	{#each columns as column, index (index)}
+		<div class="column" style="flex-grow:{columnRows(column)}">
+			{#each column as group (group.id)}
+				{@const c = colorOf(group.color)}
+				{@const point = addPointFor(group.id)}
+				{@const adding = openAddId === group.id}
+				<div
+					class="box"
+					style="flex-grow:{boxRows(group)}; background:{c?.fill ??
+						'var(--surface)'}; border-color:{c?.border ?? 'var(--border)'};"
+				>
+					<div class="box-head">
+						<span class="box-name">{group.name}</span>
+						<span class="box-count">{group.tasks.length}</span>
+						<!-- The + lives in the header rather than a footer of its own: a
+						     reserved footer row cost every box a card's worth of height,
+						     which is most of a small box. -->
 						<button
 							type="button"
 							class="add-plus"
-							onclick={() => (openAddId = group.id)}
-							aria-label="Add task to {group.name}"
+							class:open={adding}
+							aria-expanded={adding}
+							onclick={() => (openAddId = adding ? null : group.id)}
+							aria-label={adding ? 'Close add task' : `Add task to ${group.name}`}
 						>
 							+
 						</button>
+					</div>
+
+					{#if adding}
+						<AddTaskForm x={point.x} y={point.y} />
+					{/if}
+
+					{#if group.tasks.length > 0}
+						<div class="box-body">
+							{#each group.tasks as task (task.id)}
+								<TaskCard {task} onclick={() => (openTaskId = task.id)} />
+							{/each}
+						</div>
+					{:else if !adding}
+						<p class="empty">No tasks yet</p>
 					{/if}
 				</div>
-			</div>
-		{/if}
+			{/each}
+		</div>
 	{/each}
 </div>
 
@@ -111,40 +93,108 @@
 {/if}
 
 <style>
+	/* Columns of a guaranteed minimum width, filling the board in both axes. Every
+	   flex-grow here is set inline from the group's row count, so a column's width
+	   and a box's height both track how much they actually hold. */
 	.bento {
-		position: relative;
 		flex: 1;
 		min-height: 0;
 		width: 100%;
+		display: flex;
+		align-items: stretch;
+		gap: 8px;
+		overflow-y: auto;
 	}
-	.box {
-		position: absolute;
+
+	/* flex-basis: 0 so the inline grow factors alone decide the split; min-width
+	   mirrors MIN_COLUMN_WIDTH, which is what columnCount() sized the count
+	   against, so the floor can never make the row overflow. */
+	.column {
+		flex-basis: 0;
+		min-width: 240px;
 		display: flex;
 		flex-direction: column;
+		gap: 8px;
+	}
+
+	/* basis auto, so a box starts at its content height and only the slack is
+	   shared out by the grow factor. min-height: 0 lets it shrink past its content
+	   when a column holds more than fits, handing the overflow to .box-body. */
+	.box {
+		flex-basis: auto;
+		flex-shrink: 1;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
 		border: 1.5px solid;
 		border-radius: var(--radius-m);
-		padding: 0.6rem;
-		gap: 0.4rem;
-		overflow: hidden;
-		transition:
-			left 200ms ease,
-			top 200ms ease,
-			width 200ms ease,
-			height 200ms ease;
+		padding: 0.45rem 0.5rem 0.5rem;
 	}
+
 	.box-head {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
+		gap: 0.4rem;
 		flex-shrink: 0;
 		font-family: var(--font-display);
 		font-weight: 600;
 	}
+
+	.box-name {
+		flex: 1;
+		min-width: 0;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
 	.box-count {
 		font-size: 0.78rem;
 		color: var(--muted);
 		font-weight: 500;
+		font-variant-numeric: tabular-nums;
 	}
+
+	.add-plus {
+		flex-shrink: 0;
+		width: 1.15rem;
+		height: 1.15rem;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		border: none;
+		border-radius: 50%;
+		background: transparent;
+		color: var(--muted);
+		font-size: 1rem;
+		line-height: 1;
+		padding: 0;
+		cursor: pointer;
+		transition:
+			transform 0.15s ease,
+			background 0.15s ease,
+			color 0.15s ease;
+	}
+
+	.add-plus:hover {
+		background: var(--accent);
+		color: var(--accent-ink);
+	}
+
+	/* The + is the close control too, so it turns into an ×. */
+	.add-plus.open {
+		transform: rotate(45deg);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.add-plus {
+			transition: none;
+		}
+	}
+
+	/* Takes the box's slack, and scrolls rather than growing the box when a zone
+	   holds more than its column can show. */
 	.box-body {
 		flex: 1;
 		min-height: 0;
@@ -153,45 +203,10 @@
 		flex-direction: column;
 		gap: 0.35rem;
 	}
+
 	.empty {
 		color: var(--muted);
 		font-size: 0.85rem;
 		margin: 0;
-	}
-	.box-foot {
-		flex-shrink: 0;
-		display: flex;
-		justify-content: flex-end;
-	}
-	.add-form-row {
-		display: flex;
-		align-items: flex-start;
-		gap: 0.35rem;
-		width: 100%;
-	}
-	.add-form-row :global(.add) {
-		flex: 1;
-		min-width: 0;
-	}
-	.add-plus {
-		flex-shrink: 0;
-		width: 1.6rem;
-		height: 1.6rem;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		border: 1.5px solid var(--border-strong);
-		border-radius: 50%;
-		background: var(--surface-2);
-		color: var(--muted);
-		font-size: 1rem;
-		line-height: 1;
-		padding: 0;
-		cursor: pointer;
-	}
-	.add-plus:hover {
-		background: var(--accent);
-		border-color: var(--accent);
-		color: var(--accent-ink);
 	}
 </style>

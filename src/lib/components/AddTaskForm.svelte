@@ -51,8 +51,15 @@
 		display: flex;
 		gap: 0.5rem;
 	}
+	/* min-width: 0 because a flex item defaults to min-width: auto, and an input's
+	   intrinsic width is wide enough that in a narrow bento box it refuses to
+	   shrink and pushes the Add button out past the edge. */
 	.row input {
 		flex: 1;
+		min-width: 0;
+	}
+	.row .btn {
+		flex-shrink: 0;
 	}
 	.extra {
 		display: flex;

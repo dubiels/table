@@ -20,18 +20,7 @@ export interface BentoGroup {
 	name: string;
 	color: string | null;
 	tasks: BentoTask[];
-	weight: number;
 }
-
-/**
- * Ceiling on how much bigger the busiest group's box may be than the quietest.
- *
- * Raw task counts are a fine ordering but a bad area scale: one zone holding
- * most of the board drives every other group's cell below the size of its own
- * header, so the boxes that most need a glance are the ones that cannot be
- * read. Bounding the ratio keeps the visual ranking while guaranteeing a floor.
- */
-export const MAX_WEIGHT_RATIO = 6;
 
 export function groupTasksByZone(tasks: BentoTask[], zones: BentoZone[]): BentoGroup[] {
 	const byZone = new Map<string, BentoTask[]>(zones.map((z) => [z.id, []]));
@@ -43,169 +32,106 @@ export function groupTasksByZone(tasks: BentoTask[], zones: BentoZone[]): BentoG
 		else uncategorized.push(task);
 	}
 
-	const groups: BentoGroup[] = zones.map((zone) => {
-		const zoneTasks = byZone.get(zone.id) ?? [];
-		return {
-			id: zone.id,
-			name: zone.name,
-			color: zone.color,
-			tasks: zoneTasks,
-			weight: Math.max(zoneTasks.length, 1)
-		};
-	});
+	const groups: BentoGroup[] = zones.map((zone) => ({
+		id: zone.id,
+		name: zone.name,
+		color: zone.color,
+		tasks: byZone.get(zone.id) ?? []
+	}));
 
-	groups.push({
-		id: UNCATEGORIZED_ID,
-		name: 'Uncategorized',
-		color: null,
-		tasks: uncategorized,
-		weight: Math.max(uncategorized.length, 1)
-	});
-
-	const floor = Math.max(...groups.map((g) => g.weight)) / MAX_WEIGHT_RATIO;
-	for (const group of groups) group.weight = Math.max(group.weight, floor);
+	// An empty "Uncategorized" is a box that exists to say nothing lives in it.
+	// It earns its place only when something is actually loose, or when there are
+	// no zones at all and dropping it would leave the board blank.
+	if (uncategorized.length > 0 || zones.length === 0) {
+		groups.push({
+			id: UNCATEGORIZED_ID,
+			name: 'Uncategorized',
+			color: null,
+			tasks: uncategorized
+		});
+	}
 
 	return groups;
 }
 
-export interface TreemapItem {
-	id: string;
-	weight: number;
-}
-
-export interface TreemapRect {
-	id: string;
-	x: number;
-	y: number;
-	width: number;
-	height: number;
-}
-
-type Rect = { x: number; y: number; width: number; height: number };
-
 /**
- * Squarified treemap (Bruls/Huizing/van Wijk): recursively lays out rows
- * along the container's current shorter edge, choosing each row's break
- * point to keep box aspect ratios as close to square as possible.
+ * Narrowest a column may get before the layout drops one.
+ *
+ * The board used to be tiled as a squarified treemap, which splits area by task
+ * count. Area is the wrong budget for this content: a box needs width enough to
+ * read a task title and only as much height as it has cards, but an area budget
+ * can be spent as "tall and narrow" just as happily as square. That is what put
+ * seven hundred empty pixels under a six-task box while a one-task box wrapped
+ * its title over three lines in a 190px slot.
+ *
+ * Packing into columns of a guaranteed width and letting each box stand at its
+ * content height removes both failures by construction.
  */
-export function computeTreemap(items: TreemapItem[], width: number, height: number): TreemapRect[] {
-	if (items.length === 0 || width <= 0 || height <= 0) return [];
+export const MIN_COLUMN_WIDTH = 240;
 
-	const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
-	const totalArea = width * height;
-	const sorted = [...items].sort((a, b) => b.weight - a.weight);
+/** Past four columns the boxes are readable but the board stops being scannable. */
+export const MAX_COLUMNS = 4;
 
-	const rects: TreemapRect[] = [];
-	let container: Rect = { x: 0, y: 0, width, height };
-	let remaining = sorted;
+/** Gap between columns and between stacked boxes, in px. Mirrored in BentoView's CSS. */
+export const BENTO_GAP = 8;
 
-	while (remaining.length > 0) {
-		const shortSide = Math.min(container.width, container.height);
-		let row: TreemapItem[] = [remaining[0]];
-		let rest = remaining.slice(1);
-
-		while (rest.length > 0) {
-			const candidate = [...row, rest[0]];
-			const current = worstRatio(row, shortSide, totalWeight, totalArea);
-			const next = worstRatio(candidate, shortSide, totalWeight, totalArea);
-			if (next <= current) {
-				row = candidate;
-				rest = rest.slice(1);
-			} else {
-				break;
-			}
-		}
-
-		container = layoutRow(row, container, totalWeight, totalArea, rects);
-		remaining = rest;
-	}
-
-	return rects;
-}
-
-function worstRatio(
-	row: TreemapItem[],
-	shortSide: number,
-	totalWeight: number,
-	totalArea: number
-): number {
-	const areas = row.map((item) => (item.weight / totalWeight) * totalArea);
-	const rowArea = areas.reduce((sum, a) => sum + a, 0);
-	const thickness = rowArea / shortSide;
-	let worst = 1;
-	for (const area of areas) {
-		const extent = area / thickness;
-		const ratio = Math.max(thickness / extent, extent / thickness);
-		if (ratio > worst) worst = ratio;
-	}
-	return worst;
-}
-
-/** Places `row` as a strip along the container's current shorter edge, returns the remaining container. */
-function layoutRow(
-	row: TreemapItem[],
-	container: Rect,
-	totalWeight: number,
-	totalArea: number,
-	rects: TreemapRect[]
-): Rect {
-	const areas = row.map((item) => (item.weight / totalWeight) * totalArea);
-	const rowArea = areas.reduce((sum, a) => sum + a, 0);
-	const shortSide = Math.min(container.width, container.height);
-	const thickness = rowArea / shortSide;
-	const horizontal = container.width <= container.height; // strip spans full width, stacks items left-to-right
-
-	let offset = 0;
-	for (let i = 0; i < row.length; i++) {
-		const extent = areas[i] / thickness;
-		if (horizontal) {
-			rects.push({
-				id: row[i].id,
-				x: container.x + offset,
-				y: container.y,
-				width: extent,
-				height: thickness
-			});
-		} else {
-			rects.push({
-				id: row[i].id,
-				x: container.x,
-				y: container.y + offset,
-				width: thickness,
-				height: extent
-			});
-		}
-		offset += extent;
-	}
-
-	return horizontal
-		? {
-				x: container.x,
-				y: container.y + thickness,
-				width: container.width,
-				height: container.height - thickness
-			}
-		: {
-				x: container.x + thickness,
-				y: container.y,
-				width: container.width - thickness,
-				height: container.height
-			};
+export function columnCount(width: number, gap = BENTO_GAP): number {
+	if (width <= 0) return 1;
+	// The n columns carry n-1 gaps, so lending the width one extra gap makes the
+	// division exact rather than rounding a fitting column away.
+	const fits = Math.floor((width + gap) / (MIN_COLUMN_WIDTH + gap));
+	return Math.max(1, Math.min(MAX_COLUMNS, fits));
 }
 
 /**
- * A treemap cell shrunk by `gutter` on every side, for the rendered box.
- * Clamped at zero: a cell narrower than two gutters would otherwise yield a
- * negative CSS width, which browsers discard — leaving a box at its natural
- * size, spilling over its neighbours.
+ * What a box costs a column, in task-card rows.
+ *
+ * Only the ratio matters — this balances columns, it does not size anything —
+ * so the header and padding are counted as a bit more than one card's worth.
  */
-export function insetRect(rect: TreemapRect, gutter: number): Rect {
-	return {
-		x: rect.x + gutter,
-		y: rect.y + gutter,
-		width: Math.max(0, rect.width - gutter * 2),
-		height: Math.max(0, rect.height - gutter * 2)
-	};
+export const HEADER_ROWS = 1.6;
+
+export function boxRows(group: BentoGroup): number {
+	return HEADER_ROWS + group.tasks.length;
+}
+
+/**
+ * Rows in a packed column — the share of the board's width and leftover height
+ * that column earns.
+ *
+ * Boxes stand taller than their content when there is room to spare, because a
+ * board of content-height boxes with a hand of empty space under them reads as
+ * a set of columns rather than a bento. Sharing the slack out in proportion to
+ * what each box holds is what keeps that from turning back into the old
+ * problem, where one box got all the emptiness and another got none of it.
+ */
+export function columnRows(column: BentoGroup[]): number {
+	return column.reduce((sum, group) => sum + boxRows(group), 0);
+}
+
+/**
+ * Groups dealt into `columns` columns, each box going to the shortest column so
+ * far.
+ *
+ * Source order is preserved rather than packing the tallest boxes first: a
+ * board whose boxes rearrange themselves every time a task is added is harder
+ * to use than one that is a few rows off balance.
+ */
+export function packColumns(groups: BentoGroup[], columns: number): BentoGroup[][] {
+	const count = Math.max(1, columns);
+	const packed: BentoGroup[][] = Array.from({ length: count }, () => []);
+	const rows = new Array<number>(count).fill(0);
+
+	for (const group of groups) {
+		let shortest = 0;
+		for (let i = 1; i < count; i++) {
+			if (rows[i] < rows[shortest]) shortest = i;
+		}
+		packed[shortest].push(group);
+		rows[shortest] += boxRows(group);
+	}
+
+	return packed;
 }
 
 /** Top-left point whose `taskCenter` lands exactly on the zone's geometric center. */
