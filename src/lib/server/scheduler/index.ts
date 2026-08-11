@@ -3,7 +3,7 @@ import { env } from '$env/dynamic/private';
 import { db } from '../db';
 import { listActiveTasks } from '../tasks/service';
 import { buildMorningDigestContent } from '../notifications/digest';
-import { findTasksNeedingDueAlert } from '../notifications/due-alerts';
+import { buildDueSoonContent, findTasksNeedingDueAlert } from '../notifications/due-alerts';
 import { sendPushToUser } from '../notifications/push';
 import { logNotification } from '../notifications/log';
 import { syncLmsAssignments } from '../lms/sync';
@@ -44,15 +44,20 @@ export async function runMorningDigest() {
 		// morning — none of that is a reason for the user to find no digest waiting
 		// in the app. Send first, log regardless.
 		try {
+			// The summary keeps the push short; the full task list lives in the inbox.
 			await sendPushToUser(user.id, {
 				title: 'Table — morning digest',
-				body: digest.text,
+				body: digest.summary,
 				url: '/'
 			});
 		} catch (err) {
 			console.warn('Digest push failed; logging to the inbox anyway', err);
 		}
-		await logNotification({ userId: user.id, type: 'morning_digest', content: digest });
+		await logNotification({
+			userId: user.id,
+			type: 'morning_digest',
+			content: { text: digest.text, taskIds: digest.taskIds }
+		});
 	}
 }
 
@@ -67,17 +72,20 @@ export async function runDueAlertCheck(leadHours: number) {
 		const due = findTasksNeedingDueAlert(tasks, priorNotifications, new Date(), leadHours);
 		if (due.length === 0) continue;
 
-		const text = `${due.length} task${due.length === 1 ? '' : 's'} due soon.`;
-		const content = { text, taskIds: due.map((t) => t.id) };
+		const alert = buildDueSoonContent(due);
 		// Guarded like the digest, and for a sharper reason: the inbox entry is
 		// what findTasksNeedingDueAlert reads to decide a task has already been
 		// alerted about, so losing the write to a push failure would re-alert the
 		// same task every hour until its due date passed.
 		try {
-			await sendPushToUser(user.id, { title: 'Table — due soon', body: text, url: '/' });
+			await sendPushToUser(user.id, { title: 'Table — due soon', body: alert.summary, url: '/' });
 		} catch (err) {
 			console.warn('Due-alert push failed; logging to the inbox anyway', err);
 		}
-		await logNotification({ userId: user.id, type: 'due_alert', content });
+		await logNotification({
+			userId: user.id,
+			type: 'due_alert',
+			content: { text: alert.text, taskIds: alert.taskIds }
+		});
 	}
 }

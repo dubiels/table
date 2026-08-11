@@ -1,5 +1,25 @@
 import { describe, it, expect } from 'vitest';
-import { findTasksNeedingDueAlert } from './due-alerts';
+import { buildDueSoonContent, findTasksNeedingDueAlert } from './due-alerts';
+
+describe('buildDueSoonContent', () => {
+	it('lists each task by title and due date under a count summary', () => {
+		const tasks = [
+			{ id: '1', title: 'Problem set', dueDate: '2026-07-19', done: false },
+			{ id: '2', title: 'Lab report', dueDate: '2026-07-19', done: false }
+		];
+		const result = buildDueSoonContent(tasks);
+		expect(result.summary).toBe('2 tasks due soon.');
+		expect(result.text).toContain('• Problem set — due Jul 19');
+		expect(result.text).toContain('• Lab report — due Jul 19');
+		expect(result.taskIds).toEqual(['1', '2']);
+	});
+
+	it('uses the singular form for one task', () => {
+		const tasks = [{ id: '1', title: 'Problem set', dueDate: '2026-07-19', done: false }];
+		const result = buildDueSoonContent(tasks);
+		expect(result.summary).toBe('1 task due soon.');
+	});
+});
 
 describe('findTasksNeedingDueAlert', () => {
 	// Constructed in local time on purpose: due dates are local YYYY-MM-DD, and

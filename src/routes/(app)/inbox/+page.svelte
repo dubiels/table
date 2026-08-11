@@ -140,6 +140,7 @@
 
 	.content {
 		margin-top: 0.3rem;
+		white-space: pre-line;
 	}
 
 	time {

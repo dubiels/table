@@ -7,13 +7,27 @@ export interface DigestTask {
 	done: boolean;
 }
 
-export function buildMorningDigestContent(
-	tasks: DigestTask[],
-	today: Date
-): { text: string; taskIds: string[] } {
+export interface NotificationContent {
+	text: string;
+	summary: string;
+	taskIds: string[];
+}
+
+// Due dates are local YYYY-MM-DD; parsing the parts keeps the day from
+// shifting the way new Date('YYYY-MM-DD') (UTC midnight) would.
+export function formatDueDate(dueDate: string): string {
+	const [year, month, day] = dueDate.split('-').map(Number);
+	return new Date(year, month - 1, day).toLocaleDateString('en-US', {
+		month: 'short',
+		day: 'numeric'
+	});
+}
+
+export function buildMorningDigestContent(tasks: DigestTask[], today: Date): NotificationContent {
 	const open = tasks.filter((t) => !t.done);
 	if (open.length === 0) {
-		return { text: "There's nothing on the table today.", taskIds: [] };
+		const text = "There's nothing on the table today.";
+		return { text, summary: text, taskIds: [] };
 	}
 
 	// Due dates are local YYYY-MM-DD; toISOString() would answer for the UTC
@@ -25,6 +39,29 @@ export function buildMorningDigestContent(
 	const parts = [`${open.length} open task${open.length === 1 ? '' : 's'} on the table.`];
 	if (overdue.length) parts.push(`${overdue.length} overdue.`);
 	if (dueToday.length) parts.push(`${dueToday.length} due today.`);
+	const summary = parts.join(' ');
 
-	return { text: parts.join(' '), taskIds: open.map((t) => t.id) };
+	const taskIds = open.map((t) => t.id);
+	const urgent = overdue.length + dueToday.length;
+	if (urgent === 0) {
+		return { text: summary, summary, taskIds };
+	}
+
+	const sections: string[] = [];
+	if (overdue.length) {
+		sections.push(
+			['Overdue:', ...overdue.map((t) => `• ${t.title} — due ${formatDueDate(t.dueDate!)}`)].join(
+				'\n'
+			)
+		);
+	}
+	if (dueToday.length) {
+		sections.push(['Due today:', ...dueToday.map((t) => `• ${t.title}`)].join('\n'));
+	}
+	const rest = open.length - urgent;
+	if (rest > 0) {
+		sections.push(`…and ${rest} more on the table.`);
+	}
+
+	return { text: sections.join('\n\n'), summary, taskIds };
 }

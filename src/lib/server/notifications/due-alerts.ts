@@ -1,4 +1,5 @@
 import { localDateString } from '$lib/listView';
+import { formatDueDate, type NotificationContent } from './digest';
 
 export interface DueAlertTask {
 	id: string;
@@ -12,12 +13,24 @@ export interface SentNotification {
 	content: string;
 }
 
-export function findTasksNeedingDueAlert(
-	tasks: DueAlertTask[],
+export function buildDueSoonContent(
+	tasks: { id: string; title: string; dueDate: string | null }[]
+): NotificationContent {
+	const summary = `${tasks.length} task${tasks.length === 1 ? '' : 's'} due soon.`;
+	const lines = tasks.map(
+		(t) => `• ${t.title}${t.dueDate ? ` — due ${formatDueDate(t.dueDate)}` : ''}`
+	);
+	return { text: [summary, ...lines].join('\n'), summary, taskIds: tasks.map((t) => t.id) };
+}
+
+// Generic so callers passing full task rows get full rows back — the alert
+// content needs titles, which DueAlertTask itself doesn't require.
+export function findTasksNeedingDueAlert<T extends DueAlertTask>(
+	tasks: T[],
 	sentNotifications: SentNotification[],
 	now: Date,
 	leadWindowHours: number
-): DueAlertTask[] {
+): T[] {
 	// "Today" is a local-calendar question here, matching the rest of the app.
 	// Under UTC this rolled over during the evening, so a task alerted in the
 	// morning looked unalerted again and got a second notification before
