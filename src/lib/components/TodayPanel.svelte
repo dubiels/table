@@ -30,12 +30,12 @@
 		<li>
 			In the <strong>Google Cloud console</strong>, enable the <strong>Calendar API</strong> and
 			create a
-			<strong>Desktop OAuth client</strong>.
+			<strong>Desktop OAuth client</strong>, then put its id and secret in
+			<code>GCAL_CLIENT_ID</code> and <code>GCAL_CLIENT_SECRET</code> in <code>.env</code>.
 		</li>
 		<li>
-			Run <code>npm run gcal:auth</code>, then add <code>GCAL_CLIENT_ID</code>,
-			<code>GCAL_CLIENT_SECRET</code>, and the printed <code>GCAL_REFRESH_TOKEN</code> to
-			<code>.env</code> — and restart to pick it up.
+			Run <code>npm run gcal:auth</code>, add the printed <code>GCAL_REFRESH_TOKEN</code> to
+			<code>.env</code>, and restart to pick it up.
 		</li>
 	</ol>
 {:else if today.length === 0}

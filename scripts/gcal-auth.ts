@@ -73,7 +73,19 @@ const server = createServer((req, res) => {
 		console.error(`\nAuthorisation failed: ${error}`);
 		process.exit(1);
 	}
-	void exchange(code!);
+	exchange(code!).catch((err) => {
+		console.error(`\nToken exchange failed: ${err instanceof Error ? err.message : err}`);
+		process.exit(1);
+	});
+});
+
+server.on('error', (err: NodeJS.ErrnoException) => {
+	if (err.code === 'EADDRINUSE') {
+		console.error(`\nPort ${PORT} is already in use — is gcal-auth already running?`);
+	} else {
+		console.error(`\nServer error: ${err.message}`);
+	}
+	process.exit(1);
 });
 
 server.listen(PORT, () => {
