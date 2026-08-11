@@ -320,7 +320,41 @@ async function runSyncRound(options?: { full?: boolean }): Promise<GoogleTaskSyn
 			.where(eq(tasks.id, unlink.taskId));
 	}
 
-	await writeSyncState(LAST_SYNC_KEY, startedAt);
+	// A skipped patchInTable means this round's window held a Google edit
+	// (g1) that lost the race to a same-task Table edit and was correctly
+	// deferred rather than applied. If the cursor still advances to
+	// `startedAt`, the next round's `updatedMin` is computed from that new,
+	// later cursor — and rounds run roughly `SKEW_MS` apart, so g1 can easily
+	// fall outside the new window. The task would then be linked, dirty (the
+	// user's edit never got written through), and absent from the fetch,
+	// which is exactly the shape the patch-on-absence retry rule treats as
+	// "Table changed offline, push it" — destroying g1 without ever comparing
+	// it against the user's edit. Leaving the cursor where it was keeps g1
+	// inside the next round's window, so the planner sees both edits again
+	// and resolves the conflict for real instead of by omission.
+	//
+	// Termination: if the user keeps editing this task on every round, this
+	// task's patch keeps getting skipped and the cursor keeps holding — that
+	// is a stall, not data loss, and it is the same optimistic-concurrency
+	// shape as the compare-and-set itself. The instant a round runs without a
+	// concurrent edit, the patch applies, the row goes clean, and the very
+	// next round (having no skips) advances the cursor again. Freezing the
+	// cursor is safe for every other task in flight, too: any patch that did
+	// apply this round already wrote `googleSyncedAt = g.updated`, so
+	// replaying the same window next round is a no-op for it (googleChanged
+	// and tableDirty both read false), and the rest of the plan's actions
+	// (creates, deletes, pushes already sent) are likewise idempotent against
+	// the already-updated local state. The cost of the stall is a wider
+	// `updatedMin` window on replay, not a correctness problem.
+	if (skippedLocalPatches === 0) {
+		await writeSyncState(LAST_SYNC_KEY, startedAt);
+	} else {
+		console.warn(
+			`gtasks: leaving cursor at ${lastSyncAt ?? '(none, next round stays a full fetch)'} ` +
+				`because ${skippedLocalPatches} local patch(es) were skipped this round; ` +
+				`next round replays the same google window so the conflict resolves with both edits visible`
+		);
+	}
 	console.log(
 		`gtasks sync: ${result.imported} imported, ${result.updatedLocally} updated ` +
 			`(${skippedLocalPatches} skipped: edited mid-round), ` +

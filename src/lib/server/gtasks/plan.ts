@@ -131,6 +131,13 @@ export function planGoogleTaskSync(input: {
 	const occupied = input.tableTasks.map((t) => ({ x: t.x, y: t.y }));
 
 	for (const g of input.googleTasks) {
+		// listTasks paginates, and a task edited between page fetches can be
+		// handed back on two pages with the same id. Both copies are equally
+		// unknown to Table (or equally linked to the same row), so without
+		// this guard the second copy would be planned again — two
+		// createInTable entries for one googleTaskId, which then trips the
+		// unique index on google_task_id after the pushes have already run.
+		if (seenGoogleIds.has(g.id)) continue;
 		seenGoogleIds.add(g.id);
 
 		// A tombstone means the Table task is already gone locally and this

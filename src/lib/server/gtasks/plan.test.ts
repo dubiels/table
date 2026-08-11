@@ -73,6 +73,22 @@ describe('inbound capture', () => {
 		expect(result.createInTable[0].dueDate).toBeNull();
 	});
 
+	it('processes a google task once even if pagination returns it twice', () => {
+		// listTasks paginates; a task edited between page fetches can be handed
+		// back on two pages. Both copies are equally unknown to Table, so
+		// without a dedupe guard this produces two createInTable entries for
+		// one googleTaskId, and the unique index on google_task_id throws on
+		// the second insert.
+		const result = plan({
+			googleTasks: [
+				googleTask({ id: 'dup', title: 'Buy milk' }),
+				googleTask({ id: 'dup', title: 'Buy milk' })
+			]
+		});
+
+		expect(result.createInTable).toHaveLength(1);
+	});
+
 	it('gives each imported task its own free slot', () => {
 		const result = plan({
 			tableTasks: [tableTask({ googleSync: false, googleTaskId: null, x: 40, y: 40 })],
@@ -193,7 +209,12 @@ describe('deletion', () => {
 	it('deletes in google and unlinks when the toggle is turned off', () => {
 		const result = plan({
 			tableTasks: [tableTask({ googleSync: false })],
-			googleTasks: [googleTask()]
+			// Google's copy changed too, so without the `!t.googleSync` guard
+			// this would also land in patchInTable — a contradictory pair with
+			// deleteInGoogle for the same task. The changed `updated` stamp is
+			// what makes the empty-patch assertions below load-bearing rather
+			// than trivially true because nothing changed on either side.
+			googleTasks: [googleTask({ updated: '2026-08-11T12:00:00.000Z' })]
 		});
 
 		expect(result.deleteInGoogle).toEqual([{ googleTaskId: 'g1', taskId: 't1' }]);
