@@ -150,6 +150,7 @@
 		// test deliberately ignores its own anchor, so without this the press would
 		// land here and reopen what it was meant to dismiss.
 		if (menuZoneId === zoneId) return closeMenu();
+		closeAdd();
 		menuAnchor = e.currentTarget as HTMLElement;
 		menuZoneId = zoneId;
 	}
@@ -157,6 +158,28 @@
 	function closeMenu() {
 		menuZoneId = null;
 		menuAnchor = null;
+	}
+
+	// The add form is a popover hung off the + it came from, not a block inside
+	// the box: opening it in place grew the box, reflowed the column beneath it,
+	// and squeezed a date input and a select into a column as narrow as 240px.
+	let addAnchor = $state<HTMLElement | null>(null);
+	let addGroup = $derived(groups.find((g) => g.id === openAddId) ?? null);
+
+	function toggleAdd(e: MouseEvent, groupId: string) {
+		// As with the menu, a second press on the same trigger closes it — the
+		// popover's outside-click test ignores its own anchor, so without this the
+		// press would land here and reopen what it was meant to dismiss.
+		if (openAddId === groupId) return closeAdd();
+		// One popover at a time: both hang off the same box header.
+		closeMenu();
+		addAnchor = e.currentTarget as HTMLElement;
+		openAddId = groupId;
+	}
+
+	function closeAdd() {
+		openAddId = null;
+		addAnchor = null;
 	}
 
 	let renamingId = $state<string | null>(null);
@@ -406,7 +429,6 @@
 					</div>
 				{:else}
 					{@const c = colorOf(group.color)}
-					{@const point = addPointFor(group.id)}
 					{@const adding = openAddId === group.id}
 					{@const hint = group.id === UNCATEGORIZED_ID && group.tasks.length === 0}
 					<div
@@ -456,22 +478,20 @@
 							{/if}
 							<!-- The + lives in the header rather than a footer of its own: a
 						     reserved footer row cost every box a card's worth of height,
-						     which is most of a small box. -->
+						     which is most of a small box. It is also what the add popover
+						     hangs off, so it must stay put while that is open. -->
 							<button
 								type="button"
 								class="add-plus"
 								class:open={adding}
 								aria-expanded={adding}
-								onclick={() => (openAddId = adding ? null : group.id)}
+								aria-haspopup="dialog"
+								onclick={(e) => toggleAdd(e, group.id)}
 								aria-label={adding ? 'Close add task' : `Add task to ${group.name}`}
 							>
 								+
 							</button>
 						</div>
-
-						{#if adding}
-							<AddTaskForm x={point.x} y={point.y} />
-						{/if}
 
 						{#if group.tasks.length > 0}
 							<div class="box-body">
@@ -509,7 +529,7 @@
 									</div>
 								{/each}
 							</div>
-						{:else if !adding}
+						{:else}
 							<p class="empty">
 								{group.id === UNCATEGORIZED_ID && drag?.active
 									? 'Drop to uncategorize'
@@ -532,6 +552,22 @@
 	>
 		<TaskCard task={drag.task} />
 	</div>
+{/if}
+
+{#if addGroup && addAnchor}
+	{@const point = addPointFor(addGroup.id)}
+	<!-- Keyed on the box, so pressing + on a second box rebuilds the popover with
+	     that box's landing point and an empty title rather than carrying the
+	     first one's half-typed task across. -->
+	{#key addGroup.id}
+		<AddTaskForm
+			x={point.x}
+			y={point.y}
+			anchor={addAnchor}
+			zoneName={addGroup.id === UNCATEGORIZED_ID ? 'Uncategorized' : addGroup.name}
+			onclose={closeAdd}
+		/>
+	{/key}
 {/if}
 
 {#if menuZone && menuAnchor}
