@@ -122,9 +122,19 @@ export async function getTask(id: string): Promise<Task> {
  * Records the opt-in itself. Deliberately does not bump `updatedAt`: wanting a
  * task in Google is not a change to the task's content, and the planner detects
  * this from `googleSync` against `googleTaskId` rather than from dirtiness.
+ *
+ * Either flip clears `googleError`, because the error describes how one past
+ * attempt ended under an intent the user has just replaced. Turning the toggle
+ * off is the design's escape hatch for a task Google will never accept, and it
+ * is the only one that works: an unlinked, opted-out task is reachable by
+ * neither the push nor the local patch, the only other writers of
+ * `googleError: null`, so a leftover error would keep the badge red forever
+ * with nothing left that could ever clear it. Turning it back on is a fresh
+ * attempt that has not failed yet; if it fails the same way, the push records
+ * the error again within seconds, which is honest where a stale error is not.
  */
 export async function setGoogleSync(id: string, googleSync: boolean): Promise<void> {
-	await db.update(tasks).set({ googleSync }).where(eq(tasks.id, id));
+	await db.update(tasks).set({ googleSync, googleError: null }).where(eq(tasks.id, id));
 }
 
 /**

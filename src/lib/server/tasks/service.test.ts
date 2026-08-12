@@ -191,6 +191,32 @@ describe('tasks service', () => {
 		}
 	});
 
+	it('clears a stale googleError when the toggle is turned off', async () => {
+		// Turning the toggle off is half the escape hatch for a task Google will
+		// never accept — the error badge is the other half. Nothing else can clear
+		// the error once the task has no googleTaskId and no intent left: the only
+		// other writers of `googleError: null` are the push and the local patch,
+		// and neither runs on an opted-out task. Without this the badge stays red
+		// for good.
+		const t = await tasksService.createTask({ title: 'Rejected by Google' });
+		rows[0].googleError = 'Google rejected this task';
+		await tasksService.setGoogleSync(t.id, false);
+		expect(rows[0].googleSync).toBe(false);
+		expect(rows[0].googleError).toBeNull();
+	});
+
+	it('clears a stale googleError when the toggle is turned back on', async () => {
+		// The error records how a past attempt ended under a past intent. Opting
+		// in again is a new intent, so showing the old failure before anything has
+		// been tried misreports the state; if it fails the same way, the very next
+		// push writes the error straight back.
+		const t = await tasksService.createTask({ title: 'Try again' });
+		rows[0].googleError = 'Google rejected this task';
+		await tasksService.setGoogleSync(t.id, true);
+		expect(rows[0].googleSync).toBe(true);
+		expect(rows[0].googleError).toBeNull();
+	});
+
 	it('records a tombstone carrying the googleTaskId when deleting a linked task', async () => {
 		const t = await tasksService.createTask({ title: 'Linked' });
 		rows[0].googleTaskId = 'g-123';
