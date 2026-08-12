@@ -134,9 +134,15 @@ How it behaves:
 - **Deletion is mirrored** — delete on either side and it goes from both. Table
   only ever acts on an explicit deletion from Google, never on a task merely
   going missing, so an outage cannot quietly destroy your tasks.
+- **Unlinking is not deletion.** If a full sync finds a linked task genuinely
+  gone from Google, the badge turns red with "no longer in Google Tasks" — that
+  means Google no longer has it, not that a push failed — and Table keeps the
+  task rather than delete it on a signal that ambiguous.
 - **Failures are visible.** A task Google rejected keeps a warning badge with
-  the reason, and retries on every sync. Table never blocks on Google being up:
-  the change is saved locally either way.
+  the reason, and retries on every sync — except a task whose Google copy was
+  purged: the cron and page-load syncs are incremental and keep 404ing on it,
+  so it only recovers via a manual "Sync Google Tasks" from the user menu.
+  Table never blocks on Google being up: the change is saved locally either way.
 
 Canvas assignments can be pushed like any other task. Priority and the course
 name stay in Table — Google Tasks has no field for either.
