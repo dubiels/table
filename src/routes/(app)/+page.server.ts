@@ -101,12 +101,38 @@ export const actions: Actions = {
 	updateTask: async ({ request }) => {
 		const data = Object.fromEntries(await request.formData());
 		const id = String(data.id);
-		await tasksService.updateTask(id, {
-			title: data.title ? String(data.title) : undefined,
-			notes: data.notes ? String(data.notes) : null,
-			dueDate: data.dueDate ? String(data.dueDate) : null,
-			priority: (data.priority as 'low' | 'med' | 'high') || null
-		});
+		const existing = await tasksService.getTask(id);
+
+		// The service marks a task dirty on key *presence* — `field in patch` —
+		// which is correct: `dueDate: null` is a real edit Google must hear about,
+		// and only presence can tell that apart from a field this Save never
+		// mentioned. It does mean the keys sent from here are the dirty flag. The
+		// modal posts title, notes and dueDate on every Save, so passing them
+		// through unconditionally bumps `updatedAt` for a priority-only edit, or
+		// for a Save that changed nothing at all — firing a pointless push and
+		// arming that task to win a both-dirty conflict against a real edit made
+		// on the phone, which is the exact scenario the narrow bump rule exists to
+		// prevent. So a key goes in only when it was submitted *and* differs from
+		// what the row already holds.
+		const patch: Parameters<typeof tasksService.updateTask>[1] = {};
+		// An empty title is the browser's `required` being bypassed, not a request
+		// to erase the title, so it is dropped rather than written.
+		if (data.title && String(data.title) !== existing.title) patch.title = String(data.title);
+		if ('notes' in data) {
+			const notes = data.notes ? String(data.notes) : null;
+			if (notes !== existing.notes) patch.notes = notes;
+		}
+		if ('dueDate' in data) {
+			const dueDate = data.dueDate ? String(data.dueDate) : null;
+			if (dueDate !== existing.dueDate) patch.dueDate = dueDate;
+		}
+		if ('priority' in data) {
+			const priority = (data.priority as 'low' | 'med' | 'high') || null;
+			if (priority !== existing.priority) patch.priority = priority;
+		}
+		// Drizzle rejects an empty `set`, and a Save that changed nothing has
+		// nothing to write anyway — the toggle and the push below still run.
+		if (Object.keys(patch).length > 0) await tasksService.updateTask(id, patch);
 		// An unchecked checkbox is not submitted at all, so absence is a real
 		// "off" — but only when the control was rendered. Guarded on the feature
 		// flag, or turning the integration off for a day and editing a task would
