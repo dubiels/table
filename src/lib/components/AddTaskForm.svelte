@@ -114,7 +114,22 @@
 	}
 
 	function onWindowKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') onclose();
+		if (e.key === 'Escape') dismiss();
+	}
+
+	/**
+	 * Closes and hands focus back to the + that opened this.
+	 *
+	 * For every close the user asked for by keyboard or by button — Escape,
+	 * Cancel, a finished add. Focus would otherwise fall back to the document and
+	 * strand a keyboard user at the top of the board, and after an add the + is
+	 * exactly where they want to be to type the next one. The outside-press path
+	 * deliberately does not come through here: focus belongs to whatever was
+	 * pressed instead.
+	 */
+	function dismiss() {
+		anchor.focus();
+		onclose();
 	}
 </script>
 
@@ -140,12 +155,16 @@
 	<form
 		method="POST"
 		action="?/createTask"
-		use:enhance={() =>
-			async ({ update, result }) => {
+		use:enhance={() => {
+			// Cleared on the way out rather than on the way back, so a retry does not
+			// sit under the last attempt's error while it is in flight.
+			failed = false;
+			return async ({ update, result }) => {
 				await update();
-				if (result.type === 'success') onclose();
+				if (result.type === 'success') dismiss();
 				else failed = true;
-			}}
+			};
+		}}
 	>
 		<input type="hidden" name="x" value={x} />
 		<input type="hidden" name="y" value={y} />
@@ -197,7 +216,7 @@
 		{/if}
 
 		<div class="actions">
-			<button class="btn btn-ghost btn-small" type="button" onclick={onclose}>Cancel</button>
+			<button class="btn btn-ghost btn-small" type="button" onclick={dismiss}>Cancel</button>
 			<button class="btn btn-primary btn-small" type="submit">Add</button>
 		</div>
 	</form>
