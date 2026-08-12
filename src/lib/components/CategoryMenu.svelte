@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { ZONE_COLOR_KEYS, zoneColorVars } from '$lib/zones';
+	import { anchoredPosition } from '$lib/anchoredPosition';
 
 	let {
 		name,
@@ -32,8 +33,7 @@
 	let pos = $state({ x: 0, y: 0 });
 
 	const MENU_WIDTH = 208;
-	const GAP = 6;
-	/** Enough of the menu to be worth showing below rather than flipping above. */
+	/** The menu is short, so it asks for slack rather than opening into the last strip of the window. */
 	const MIN_ROOM_BELOW = 150;
 
 	// Bound from the element rather than read on demand, so switching to the
@@ -44,14 +44,11 @@
 	$effect(() => place(menuHeight));
 
 	function place(height: number) {
-		const a = anchor.getBoundingClientRect();
-		// Right-aligned under the button it came from, then pulled back inside the
-		// viewport — a box in the last column would otherwise hang off the edge.
-		const x = Math.max(GAP, Math.min(a.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - GAP));
-		const below = window.innerHeight - a.bottom;
-		const y =
-			below < Math.max(MIN_ROOM_BELOW, height + GAP) ? a.top - height - GAP : a.bottom + GAP;
-		pos = { x, y: Math.max(GAP, y) };
+		pos = anchoredPosition(
+			anchor.getBoundingClientRect(),
+			{ width: MENU_WIDTH, height, minRoomBelow: MIN_ROOM_BELOW },
+			{ width: window.innerWidth, height: window.innerHeight }
+		);
 	}
 
 	// Opening moves focus into the menu so Escape and Tab have somewhere to act
