@@ -23,6 +23,12 @@ const LOAD_SYNC_BUDGET_MS = 4000;
  * case the cron cannot serve — you ticked something off on your phone a minute
  * ago and just opened Table. On timeout or failure the board renders whatever
  * the database already holds.
+ *
+ * The budget bounds how long this request waits, not how long the round runs,
+ * and the cursor is written last — so a reload during a slow round still reads
+ * the state as stale and calls in again. That is safe only because
+ * `syncGoogleTasks` joins the round already in flight instead of starting a
+ * second one over the same snapshot.
  */
 async function syncGoogleTasksIfStale(): Promise<void> {
 	if (!isGoogleTasksEnabled()) return;

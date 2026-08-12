@@ -76,12 +76,63 @@ function toPlanGoogleTask(g: GoogleTask): PlanGoogleTask {
 }
 
 /**
- * One reconcile round.
+ * The tail of the queue every Google-touching operation runs on: reconcile
+ * rounds and the write-through pushes alike. Nothing here ever runs two of them
+ * at once, so a push can never race a round against the same rows.
+ *
+ * A module-level promise is the whole mechanism, and that is enough here: the
+ * deployment is one always-on machine whose scheduler runs in this very
+ * process, so all four entry points — cron, the manual route, the board's load,
+ * the write-through push — are in this module's realm. It holds no state worth
+ * surviving a restart either: a round cut short by one replans from the same
+ * cursor, since the cursor is written last.
+ */
+let queueTail: Promise<unknown> = Promise.resolve();
+
+/**
+ * The round a later caller can join, and whether it is (or, once it starts,
+ * will be) a full fetch. Cleared when that round settles.
+ */
+let pendingRound: { full: boolean; promise: Promise<GoogleTaskSyncResult> } | null = null;
+
+/**
+ * Runs `work` once everything already queued has finished.
+ *
+ * Both callbacks are the same on purpose: a failed predecessor must not cancel
+ * its successor, and the tail is kept settled so it never rejects unhandled.
+ */
+export function withGoogleTasksLock<T>(work: () => Promise<T>): Promise<T> {
+	const run = queueTail.then(work, work);
+	queueTail = run.then(
+		() => {},
+		() => {}
+	);
+	return run;
+}
+
+/**
+ * One reconcile round, or the one already running.
  *
  * `full: true` skips the `updatedMin` filter and lets the planner act on a
  * linked task's absence. Periodic runs are incremental so a lifetime of
  * completed tasks is not re-fetched every few minutes; the manual refresh and
  * the very first run are full.
+ *
+ * Concurrent callers join rather than start a second round. They must: the
+ * cursor is only written at the end, so while a slow round is in flight every
+ * other entry point still reads the state as stale — and the board's load in
+ * particular bounds how long the *request* waits, not how long the round runs.
+ * Two rounds over the same snapshot each plan a `createInGoogle` for the same
+ * opted-in-but-unpushed task (the state a failed push leaves behind and retries
+ * forever), `markPushed` keeps only the last `googleTaskId`, and the rest are
+ * live in Google with nothing pointing at them — which the next full fetch
+ * imports back as fresh cards. Reloading the board would breed duplicates.
+ *
+ * A caller that asked for a full fetch is never handed an incremental round:
+ * the manual refresh means "look at everything now", and answering it with
+ * whatever happened to be running would make the button a lie. Such a call
+ * queues its own full round behind the one in flight instead. The reverse is
+ * fine and does join — a full fetch's window contains the incremental one's.
  *
  * Never throws, and this wrapper is what makes that true rather than aspirational.
  * The round's own guards handle the expected failures — an unreachable Google,
@@ -90,7 +141,23 @@ function toPlanGoogleTask(g: GoogleTask): PlanGoogleTask {
  * a round reports `ok: false` and, because the sync cursor is written last, the
  * next round replans the same work from the same window.
  */
-export async function syncGoogleTasks(options?: { full?: boolean }): Promise<GoogleTaskSyncResult> {
+export function syncGoogleTasks(options?: { full?: boolean }): Promise<GoogleTaskSyncResult> {
+	const full = options?.full === true;
+	if (pendingRound && (pendingRound.full || !full)) return pendingRound.promise;
+
+	const entry = { full, promise: withGoogleTasksLock(() => guardedRound({ full })) };
+	// Set before the queued work can start — `withGoogleTasksLock` only schedules
+	// it — so a caller arriving in the meantime joins this round rather than
+	// queueing another.
+	pendingRound = entry;
+	const clear = () => {
+		if (pendingRound === entry) pendingRound = null;
+	};
+	entry.promise.then(clear, clear);
+	return entry.promise;
+}
+
+async function guardedRound(options: { full: boolean }): Promise<GoogleTaskSyncResult> {
 	try {
 		return await runSyncRound(options);
 	} catch (err) {
