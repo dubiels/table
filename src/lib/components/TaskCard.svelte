@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { page } from '$app/state';
 	import { localDateString } from '$lib/listView';
+	import GoogleSyncBadge from './GoogleSyncBadge.svelte';
 
 	let {
 		task,
@@ -24,45 +24,6 @@
 
 	let today = localDateString();
 	let overdue = $derived(!!task.dueDate && task.dueDate < today && !task.done);
-
-	// From the layout load, so this component does not have to be handed the
-	// flag through the three views that render it (the board, the bento cells,
-	// and history). Safe to read here: TaskCard is only ever rendered under the
-	// (app) route group, whose layout load always sets it.
-	let gtasksConfigured = $derived(page.data.gtasksConfigured === true);
-
-	// null hides the badge entirely: a task nobody asked to mirror should carry
-	// no mark at all, or every card on the board grows one. The integration
-	// being off is the same kind of "nothing to show": with GTASKS_ENABLED
-	// unset, TaskDetailModal hides the toggle that would let anyone act on a
-	// stale link, so a badge here would assert a sync that cannot run and
-	// cannot be turned off from the board.
-	//
-	// An error outranks the columns-based guard, because the two are not
-	// mutually exclusive: a reconcile that finds a linked task gone from Google
-	// unlinks it and writes the reason in one go, leaving googleSync false,
-	// googleTaskId null and googleError set. That is a durable state, not a
-	// flash, and hiding it would make a task Google dropped look exactly like
-	// one never opted in — the very thing the badge exists to tell apart.
-	let googleState = $derived(
-		!gtasksConfigured
-			? null
-			: task.googleError
-				? 'error'
-				: !task.googleSync && !task.googleTaskId
-					? null
-					: task.googleSync && task.googleTaskId
-						? 'synced'
-						: 'pending'
-	);
-
-	let googleLabel = $derived(
-		googleState === 'error'
-			? `Google Tasks: ${task.googleError}`
-			: googleState === 'pending'
-				? 'Waiting to reach Google Tasks'
-				: 'In Google Tasks'
-	);
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (!onclick) return;
@@ -90,64 +51,56 @@
 			aria-hidden="true"
 		></span>
 	{/if}
-	{#if googleState}
-		<span class="gmark gmark-{googleState}" title={googleLabel}>
-			<!-- Drawn rather than set in type, like the topbar icons: a glyph would
-			     ignore the span's colour and so could not carry the three states. -->
-			<svg
-				viewBox="0 0 24 24"
-				width="11"
-				height="11"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2.5"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-				aria-hidden="true"
-			>
-				<circle cx="12" cy="12" r="9" />
-				<path d="M8 12.5l2.5 2.5L16 9.5" />
-			</svg>
-			<span class="sr-only">{googleLabel}</span>
-		</span>
-	{/if}
-	<div class="row-main">
-		<!-- Keydown is guarded alongside click: Enter on the submit button would
-		     otherwise bubble to the card's role="button" handler, whose
-		     preventDefault cancels the submit and opens the modal instead. -->
-		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<form
-			method="POST"
-			action="?/toggleTaskDone"
-			use:enhance
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-		>
-			<input type="hidden" name="id" value={task.id} />
-			<button class="done-toggle" class:checked={task.done} type="submit" aria-label="Toggle done">
-				{#if task.done}✓{/if}
-			</button>
-		</form>
-		<span class="title">{task.title}</span>
-	</div>
+	<!-- Only a surface that can act on the state offers the control. The history
+	     list renders the same card with no `onclick`, and gets a report-only mark. -->
+	<GoogleSyncBadge {task} interactive={!!onclick} />
 
-	{#if task.priority || task.dueDate}
-		<div class="row-meta">
-			{#if task.priority}
-				<span class="pill pill-{task.priority}">
-					{task.priority === 'high' ? 'High' : task.priority === 'med' ? 'Med' : 'Low'}
-				</span>
-			{/if}
-			{#if task.dueDate}
-				<span class="chip-due" class:overdue>{task.dueDate}</span>
-			{/if}
-		</div>
-	{/if}
+	<!-- Keydown is guarded alongside click: Enter on the submit button would
+	     otherwise bubble to the card's role="button" handler, whose
+	     preventDefault cancels the submit and opens the modal instead. -->
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<form
+		class="done-form"
+		method="POST"
+		action="?/toggleTaskDone"
+		use:enhance
+		onclick={(e) => e.stopPropagation()}
+		onkeydown={(e) => e.stopPropagation()}
+	>
+		<input type="hidden" name="id" value={task.id} />
+		<button class="done-toggle" class:checked={task.done} type="submit" aria-label="Toggle done">
+			{#if task.done}✓{/if}
+		</button>
+	</form>
+
+	<!-- The toggle is a sibling of the whole text block rather than of the title
+	     alone, so it centres against the card's full height. Nested inside a title
+	     row it lined up with the first line and read as sitting high on any card
+	     that also carries a priority or due chip. -->
+	<div class="content">
+		<span class="title">{task.title}</span>
+
+		{#if task.priority || task.dueDate}
+			<div class="row-meta">
+				{#if task.priority}
+					<span class="pill pill-{task.priority}">
+						{task.priority === 'high' ? 'High' : task.priority === 'med' ? 'Med' : 'Low'}
+					</span>
+				{/if}
+				{#if task.dueDate}
+					<span class="chip-due" class:overdue>{task.dueDate}</span>
+				{/if}
+			</div>
+		{/if}
+	</div>
 </div>
 
 <style>
 	.card {
 		position: relative;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-s);
@@ -166,36 +119,19 @@
 		border-radius: 50%;
 		border: 1px solid;
 	}
-	.gmark {
-		position: absolute;
-		top: 0.3rem;
-		right: 1.15rem;
-		display: inline-flex;
-		line-height: 0;
+	/* The unsynced ring sits back at rest and comes up with the card, so the
+	   control is there when you are looking at that task and quiet otherwise. */
+	.card:hover :global(.gbtn.faint) {
+		opacity: 1;
 	}
-	.gmark-synced {
-		color: var(--ok);
-	}
-	.gmark-pending {
-		color: var(--muted);
-	}
-	.gmark-error {
-		color: var(--danger);
-	}
-	.sr-only {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		padding: 0;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
-	}
-	.row-main {
+	/* The form is what the card centres, so it has to be exactly as tall as the
+	   button it holds. Left as a block it becomes a line box — 1.5 line-height on
+	   a 15px root, against a 1.05rem button — and an inline-flex button sits on
+	   that line's baseline rather than its centre, leaving the toggle a few
+	   pixels high on every card. */
+	.done-form {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		padding-right: 1.8rem;
 	}
 	.done-toggle {
 		flex-shrink: 0;
@@ -216,8 +152,11 @@
 		color: var(--ok);
 		border-color: var(--ok);
 	}
-	.title {
+	.content {
 		flex: 1;
+		min-width: 0;
+		/* Keeps a long title from running under the zone dot and the sync mark. */
+		padding-right: 1.5rem;
 	}
 	.done .title {
 		text-decoration: line-through;

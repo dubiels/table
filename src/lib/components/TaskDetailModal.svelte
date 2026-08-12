@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
+	import { canSendToGoogle, NEEDS_DUE_DATE_MESSAGE } from '$lib/googleSync';
 
 	let {
 		task,
@@ -33,7 +34,33 @@
 	let gtasksConfigured = $derived(page.data.gtasksConfigured === true);
 	// Creation needs a date; an existing link does not, and is maintained with a
 	// null due date rather than severed.
-	let canSync = $derived(Boolean(dueDate) || Boolean(task.googleTaskId));
+	let canSync = $derived(canSendToGoogle({ dueDate, googleTaskId: task.googleTaskId }));
+
+	let dueDateEl = $state<HTMLInputElement | undefined>();
+	// Set by a refused tick, never on open. The checkbox is live now, so the rule
+	// is stated in answer to an attempt rather than sitting there greyed out from
+	// the moment the panel opens — which is the same as not being read at all.
+	// Rendered against `canSync` as well, so typing a date clears the message
+	// without anything having to reset the flag.
+	let attemptedWithoutDate = $state(false);
+
+	// Save is about to delete the Google copy, which is worth saying out loud
+	// even though it is not worth a second confirm: reaching this took a
+	// deliberate untick behind a Save button.
+	let willRemoveFromGoogle = $derived(Boolean(task.googleSync && task.googleTaskId) && !googleSync);
+
+	function onSyncToggle(e: Event & { currentTarget: HTMLInputElement }) {
+		if (!e.currentTarget.checked || canSync) {
+			attemptedWithoutDate = false;
+			return;
+		}
+		// Refused rather than held: an opt-in that cannot be acted on would sit as
+		// a permanent "waiting to send" with nothing on its way.
+		e.currentTarget.checked = false;
+		googleSync = false;
+		attemptedWithoutDate = true;
+		dueDateEl?.focus();
+	}
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') onclose();
@@ -73,7 +100,7 @@
 
 			<label>
 				<span>Due date</span>
-				<input type="date" name="dueDate" bind:value={dueDate} />
+				<input type="date" name="dueDate" bind:value={dueDate} bind:this={dueDateEl} />
 			</label>
 
 			<label>
@@ -88,20 +115,19 @@
 
 			{#if gtasksConfigured}
 				<label class="check">
-					<input type="checkbox" name="googleSync" bind:checked={googleSync} disabled={!canSync} />
+					<input
+						type="checkbox"
+						name="googleSync"
+						bind:checked={googleSync}
+						onchange={onSyncToggle}
+					/>
 					<span>Send to Google Tasks</span>
 				</label>
-				{#if !canSync && googleSync}
-					<!-- A disabled checkbox is never submitted, so a held opt-in (a task
-					     synced with no due date yet, waiting for one) would otherwise post
-					     as "off" and be silently revoked on Save. This carries the true
-					     value through explicitly. It is never rendered alongside an
-					     enabled checkbox, so there is never a duplicate `googleSync` field
-					     in the body. -->
-					<input type="hidden" name="googleSync" value="on" />
+				{#if attemptedWithoutDate && !canSync}
+					<p class="hint hint-error" role="alert">{NEEDS_DUE_DATE_MESSAGE}</p>
 				{/if}
-				{#if !canSync}
-					<p class="hint">Needs a due date — an undated task never reaches the calendar grid.</p>
+				{#if willRemoveFromGoogle}
+					<p class="hint">Saving removes it from Google Tasks. The task stays on the board.</p>
 				{/if}
 				{#if task.googleError}
 					<p class="hint hint-error">Google Tasks: {task.googleError}</p>

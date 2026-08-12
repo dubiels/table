@@ -9,6 +9,7 @@ import { evictedTaskPoints } from '$lib/bento';
 import { getAgenda } from '$lib/server/gcal/service';
 import { syncGoogleTasks, isGoogleTasksEnabled, readSyncState } from '$lib/server/gtasks/sync';
 import { pushTaskNow, pushDeletionNow } from '$lib/server/gtasks/push';
+import { canSendToGoogle, NEEDS_DUE_DATE_MESSAGE } from '$lib/googleSync';
 
 /** Long enough that a reload is not a sync, short enough to catch the walk back from the bus. */
 const STALE_MS = 60_000;
@@ -137,7 +138,62 @@ export const actions: Actions = {
 		// "off" — but only when the control was rendered. Guarded on the feature
 		// flag, or turning the integration off for a day and editing a task would
 		// silently clear an opt-in that nothing on screen was showing.
-		if (isGoogleTasksEnabled()) await tasksService.setGoogleSync(id, data.googleSync === 'on');
+		if (isGoogleTasksEnabled()) {
+			if (data.googleSync === 'on') {
+				// The date this Save leaves behind, not the one the row held when it
+				// opened — checking the old value would refuse an opt-in made in the
+				// same Save that supplied the date it was waiting for. Honoured rather
+				// than rejected, exactly as `createTask` treats the same rule: the
+				// panel already refuses this inline, so reaching here means a crafted
+				// post, and there is no error surface on this action to report it to.
+				const dueDate = 'dueDate' in data ? String(data.dueDate || '') : (existing.dueDate ?? '');
+				if (canSendToGoogle({ dueDate, googleTaskId: existing.googleTaskId })) {
+					await tasksService.enableGoogleSync(id);
+				}
+			} else {
+				// Unconditional, like the single call it replaces: on a task already
+				// switched off this only re-clears a stale googleError, which is how
+				// an error on an unlinked task has always been dismissed.
+				const removed = await tasksService.unlinkFromGoogle(id);
+				if (removed) await pushDeletionNow(removed);
+			}
+		}
+		await pushTaskNow(id);
+	},
+
+	/**
+	 * The board's badge, which flips one task's mirroring without opening the
+	 * detail panel.
+	 *
+	 * Separate from `updateTask` rather than a narrower call into it, because it
+	 * carries no content: routing it through the patch builder would mean
+	 * inventing an empty patch and reasoning about which fields a click on a
+	 * badge is claiming not to have changed.
+	 */
+	setTaskGoogleSync: async ({ request }) => {
+		// Same guard as `updateTask`'s: with the integration off nothing on screen
+		// offers this, so a request that arrives anyway is not acting on anything
+		// the user can see.
+		if (!isGoogleTasksEnabled()) return fail(400, { error: 'Google Tasks is not configured' });
+
+		const data = await request.formData();
+		const id = String(data.get('id'));
+
+		if (data.get('on') !== 'true') {
+			const removed = await tasksService.unlinkFromGoogle(id);
+			// Immediate, so the task leaves the phone at the same moment it leaves
+			// the board. A failure here keeps the tombstone for the next reconcile.
+			if (removed) await pushDeletionNow(removed);
+			return;
+		}
+
+		const existing = await tasksService.getTask(id);
+		// The card refuses this before posting; this is the rule itself rather than
+		// its message, so a stale card cannot opt a task in that Google would then
+		// silently drop into a permanent "waiting to send".
+		if (!canSendToGoogle(existing)) return fail(400, { error: NEEDS_DUE_DATE_MESSAGE });
+
+		await tasksService.enableGoogleSync(id);
 		await pushTaskNow(id);
 	},
 

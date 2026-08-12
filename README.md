@@ -122,10 +122,20 @@ Setup, on top of the Calendar steps above:
 
 How it behaves:
 
-- **Opting in.** Tick "Send to Google Tasks" in a task's detail modal, or "Also
+- **Opting in.** Click the mark in a card's top corner, straight from the board.
+  You can also tick "Send to Google Tasks" in a task's detail modal, or "Also
   add to Google Tasks" in the composer, which remembers its last setting. A task
   needs a due date before it can be sent — an undated Google Task never appears
-  on the calendar grid, only in the Tasks side panel.
+  on the calendar grid, only in the Tasks side panel — and asking for one
+  without a date says so rather than refusing quietly.
+- **Reading the marks.** Every card carries one of four: an empty ring for a
+  task that lives only in Table, a grey tick for one on its way to Google, a
+  green tick for one that is mirrored, and a red tick for a sync problem, whose
+  reason is on hover. "What the marks mean" in the user menu is the key.
+- **Opting out deletes the Google copy.** Switching a task off removes it from
+  Google Tasks and keeps it on the board — the board asks before doing it, the
+  detail panel takes the untick plus Save as the answer. If Google cannot be
+  reached the removal is recorded and retried on the next sync.
 - **Coming back.** Tasks created in Google Tasks are imported as Uncategorized.
   Tasks already completed in Google are never imported, so connecting to a
   long-lived list does not dump its archive into Table's history.
@@ -134,10 +144,10 @@ How it behaves:
 - **Deletion is mirrored** — delete on either side and it goes from both. Table
   only ever acts on an explicit deletion from Google, never on a task merely
   going missing, so an outage cannot quietly destroy your tasks.
-- **Unlinking is not deletion.** If a full sync finds a linked task genuinely
-  gone from Google, the badge turns red with "no longer in Google Tasks" — that
-  means Google no longer has it, not that a push failed — and Table keeps the
-  task rather than delete it on a signal that ambiguous.
+- **A task Google dropped is not deleted here.** If a full sync finds a linked
+  task genuinely gone from Google, the badge turns red with "no longer in Google
+  Tasks" — that means Google no longer has it, not that a push failed — and
+  Table keeps the task rather than delete it on a signal that ambiguous.
 - **Failures are visible.** A task Google rejected keeps a warning badge with
   the reason, and retries on every sync — except a task whose Google copy was
   purged: the cron and page-load syncs are incremental and keep 404ing on it,

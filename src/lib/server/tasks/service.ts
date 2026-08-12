@@ -123,18 +123,65 @@ export async function getTask(id: string): Promise<Task> {
  * task in Google is not a change to the task's content, and the planner detects
  * this from `googleSync` against `googleTaskId` rather than from dirtiness.
  *
- * Either flip clears `googleError`, because the error describes how one past
- * attempt ended under an intent the user has just replaced. Turning the toggle
- * off is the design's escape hatch for a task Google will never accept, and it
- * is the only one that works: an unlinked, opted-out task is reachable by
- * neither the push nor the local patch, the only other writers of
- * `googleError: null`, so a leftover error would keep the badge red forever
- * with nothing left that could ever clear it. Turning it back on is a fresh
+ * Clears `googleError`, because the error describes how one past attempt ended
+ * under an intent the user has just replaced. Opting in again is a fresh
  * attempt that has not failed yet; if it fails the same way, the push records
  * the error again within seconds, which is honest where a stale error is not.
+ *
+ * Takes no boolean, because the two directions are not symmetrical: turning
+ * sync off has to delete the Google copy and drop a tombstone, which is
+ * `unlinkFromGoogle`. A `setGoogleSync(id, false)` that only flipped the flag
+ * would leave a task stranded in Google that nothing would ever collect.
  */
-export async function setGoogleSync(id: string, googleSync: boolean): Promise<void> {
-	await db.update(tasks).set({ googleSync, googleError: null }).where(eq(tasks.id, id));
+export async function enableGoogleSync(id: string): Promise<void> {
+	await db.update(tasks).set({ googleSync: true, googleError: null }).where(eq(tasks.id, id));
+}
+
+/**
+ * Switches sync off and severs the link, returning the `googleTaskId` the task
+ * used to own so the caller can delete that task from Google.
+ *
+ * The tombstone and the clearing share one transaction for the same reason
+ * they do in `deleteTask`: once `googleTaskId` is null there is nothing left
+ * recording which Google task this row owned, so a commit without the
+ * tombstone leaks a task in Google that nothing will ever clean up. Writing
+ * the tombstone means the caller's delete does not have to succeed — a failed
+ * or skipped one is retried by the next reconcile, while Table's own state is
+ * already correct.
+ *
+ * `googleSyncedAt` is cleared along with the id so a task switched back on
+ * later reads as dirty and gets pushed in full, rather than being compared
+ * against a version of a Google task that no longer exists.
+ *
+ * Clearing `googleError` here is the escape hatch for a task Google will never
+ * accept, and it is the only one that works: an unlinked, opted-out task is
+ * reachable by neither the push nor the local patch, the only other writers of
+ * `googleError: null`, so a leftover error would keep the badge red forever
+ * with nothing left that could ever clear it.
+ */
+export async function unlinkFromGoogle(id: string): Promise<string | null> {
+	const existing = await db.query.tasks.findFirst({ where: eq(tasks.id, id) });
+	if (!existing) return null;
+
+	// Read off the row before anything writes to it, and returned from this copy
+	// rather than from `existing`: the id is the one thing this function exists
+	// to hand back, and it is also the thing the update below erases.
+	const googleTaskId = existing.googleTaskId;
+
+	db.transaction((tx) => {
+		if (googleTaskId) {
+			tx.insert(googleTaskTombstones)
+				.values({ googleTaskId, deletedAt: new Date().toISOString() })
+				.onConflictDoNothing()
+				.run();
+		}
+		tx.update(tasks)
+			.set({ googleSync: false, googleTaskId: null, googleSyncedAt: null, googleError: null })
+			.where(eq(tasks.id, id))
+			.run();
+	});
+
+	return googleTaskId;
 }
 
 /**

@@ -47,6 +47,15 @@ vi.mock('../db', () => ({
 						})
 					})
 				}),
+				update: () => ({
+					set: (patch: Partial<Task>) => ({
+						where: () => ({
+							run: () => {
+								Object.assign(rows[0], patch);
+							}
+						})
+					})
+				}),
 				delete: () => ({
 					where: () => ({
 						run: () => {
@@ -183,7 +192,7 @@ describe('tasks service', () => {
 		try {
 			const t = await tasksService.createTask({ title: 'Opt me in' });
 			vi.advanceTimersByTime(1000);
-			await tasksService.setGoogleSync(t.id, true);
+			await tasksService.enableGoogleSync(t.id);
 			expect(rows[0].googleSync).toBe(true);
 			expect(rows[0].updatedAt).toBe(t.updatedAt);
 		} finally {
@@ -200,7 +209,7 @@ describe('tasks service', () => {
 		// for good.
 		const t = await tasksService.createTask({ title: 'Rejected by Google' });
 		rows[0].googleError = 'Google rejected this task';
-		await tasksService.setGoogleSync(t.id, false);
+		await tasksService.unlinkFromGoogle(t.id);
 		expect(rows[0].googleSync).toBe(false);
 		expect(rows[0].googleError).toBeNull();
 	});
@@ -212,9 +221,42 @@ describe('tasks service', () => {
 		// push writes the error straight back.
 		const t = await tasksService.createTask({ title: 'Try again' });
 		rows[0].googleError = 'Google rejected this task';
-		await tasksService.setGoogleSync(t.id, true);
+		await tasksService.enableGoogleSync(t.id);
 		expect(rows[0].googleSync).toBe(true);
 		expect(rows[0].googleError).toBeNull();
+	});
+
+	it('tombstones the googleTaskId and severs the link when sync is switched off', async () => {
+		// The caller deletes the Google task from the id this returns, but the
+		// tombstone is what makes that delete optional: if it fails, or never runs
+		// because the lock was busy, the next reconcile finds the tombstone and
+		// tries again. Losing the id without recording it strands a task in Google
+		// that nothing will ever collect.
+		const t = await tasksService.createTask({ title: 'Linked' });
+		rows[0].googleSync = true;
+		rows[0].googleTaskId = 'g-123';
+		rows[0].googleSyncedAt = rows[0].updatedAt;
+
+		const removed = await tasksService.unlinkFromGoogle(t.id);
+
+		expect(removed).toBe('g-123');
+		expect(tombstones).toEqual([{ googleTaskId: 'g-123', deletedAt: expect.any(String) }]);
+		expect(rows[0]).toMatchObject({ googleSync: false, googleTaskId: null });
+		// Cleared so a task switched back on later reads as dirty and is pushed in
+		// full, rather than being diffed against a Google task that is gone.
+		expect(rows[0].googleSyncedAt).toBeNull();
+		expect(rows).toHaveLength(1);
+	});
+
+	it('records no tombstone when switching off a task that never reached Google', async () => {
+		const t = await tasksService.createTask({ title: 'Never sent' });
+		rows[0].googleSync = true;
+
+		const removed = await tasksService.unlinkFromGoogle(t.id);
+
+		expect(removed).toBeNull();
+		expect(tombstones).toEqual([]);
+		expect(rows[0].googleSync).toBe(false);
 	});
 
 	it('records a tombstone carrying the googleTaskId when deleting a linked task', async () => {

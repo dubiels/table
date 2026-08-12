@@ -6,6 +6,8 @@
 	import { subscribeToPush } from '$lib/client/push';
 	import { toast } from '$lib/toast.svelte';
 	import { env } from '$env/dynamic/public';
+	import { GOOGLE_SYNC_STATES } from '$lib/googleSync';
+	import GoogleSyncGlyph from './GoogleSyncGlyph.svelte';
 
 	let {
 		user,
@@ -16,6 +18,7 @@
 	let syncing = $state(false);
 	let digesting = $state(false);
 	let gtasksSyncing = $state(false);
+	let legendOpen = $state(false);
 	let avatarEl = $state<HTMLButtonElement | null>(null);
 
 	// Seeded from the DOM rather than from localStorage: the pre-paint script in
@@ -41,6 +44,9 @@
 	function closeMenu(refocus = false) {
 		if (!menuOpen) return;
 		menuOpen = false;
+		// Collapsed with the menu, so reopening it lands on the actions rather
+		// than on a key nobody asked for a second time.
+		legendOpen = false;
 		if (refocus) avatarEl?.focus();
 	}
 
@@ -271,6 +277,30 @@
 							>
 								Sync Google Tasks
 							</button>
+							<!-- Next to the sync action, because that is when the marks are
+							     being thought about, and inside the menu so the board keeps
+							     its whole surface for tasks. -->
+							<button
+								type="button"
+								class="item"
+								aria-expanded={legendOpen}
+								onclick={() => (legendOpen = !legendOpen)}
+							>
+								What the marks mean
+							</button>
+							{#if legendOpen}
+								<ul class="legend">
+									{#each GOOGLE_SYNC_STATES as entry (entry.state)}
+										<li>
+											<GoogleSyncGlyph state={entry.state} size={12} />
+											<span>
+												<strong>{entry.label}</strong>
+												{entry.description}
+											</span>
+										</li>
+									{/each}
+								</ul>
+							{/if}
 						{/if}
 						<button type="button" class="item" disabled={digesting} onclick={sendDigest}>
 							Send digest now
@@ -459,6 +489,41 @@
 
 	.item.danger:hover {
 		background: var(--danger-soft);
+	}
+
+	.legend {
+		list-style: none;
+		margin: 0.1rem 0.15rem 0.35rem;
+		padding: 0.4rem 0.45rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+		background: var(--surface-2);
+		border-radius: var(--radius-s);
+	}
+
+	.legend li {
+		display: grid;
+		/* The glyph column is fixed so the four labels start on one line, which is
+		   what makes the marks comparable at a glance. */
+		grid-template-columns: 12px 1fr;
+		align-items: start;
+		gap: 0.45rem;
+		font-size: 0.76rem;
+		line-height: 1.35;
+		color: var(--muted);
+	}
+
+	/* Nudged onto the label's optical centre: the glyph box is taller than the
+	   cap height of the line it sits beside. */
+	.legend li :global(.glyph) {
+		margin-top: 2px;
+	}
+
+	.legend strong {
+		display: block;
+		font-weight: 600;
+		color: var(--ink);
 	}
 
 	@media (max-width: 720px) {
