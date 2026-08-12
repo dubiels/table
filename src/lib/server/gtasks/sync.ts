@@ -111,6 +111,63 @@ export function withGoogleTasksLock<T>(work: () => Promise<T>): Promise<T> {
 }
 
 /**
+ * Runs `work` under the same lock as `withGoogleTasksLock`, but gives up
+ * waiting for it after `budgetMs` instead of joining the queue behind
+ * however much is ahead of it.
+ *
+ * A sync round is bounded per Google call (each has its own timeout) but not
+ * in how many calls it makes — a board with many dirty tasks makes many of
+ * them, one after another. Joining the queue unconditionally means waiting
+ * for the whole round to drain, which is exactly the blocking-on-Google this
+ * module exists to spare a live request from.
+ *
+ * Resolves to `undefined` on giving up, and that is the whole point: `work`
+ * is never run in that case, not now and not once the lock frees up later.
+ * Whatever state `work` would have changed is left for its caller to recover
+ * some other way (`pushTaskNow`'s caller has a dirty row the next reconcile
+ * will retry) rather than this function queuing a delayed copy of the call.
+ */
+export function withGoogleTasksLockWithin<T>(
+	budgetMs: number,
+	work: () => Promise<T>
+): Promise<T | undefined> {
+	return new Promise((resolve) => {
+		let settled = false;
+		const timer = setTimeout(() => {
+			if (settled) return;
+			settled = true;
+			resolve(undefined);
+		}, budgetMs);
+		// A ref'd timer would hold the process open for the whole budget even
+		// after the request that started this wait has otherwise finished.
+		timer.unref?.();
+
+		// Riding the existing tail rather than calling withGoogleTasksLock up
+		// front: that would enqueue `work` unconditionally, so an abandoned wait
+		// would still run it once the queue got there. `settled` is what makes
+		// giving up actually mean `work` never runs.
+		//
+		// queueTail never rejects (see above), so the second handler here is
+		// unreachable in practice; it exists only so a future change to that
+		// invariant fails safe instead of leaving this wait unsettled forever.
+		queueTail.then(
+			() => {
+				if (settled) return;
+				settled = true;
+				clearTimeout(timer);
+				resolve(withGoogleTasksLock(work));
+			},
+			() => {
+				if (settled) return;
+				settled = true;
+				clearTimeout(timer);
+				resolve(withGoogleTasksLock(work));
+			}
+		);
+	});
+}
+
+/**
  * One reconcile round, or the one already running.
  *
  * `full: true` skips the `updatedMin` filter and lets the planner act on a

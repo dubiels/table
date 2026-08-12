@@ -44,6 +44,8 @@ const taskRow = {
 
 let cursor: { key: string; value: string } | undefined;
 
+const updateSetMock = vi.fn();
+
 vi.mock('../db', () => ({
 	db: {
 		query: {
@@ -60,12 +62,17 @@ vi.mock('../db', () => ({
 				onConflictDoNothing: () => Promise.resolve()
 			})
 		}),
-		update: () => ({ set: () => ({ where: () => Promise.resolve({ changes: 1 }) }) }),
+		update: () => ({
+			set: (values: unknown) => {
+				updateSetMock(values);
+				return { where: () => Promise.resolve({ changes: 1 }) };
+			}
+		}),
 		delete: () => ({ where: () => Promise.resolve() })
 	}
 }));
 
-import { syncGoogleTasks } from './sync';
+import { syncGoogleTasks, withGoogleTasksLockWithin } from './sync';
 import { pushTaskNow } from './push';
 
 /** A promise whose settlement the test drives, standing in for a slow Google. */
@@ -145,5 +152,42 @@ describe('sync round serialization', () => {
 		await round;
 		await push;
 		expect(patchTaskMock).toHaveBeenCalledTimes(1);
+	});
+
+	it('withGoogleTasksLockWithin gives up on a slow lock and never runs the abandoned work', async () => {
+		// The round holds the lock until we resolve `first` ourselves, so the
+		// budget is guaranteed to lose the race — this is not a timing coin flip.
+		const first = deferred<[]>();
+		listTasksMock.mockReturnValueOnce(first.promise).mockResolvedValue([]);
+		const round = syncGoogleTasks();
+
+		const work = vi.fn(() => Promise.resolve('should not run'));
+		const result = await withGoogleTasksLockWithin(5, work);
+		expect(result).toBeUndefined();
+		expect(work).not.toHaveBeenCalled();
+
+		// Freeing the lock afterward must not turn the abandoned wait into a
+		// delayed call — giving up has to mean `work` never runs, period.
+		first.resolve([]);
+		await round;
+		await settle();
+		expect(work).not.toHaveBeenCalled();
+	});
+
+	it('pushTaskNow gives up waiting for a slow round instead of hanging behind it', async () => {
+		// Stands in for "many dirty tasks, each an 8s Google call": the round's
+		// fetch never resolves in this test, so joining its queue unconditionally
+		// would hang pushTaskNow forever. It must resolve anyway, and quickly.
+		listTasksMock.mockReturnValueOnce(new Promise(() => {}));
+		syncGoogleTasks();
+
+		await pushTaskNow('t1');
+
+		// Nothing was attempted, so nothing failed: nothing got pushed and no
+		// googleError was recorded — a red badge here would be a lie.
+		expect(patchTaskMock).not.toHaveBeenCalled();
+		expect(updateSetMock).not.toHaveBeenCalledWith(
+			expect.objectContaining({ googleError: expect.anything() })
+		);
 	});
 });
