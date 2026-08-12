@@ -122,10 +122,23 @@ describe('tasks service', () => {
 	});
 
 	it('bumps updatedAt on completion', async () => {
-		const t = await tasksService.createTask({ title: 'Toggle me' });
-		await tasksService.toggleTaskDone(t.id);
-		expect(rows[0].completedAt).not.toBeNull();
-		expect(rows[0].updatedAt).toBe(rows[0].completedAt);
+		// Fake timers and a clock advance, like its siblings: against a synchronous
+		// in-memory mock, creation and completion land in the same millisecond, so
+		// asserting only `updatedAt === completedAt` passes even when
+		// `toggleTaskDone` stops setting `updatedAt` at all — the one regression
+		// this test exists to catch. The bump has to be measured against the
+		// creation stamp it must have moved off.
+		vi.useFakeTimers();
+		try {
+			const t = await tasksService.createTask({ title: 'Toggle me' });
+			vi.advanceTimersByTime(1000);
+			await tasksService.toggleTaskDone(t.id);
+			expect(rows[0].completedAt).not.toBeNull();
+			expect(Date.parse(rows[0].updatedAt)).toBeGreaterThan(Date.parse(t.updatedAt));
+			expect(rows[0].updatedAt).toBe(rows[0].completedAt);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('does NOT bump updatedAt when only the priority changes', async () => {
