@@ -63,7 +63,22 @@ export async function syncLmsAssignments(): Promise<LmsSyncResult> {
 		});
 	}
 	for (const update of plan.dueDateUpdates) {
-		await db.update(tasks).set({ dueDate: update.dueDate }).where(eq(tasks.id, update.id));
+		// `updatedAt` is not decoration here: Google-visible fields (title, notes,
+		// dueDate, done) must bump it on every write, because dirtiness is
+		// `updatedAt !== googleSyncedAt` and that is the only thing that tells the
+		// Google reconciler it owes Google a write. Writing the row directly
+		// bypasses tasks/service, which is where that rule normally lives — so it
+		// has to be honoured by hand, as on the insert above.
+		//
+		// Without it a Canvas deadline change on a task the user sent to Google is
+		// lost in both directions and silently: the card shows the new date and
+		// reads clean forever, so no round ever pushes it, while Google keeps the
+		// old date — and the first time Google touches that task the planner
+		// patches Table back to Google's stale one.
+		await db
+			.update(tasks)
+			.set({ dueDate: update.dueDate, updatedAt: new Date().toISOString() })
+			.where(eq(tasks.id, update.id));
 	}
 
 	const result = {
