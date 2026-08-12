@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import { localDateString } from '$lib/listView';
 
 	let {
@@ -24,23 +25,35 @@
 	let today = localDateString();
 	let overdue = $derived(!!task.dueDate && task.dueDate < today && !task.done);
 
+	// From the layout load, so this component does not have to be handed the
+	// flag through the three views that render it (the board, the bento cells,
+	// and history). Safe to read here: TaskCard is only ever rendered under the
+	// (app) route group, whose layout load always sets it.
+	let gtasksConfigured = $derived(page.data.gtasksConfigured === true);
+
 	// null hides the badge entirely: a task nobody asked to mirror should carry
-	// no mark at all, or every card on the board grows one.
+	// no mark at all, or every card on the board grows one. The integration
+	// being off is the same kind of "nothing to show": with GTASKS_ENABLED
+	// unset, TaskDetailModal hides the toggle that would let anyone act on a
+	// stale link, so a badge here would assert a sync that cannot run and
+	// cannot be turned off from the board.
 	//
-	// An error outranks that guard, because the two are not mutually exclusive:
-	// a reconcile that finds a linked task gone from Google unlinks it and writes
-	// the reason in one go, leaving googleSync false, googleTaskId null and
-	// googleError set. That is a durable state, not a flash, and hiding it would
-	// make a task Google dropped look exactly like one never opted in — the very
-	// thing the badge exists to tell apart.
+	// An error outranks the columns-based guard, because the two are not
+	// mutually exclusive: a reconcile that finds a linked task gone from Google
+	// unlinks it and writes the reason in one go, leaving googleSync false,
+	// googleTaskId null and googleError set. That is a durable state, not a
+	// flash, and hiding it would make a task Google dropped look exactly like
+	// one never opted in — the very thing the badge exists to tell apart.
 	let googleState = $derived(
-		task.googleError
-			? 'error'
-			: !task.googleSync && !task.googleTaskId
-				? null
-				: task.googleSync && task.googleTaskId
-					? 'synced'
-					: 'pending'
+		!gtasksConfigured
+			? null
+			: task.googleError
+				? 'error'
+				: !task.googleSync && !task.googleTaskId
+					? null
+					: task.googleSync && task.googleTaskId
+						? 'synced'
+						: 'pending'
 	);
 
 	let googleLabel = $derived(
