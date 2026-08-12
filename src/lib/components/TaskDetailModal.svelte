@@ -35,10 +35,6 @@
 	// null due date rather than severed.
 	let canSync = $derived(Boolean(dueDate) || Boolean(task.googleTaskId));
 
-	$effect(() => {
-		if (!canSync) googleSync = false;
-	});
-
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') onclose();
 	}
@@ -95,6 +91,15 @@
 					<input type="checkbox" name="googleSync" bind:checked={googleSync} disabled={!canSync} />
 					<span>Send to Google Tasks</span>
 				</label>
+				{#if !canSync && googleSync}
+					<!-- A disabled checkbox is never submitted, so a held opt-in (a task
+					     synced with no due date yet, waiting for one) would otherwise post
+					     as "off" and be silently revoked on Save. This carries the true
+					     value through explicitly. It is never rendered alongside an
+					     enabled checkbox, so there is never a duplicate `googleSync` field
+					     in the body. -->
+					<input type="hidden" name="googleSync" value="on" />
+				{/if}
 				{#if !canSync}
 					<p class="hint">Needs a due date — an undated task never reaches the calendar grid.</p>
 				{/if}
