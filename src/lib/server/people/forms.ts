@@ -72,7 +72,7 @@ export const updatePersonSchema = z.object({
 });
 
 /**
- * A follow-up raised from a person's record.
+ * An action item raised from a person's record.
  *
  * Title and an optional due date only. The date is what makes Table chase you —
  * the morning digest and the due-date notifications both key off it — so an

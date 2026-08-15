@@ -197,7 +197,7 @@ People are **archived** rather than deleted, since a hand-written note about
 someone is not recoverable from anywhere. "Show archived" in the filter bar
 brings them back to restore.
 
-**Follow-ups** are real Table tasks, not a second todo list. Raise one from a
+**Action items** are real Table tasks, not a second todo list. Raise one from a
 person's record with a title and a due date, and it lands on the board like
 anything else — the morning digest and the due-date notifications pick it up,
 and the task's card shows whose it is.

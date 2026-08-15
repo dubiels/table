@@ -4,7 +4,7 @@ import * as peopleService from '$lib/server/people/service';
 import * as flagsService from '$lib/server/people/flags';
 // The route is the composition layer: `src/lib/server/people/**` stays free of
 // the board so it remains extractable, but the page that shows a person and
-// their follow-ups is allowed to reach for both.
+// their action items is allowed to reach for both.
 import * as tasksService from '$lib/server/tasks/service';
 import {
 	addPersonSchema,

@@ -24,7 +24,7 @@
 </script>
 
 <section class="tasks">
-	<h3>Follow-ups</h3>
+	<h3>Action items</h3>
 
 	{#if ordered.length > 0}
 		<ul>
@@ -55,7 +55,7 @@
 			use:enhance={() =>
 				async ({ result, update }) => {
 					await update();
-					// Stay open only if it failed, so a run of follow-ups can be typed
+					// Stay open only if it failed, so a run of action items can be typed
 					// without reaching for the button between each.
 					if (result.type === 'success') adding = false;
 				}}
@@ -68,7 +68,7 @@
 			<button type="button" class="cancel" onclick={() => (adding = false)}>Cancel</button>
 		</form>
 	{:else}
-		<button type="button" class="new" onclick={() => (adding = true)}>+ Add a follow-up</button>
+		<button type="button" class="new" onclick={() => (adding = true)}>+ Add an action item</button>
 	{/if}
 </section>
 
