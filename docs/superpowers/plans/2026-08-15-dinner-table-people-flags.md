@@ -902,8 +902,12 @@ const joins: { personId: string; flagId: string; createdAt: string }[] = [];
 vi.mock('../db', () => ({
 	db: {
 		insert: () => ({
+			// A COPY, never the object the service returned. Pushing `r` itself
+			// makes `rows[0] === createPerson(...)`, so assertions comparing the
+			// two compare a property with itself and pass under the very
+			// regression they exist to catch. This repo has been bitten by that.
 			values: (r: Person) => {
-				rows.push(r);
+				rows.push({ ...r });
 				return Promise.resolve();
 			}
 		}),
@@ -1158,9 +1162,11 @@ vi.mock('../db', async () => {
 	return {
 		db: {
 			insert: (table: Parameters<typeof getTableName>[0]) => ({
+				// Copies, never the objects the service returned — see the note in
+				// service.test.ts. Aliasing turns assertions into tautologies.
 				values: (r: Record<string, unknown>) => {
-					if (getTableName(table) === 'flags') flagRows.push(r as Flag);
-					else joins.push(r as { personId: string; flagId: string; createdAt: string });
+					if (getTableName(table) === 'flags') flagRows.push({ ...r } as Flag);
+					else joins.push({ ...r } as { personId: string; flagId: string; createdAt: string });
 					return Promise.resolve();
 				}
 			}),
