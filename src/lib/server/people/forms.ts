@@ -15,8 +15,9 @@ const optionalText = z.preprocess(blankToUndefined, trimmed.optional());
  *
  * People paste `linkedin.com/in/x` far more often than they paste a full URL,
  * and a bare host in an `href` is read as a relative path — so the link would
- * point back at Table. Anything already carrying a scheme is left alone apart
- * from upgrading `http`.
+ * point back at Table. A value that already carries a scheme keeps its host
+ * casing untouched; only the scheme is canonicalised, which upgrades `http` and
+ * repairs the `HTTPS://` a phone keyboard's auto-capitalise produces.
  */
 export function normalizeLinkedinUrl(value: string): string | undefined {
 	const trimmedValue = value.trim();

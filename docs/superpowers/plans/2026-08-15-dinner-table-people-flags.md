@@ -404,8 +404,18 @@ describe('updatePersonSchema', () => {
 			notes: ''
 		});
 		expect(parsed.success).toBe(true);
+		// Every one of the nine, not a sample. Asserting two of them lets a
+		// regression on any of the other seven ship silently — verified by
+		// mutation: dropping the preprocessing from `company` left the suite green.
+		expect(parsed.data?.linkedinUrl).toBeUndefined();
 		expect(parsed.data?.email).toBeUndefined();
+		expect(parsed.data?.phone).toBeUndefined();
+		expect(parsed.data?.company).toBeUndefined();
+		expect(parsed.data?.role).toBeUndefined();
+		expect(parsed.data?.city).toBeUndefined();
+		expect(parsed.data?.metAt).toBeUndefined();
 		expect(parsed.data?.metOn).toBeUndefined();
+		expect(parsed.data?.notes).toBeUndefined();
 	});
 
 	// Deliberately loose: rejecting a number copied off a napkin fails worse than
@@ -455,7 +465,7 @@ Create `src/lib/server/people/forms.ts`:
 
 ```ts
 import { z } from 'zod';
-import { FLAG_COLOR_KEYS } from '$lib/people/colors';
+import { FLAG_COLOR_KEYS, type FlagColor } from '$lib/people/colors';
 
 // A browser submits every control the form has rendered, so untouched optional
 // fields post empty strings rather than leaving the keys out. Treat blank as
@@ -477,8 +487,13 @@ const optionalText = z.preprocess(blankToUndefined, trimmed.optional());
 export function normalizeLinkedinUrl(value: string): string | undefined {
 	const trimmedValue = value.trim();
 	if (!trimmedValue) return undefined;
-	if (trimmedValue.startsWith('https://')) return trimmedValue;
-	if (trimmedValue.startsWith('http://')) return `https://${trimmedValue.slice('http://'.length)}`;
+	// Compare case-insensitively but rebuild from the original, so the scheme is
+	// canonicalised while host casing survives. A phone keyboard that
+	// auto-capitalises the first character produces `Https://`, and a
+	// case-sensitive check would turn that into `https://Https://…` — a dead link.
+	const lower = trimmedValue.toLowerCase();
+	if (lower.startsWith('https://')) return `https://${trimmedValue.slice('https://'.length)}`;
+	if (lower.startsWith('http://')) return `https://${trimmedValue.slice('http://'.length)}`;
 	return `https://${trimmedValue}`;
 }
 
@@ -508,7 +523,11 @@ export const updatePersonSchema = z.object({
 
 export const flagSchema = z.object({
 	name: trimmed.min(1),
-	color: z.enum(FLAG_COLOR_KEYS as [string, ...string[]]).default('sage')
+	// Cast to a tuple of FlagColor, not of string: `as [string, ...string[]]`
+	// erases the literal union, so the inferred type widens to `color: string`
+	// and consumers silently lose exhaustiveness checking. Runtime rejection
+	// works either way, which is what makes the widening easy to miss.
+	color: z.enum(FLAG_COLOR_KEYS as [FlagColor, ...FlagColor[]]).default('sage')
 });
 ```
 
