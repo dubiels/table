@@ -190,6 +190,9 @@
 	<a class="brand" href={resolve('/')}>Table</a>
 
 	<nav>
+		<a class="nav-link" class:current={page.url.pathname === '/dinner'} href={resolve('/dinner')}>
+			Dinner
+		</a>
 		<a class="nav-link" class:current={page.url.pathname === '/inbox'} href={resolve('/inbox')}>
 			Inbox
 			{#if unreadCount > 0}<span class="badge">{unreadCount}</span>{/if}

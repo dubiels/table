@@ -165,6 +165,42 @@ name stay in Table — Google Tasks has no field for either.
 - The payload ships zone **color token names** (e.g. `"sage"`), never hex values — the consumer owns its own palette and rendering.
 - `fly.toml` sets `TZ = "America/New_York"` so both the payload's `timezone` field and the cron schedules above reflect your local time instead of Fly's default UTC. Change it if you're elsewhere.
 
+## Dinner Table
+
+Dinner Table is a contact book for people you have actually met in person: who
+they are, how to reach them, and what they can help with. It lives at `/dinner`.
+
+Add someone with the field at the top — a name is the only requirement, and the
+optional one-line note captures the context you forget by the next morning.
+Everything else (LinkedIn, email, phone, company, role, city, where and when you
+met) is filled in from the card's detail view whenever you get to it.
+
+**Flags** are reusable labels — "SF", "NYC", "founders" — created from a person's
+detail view and applied by picking them, so the same idea cannot drift into three
+spellings. Typing `sf` when `SF` exists reuses the existing flag. The filter bar
+above the grid narrows by flag; selecting two flags shows people carrying
+_either_, which is what planning a trip asks. Deleting a flag keeps the people
+who carried it.
+
+Search covers names, companies, roles, cities, where you met, and the notes
+themselves, so "who did I meet who knows about queue design" is a query rather
+than a memory exercise.
+
+People are **archived** rather than deleted, since a hand-written note about
+someone is not recoverable from anywhere. "Show archived" in the filter bar
+brings them back to restore.
+
+There is deliberately **no bulk import and no LinkedIn API**. LinkedIn removed
+its Connections API in 2015 and nothing self-serve replaced it, so the stored
+profile URL simply links out to the live page — always current, nothing to sync.
+
+### Serving it from a subdomain
+
+Point `dinner.<your-domain>` at the same Fly app and the root of that host
+resolves to Dinner Table, via the `reroute` hook in `src/hooks.ts`. Only the root
+is remapped, so login, the API routes and the service worker keep working on that
+host too.
+
 ## Deploying to Fly.io
 
 1. Install [`flyctl`](https://fly.io/docs/flyctl/install/) and log in with `flyctl auth login`.
