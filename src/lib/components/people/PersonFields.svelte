@@ -6,6 +6,11 @@
 	 * modal so the two can never drift apart — adding someone should show
 	 * exactly what editing them shows.
 	 *
+	 * The notes field is the point of the record and gets the room to prove it;
+	 * everything else folds away behind a summary. All the inputs stay in the
+	 * DOM when collapsed, which matters because `updatePerson` overwrites the
+	 * whole record — a field that did not post would be nulled.
+	 *
 	 * Flags are deliberately NOT here: attaching to a person who does not exist
 	 * yet (staged, submitted with the form) and attaching to one who does
 	 * (applied immediately) are genuinely different jobs.
@@ -14,7 +19,8 @@
 		values,
 		errorId = null,
 		error = null,
-		linkDates = false
+		linkDates = false,
+		detailsOpen = false
 	}: {
 		values: {
 			name?: string | null;
@@ -40,6 +46,8 @@
 		 * a conversation that was deliberately recorded.
 		 */
 		linkDates?: boolean;
+		/** Open on the add form, where you are filling these in; shut when reading. */
+		detailsOpen?: boolean;
 	} = $props();
 
 	// Read once, untracked: both callers mount this fresh (inside an {#if}, and
@@ -58,9 +66,15 @@
 	// conversation to have gone quiet on, so the two date fields are hidden
 	// rather than shown empty and vaguely accusing.
 	let wishlist = $derived(status === 'to_meet');
+
+	// From the saved values, so the closed summary reports what is stored rather
+	// than what is half-typed underneath it.
+	let summary = $derived(
+		[values.role, values.company, values.city].filter(Boolean).join(' · ') || 'Contact details'
+	);
 </script>
 
-<label>
+<label class="wide">
 	Name
 	<input
 		name="name"
@@ -74,62 +88,72 @@
 		<span class="status-error" role="alert" id={errorId}>{error}</span>
 	{/if}
 </label>
-<label>Role<input name="role" value={values.role ?? ''} autocomplete="off" /></label>
-<label>Company<input name="company" value={values.company ?? ''} autocomplete="off" /></label>
-<label>City<input name="city" value={values.city ?? ''} autocomplete="off" /></label>
-<label
-	>LinkedIn<input name="linkedinUrl" value={values.linkedinUrl ?? ''} autocomplete="off" /></label
->
-<label>Email<input name="email" value={values.email ?? ''} autocomplete="off" /></label>
-<label>Phone<input name="phone" value={values.phone ?? ''} autocomplete="off" /></label>
-<label>
-	Where we met
-	<input
-		name="metAt"
-		value={values.metAt ?? ''}
-		placeholder="Ana's dinner party"
-		autocomplete="off"
-	/>
-</label>
-<fieldset class="status wide">
-	<legend>Have we met?</legend>
-	<label class="radio">
-		<input type="radio" name="status" value="met" bind:group={status} />
-		Met them
-	</label>
-	<label class="radio">
-		<input type="radio" name="status" value="to_meet" bind:group={status} />
-		Want to meet them
-	</label>
-</fieldset>
 
-{#if wishlist}
-	<!-- Submitted empty rather than omitted: the update action overwrites the
-	     whole record, so leaving the keys out would keep stale dates on someone
-	     moved back to the wishlist. -->
-	<input type="hidden" name="metOn" value="" />
-	<input type="hidden" name="lastSpokeAt" value="" />
-{:else}
-	<label>When we met<input type="date" name="metOn" bind:value={metOn} /></label>
-	<label>
-		Last spoke
-		<input
-			type="date"
-			name="lastSpokeAt"
-			bind:value={lastSpokeAt}
-			oninput={() => (lastSpokeTouched = true)}
-		/>
-	</label>
-{/if}
-<label class="wide">
-	Who they are
-	<textarea
-		name="notes"
-		rows="5"
-		placeholder="What they work on, what they can help with, how you know them"
+<label class="wide notes">
+	Who they are — what they work on, what they can help with, how you know them
+	<textarea name="notes" placeholder="The part worth reading a year from now."
 		>{values.notes ?? ''}</textarea
 	>
 </label>
+
+<details class="wide details" open={detailsOpen}>
+	<summary><span class="summary-text">{summary}</span></summary>
+
+	<div class="grid">
+		<fieldset class="status wide">
+			<legend>Have we met?</legend>
+			<label class="radio">
+				<input type="radio" name="status" value="met" bind:group={status} />
+				Met them
+			</label>
+			<label class="radio">
+				<input type="radio" name="status" value="to_meet" bind:group={status} />
+				Want to meet them
+			</label>
+		</fieldset>
+
+		<label>Role<input name="role" value={values.role ?? ''} autocomplete="off" /></label>
+		<label>Company<input name="company" value={values.company ?? ''} autocomplete="off" /></label>
+		<label>City<input name="city" value={values.city ?? ''} autocomplete="off" /></label>
+		<label
+			>LinkedIn<input
+				name="linkedinUrl"
+				value={values.linkedinUrl ?? ''}
+				autocomplete="off"
+			/></label
+		>
+		<label>Email<input name="email" value={values.email ?? ''} autocomplete="off" /></label>
+		<label>Phone<input name="phone" value={values.phone ?? ''} autocomplete="off" /></label>
+		<label class="wide">
+			Where we met
+			<input
+				name="metAt"
+				value={values.metAt ?? ''}
+				placeholder="Ana's dinner party"
+				autocomplete="off"
+			/>
+		</label>
+
+		{#if wishlist}
+			<!-- Submitted empty rather than omitted: the update action overwrites the
+			     whole record, so leaving the keys out would keep stale dates on someone
+			     moved back to the wishlist. -->
+			<input type="hidden" name="metOn" value="" />
+			<input type="hidden" name="lastSpokeAt" value="" />
+		{:else}
+			<label>When we met<input type="date" name="metOn" bind:value={metOn} /></label>
+			<label>
+				Last spoke
+				<input
+					type="date"
+					name="lastSpokeAt"
+					bind:value={lastSpokeAt}
+					oninput={() => (lastSpokeTouched = true)}
+				/>
+			</label>
+		{/if}
+	</div>
+</details>
 
 <style>
 	label {
@@ -151,6 +175,37 @@
 		font: inherit;
 		font-size: 0.85rem;
 		color: inherit;
+	}
+	/* The record's reason for existing. Tall by default and freely resizable,
+	   because the useful version of this field is several paragraphs. */
+	.notes textarea {
+		min-height: 14rem;
+		line-height: 1.55;
+		resize: vertical;
+	}
+	.details {
+		border: 1px solid var(--border);
+		border-radius: var(--radius-s);
+		background: var(--surface);
+	}
+	summary {
+		padding: 0.45rem 0.6rem;
+		font-size: 0.75rem;
+		color: var(--muted);
+		cursor: pointer;
+		list-style-position: inside;
+	}
+	.summary-text {
+		margin-left: 0.2rem;
+	}
+	.details[open] summary {
+		border-bottom: 1px solid var(--border);
+	}
+	.grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.6rem;
+		padding: 0.6rem;
 	}
 	.status-error {
 		margin: 0;
@@ -179,5 +234,10 @@
 	.radio input {
 		width: auto;
 		padding: 0;
+	}
+	@media (max-width: 640px) {
+		.grid {
+			grid-template-columns: 1fr;
+		}
 	}
 </style>

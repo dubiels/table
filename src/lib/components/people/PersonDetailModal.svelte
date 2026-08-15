@@ -6,6 +6,7 @@
 	import FlagPicker from './FlagPicker.svelte';
 	import PersonFields from './PersonFields.svelte';
 	import PersonTasks from './PersonTasks.svelte';
+	import LinkedinCard from './LinkedinCard.svelte';
 	import type { PersonTask } from './PersonTasks.svelte';
 	import type { PersonView, FlagView } from '$lib/people/types';
 
@@ -78,6 +79,15 @@
 		<button type="button" class="close" aria-label="Close" onclick={onclose}>✕</button>
 	</header>
 
+	{#if person.linkedinUrl}
+		<LinkedinCard
+			url={person.linkedinUrl}
+			name={person.name}
+			role={person.role}
+			company={person.company}
+		/>
+	{/if}
+
 	<FlagPicker personId={person.id} {flags} attachedIds={person.flagIds} />
 
 	<form
@@ -104,12 +114,6 @@
 		<PersonFields values={person} errorId="save-error" error={saveError} />
 
 		<div class="actions">
-			{#if person.linkedinUrl}
-				<!-- The freshness mechanism: LinkedIn exposes no API for this, so the
-				     live profile is one click away instead of mirrored and stale. -->
-				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- external absolute URL (a LinkedIn profile), not an app route; resolve() does not apply -->
-				<a href={person.linkedinUrl} target="_blank" rel="noreferrer noopener">Open LinkedIn</a>
-			{/if}
 			<button type="submit" class="save">Save</button>
 		</div>
 
@@ -174,7 +178,7 @@
 		z-index: 1001;
 		inset: 4vh 50% auto auto;
 		transform: translateX(50%);
-		width: min(680px, 92vw);
+		width: min(860px, 94vw);
 		max-height: 92vh;
 		overflow-y: auto;
 		padding: 1.1rem 1.25rem;

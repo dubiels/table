@@ -74,6 +74,7 @@
 			errorId="add-error"
 			error={addError}
 			linkDates
+			detailsOpen
 		/>
 
 		<div class="flags wide">
@@ -132,7 +133,7 @@
 		z-index: 1001;
 		inset: 4vh 50% auto auto;
 		transform: translateX(50%);
-		width: min(680px, 92vw);
+		width: min(860px, 94vw);
 		max-height: 92vh;
 		overflow-y: auto;
 		padding: 1.1rem 1.25rem;

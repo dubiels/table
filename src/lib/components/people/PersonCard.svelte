@@ -12,20 +12,6 @@
 		onopen: (id: string) => void;
 	} = $props();
 
-	// Two letters at most: initials are a stand-in for a photo, and three or more
-	// stop reading as a monogram.
-	let initials = $derived(
-		person.name
-			.split(/\s+/)
-			.filter(Boolean)
-			.slice(0, 2)
-			// Spread rather than [0]: indexing a string yields a UTF-16 code unit,
-			// so a name led by an astral-plane character would take half a
-			// surrogate pair and render as tofu.
-			.map((part) => [...part][0]?.toUpperCase() ?? '')
-			.join('')
-	);
-
 	let subtitle = $derived([person.role, person.company].filter(Boolean).join(', '));
 	let attached = $derived(flags.filter((f) => person.flagIds.includes(f.id)));
 </script>
@@ -36,10 +22,6 @@
 	class:archived={Boolean(person.archivedAt)}
 	onclick={() => onopen(person.id)}
 >
-	<!-- Hidden from assistive tech: it stands in for a photo, and the name it
-	     abbreviates is announced right after it. Same reason TaskCard hides its
-	     zone dot. -->
-	<span class="avatar" aria-hidden="true">{initials}</span>
 	<span class="name">{person.name}</span>
 	{#if subtitle}<span class="subtitle">{subtitle}</span>{/if}
 
@@ -80,17 +62,6 @@
 	}
 	.archived {
 		opacity: 0.6;
-	}
-	.avatar {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 30px;
-		height: 30px;
-		border-radius: 50%;
-		background: var(--zone-sage-fill);
-		font-size: 0.72rem;
-		font-weight: 700;
 	}
 	.name {
 		font-weight: 600;
