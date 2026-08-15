@@ -162,9 +162,12 @@ This database holds real data, and the Dockerfile runs migrations automatically
 on every production boot — so this file will execute against production
 unattended. Read it before letting it near either database.
 
-Run: `grep -iE 'drop|delete|alter|update' drizzle/0006_*.sql`
-Expected: **no output.** The migration must contain only `CREATE TABLE`
-statements for `people`, `flags`, and `people_flags`.
+Run: `grep -oiE '^\s*(CREATE|DROP|ALTER|DELETE|UPDATE|INSERT)[A-Z ]*' drizzle/0006_*.sql`
+Expected: only `CREATE TABLE` and `CREATE UNIQUE INDEX` lines.
+
+Match statement *starts*, not bare words: a substring search flags the column
+`updated_at` and the clause `ON DELETE no action`, both of which are harmless and
+both of which appear in this migration.
 
 If anything matches, STOP and report it rather than continuing. A generated
 migration that rewrites an existing table means the schema edit in Step 1
