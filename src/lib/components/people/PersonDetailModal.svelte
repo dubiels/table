@@ -7,6 +7,8 @@
 	import PersonFields from './PersonFields.svelte';
 	import PersonTasks from './PersonTasks.svelte';
 	import LinkedinCard from './LinkedinCard.svelte';
+	import PersonTouchpoints from './PersonTouchpoints.svelte';
+	import type { Touchpoint } from './PersonTouchpoints.svelte';
 	import type { PersonTask } from './PersonTasks.svelte';
 	import type { PersonView, FlagView } from '$lib/people/types';
 
@@ -14,8 +16,12 @@
 		person,
 		flags,
 		tasks = [],
+		touchpoints = [],
+		today,
 		onclose
 	}: {
+		touchpoints?: Touchpoint[];
+		today: string;
 		person: PersonView;
 		flags: FlagView[];
 		tasks?: PersonTask[];
@@ -116,6 +122,10 @@
 		<div class="actions">
 			<button type="submit" class="save">Save</button>
 		</div>
+
+		{#if person.status === 'met'}
+			<PersonTouchpoints personId={person.id} {touchpoints} {today} />
+		{/if}
 
 		<PersonTasks personId={person.id} {tasks} />
 	</form>

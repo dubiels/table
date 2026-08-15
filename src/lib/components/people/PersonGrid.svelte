@@ -7,6 +7,7 @@
 		flags,
 		hasAnyPeople,
 		status = 'met',
+		today,
 		onopen
 	}: {
 		people: PersonView[];
@@ -15,6 +16,7 @@
 		hasAnyPeople: boolean;
 		/** Which tab is showing, so an empty one explains itself in its own terms. */
 		status?: 'met' | 'to_meet' | 'all';
+		today: string;
 		onopen: (id: string) => void;
 	} = $props();
 </script>
@@ -22,7 +24,7 @@
 {#if people.length > 0}
 	<div class="grid">
 		{#each people as person (person.id)}
-			<PersonCard {person} {flags} {onopen} />
+			<PersonCard {person} {flags} {today} {onopen} />
 		{/each}
 	</div>
 {:else if hasAnyPeople}

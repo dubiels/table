@@ -1,16 +1,27 @@
 <script lang="ts">
 	import { flagColorVars } from '$lib/people/colors';
+	import { describeAge, isStale } from '$lib/people/relative-date';
 	import type { PersonView, FlagView } from '$lib/people/types';
 
 	let {
 		person,
 		flags,
+		today,
 		onopen
 	}: {
 		person: PersonView;
 		flags: FlagView[];
+		/** Passed in rather than read from the clock, so SSR and hydration agree. */
+		today: string;
 		onopen: (id: string) => void;
 	} = $props();
+
+	// Only for people you have actually met: someone on the wishlist has no
+	// contact to have gone quiet on, and saying so would just be noise.
+	let lastContact = $derived(
+		person.status === 'met' ? describeAge(person.lastSpokeAt, today) : null
+	);
+	let stale = $derived(person.status === 'met' && isStale(person.lastSpokeAt, today));
 
 	let subtitle = $derived([person.role, person.company].filter(Boolean).join(', '));
 	let attached = $derived(flags.filter((f) => person.flagIds.includes(f.id)));
@@ -37,6 +48,11 @@
 	{/if}
 
 	{#if person.notes}<span class="notes">{person.notes}</span>{/if}
+	{#if lastContact}
+		<span class="last-contact" class:stale>Last contact {lastContact}</span>
+	{:else if person.status === 'met'}
+		<span class="last-contact never">No contact logged</span>
+	{/if}
 	{#if person.status === 'to_meet'}<span class="badge">Want to meet</span>{/if}
 	{#if person.archivedAt}<span class="badge">Archived</span>{/if}
 </button>
@@ -94,6 +110,19 @@
 		line-clamp: 3;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
+	}
+	.last-contact {
+		font-size: 0.68rem;
+		color: var(--muted);
+	}
+	/* Ninety days without a word. Weight rather than colour alone, so it still
+	   reads for anyone who cannot tell the two apart. */
+	.last-contact.stale {
+		font-weight: 600;
+		color: var(--danger);
+	}
+	.last-contact.never {
+		opacity: 0.7;
 	}
 	.badge {
 		font-size: 0.65rem;

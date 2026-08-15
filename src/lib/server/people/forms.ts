@@ -107,6 +107,12 @@ export const importPayloadSchema = z.object({
 	contacts: z.array(importedContactSchema).min(1)
 });
 
+/** A logged reach-out: when it happened, and optionally what it was. */
+export const touchpointSchema = z.object({
+	occurredOn: trimmed.min(1),
+	note: optionalText
+});
+
 export const flagSchema = z.object({
 	name: trimmed.min(1),
 	color: z.enum(FLAG_COLOR_KEYS as [FlagColor, ...FlagColor[]]).default('sage')

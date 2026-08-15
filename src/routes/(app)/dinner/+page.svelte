@@ -22,6 +22,10 @@
 	// during render makes the server and client disagree, and this only has to be
 	// right at the moment you press Add.
 	let todayValue = $state('');
+	// Stamped once per render pass on the client. The grid needs a "today" to
+	// measure ages against, and reading the clock inside each card would make the
+	// server and the client disagree during hydration.
+	let today = $derived(localDateString());
 
 	function openAdd() {
 		todayValue = localDateString();
@@ -128,6 +132,7 @@
 		flags={data.flags}
 		hasAnyPeople={data.people.length > 0}
 		{status}
+		{today}
 		onopen={(id) => (openPersonId = id)}
 	/>
 
@@ -145,6 +150,8 @@
 				person={openPerson}
 				flags={data.flags}
 				tasks={data.tasksByPerson[openPerson.id] ?? []}
+				touchpoints={data.touchpointsByPerson[openPerson.id] ?? []}
+				{today}
 				onclose={() => (openPersonId = null)}
 			/>
 		{/key}

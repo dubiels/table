@@ -156,6 +156,24 @@ export const people = sqliteTable('people', {
 	updatedAt: text('updated_at').notNull()
 });
 
+/**
+ * One recorded contact with someone — a coffee, a call, a reply to their email.
+ *
+ * Append-only in practice: the log is the history, and `people.lastSpokeAt` is a
+ * denormalised copy of the most recent date so the grid can sort and filter on
+ * it without reading every touchpoint on every render.
+ */
+export const touchpoints = sqliteTable('touchpoints', {
+	id: text('id').primaryKey(),
+	personId: text('person_id')
+		.notNull()
+		.references(() => people.id),
+	/** ISO date, not a timestamp: you remember the day you spoke, not the minute. */
+	occurredOn: text('occurred_on').notNull(),
+	note: text('note'),
+	createdAt: text('created_at').notNull()
+});
+
 export const flags = sqliteTable('flags', {
 	id: text('id').primaryKey(),
 	// Exact-match backstop only. SQLite compares text case-sensitively, so

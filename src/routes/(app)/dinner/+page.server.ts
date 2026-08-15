@@ -2,6 +2,7 @@ import type { PageServerLoad, Actions } from './$types';
 import { fail } from '@sveltejs/kit';
 import * as peopleService from '$lib/server/people/service';
 import * as flagsService from '$lib/server/people/flags';
+import * as touchpointsService from '$lib/server/people/touchpoints';
 // The route is the composition layer: `src/lib/server/people/**` stays free of
 // the board so it remains extractable, but the page that shows a person and
 // their action items is allowed to reach for both.
@@ -11,15 +12,30 @@ import {
 	updatePersonSchema,
 	flagSchema,
 	personTaskSchema,
-	importPayloadSchema
+	importPayloadSchema,
+	touchpointSchema
 } from '$lib/server/people/forms';
 
 export const load: PageServerLoad = async () => {
-	const [people, flags, allTasks] = await Promise.all([
+	const [people, flags, allTasks, allTouchpoints] = await Promise.all([
 		peopleService.listPeople(),
 		flagsService.listFlags(),
-		tasksService.listTasks()
+		tasksService.listTasks(),
+		touchpointsService.listTouchpoints()
 	]);
+
+	// Already newest-first from the service, so grouping preserves that order.
+	const touchpointsByPerson: Record<
+		string,
+		{ id: string; occurredOn: string; note: string | null }[]
+	> = {};
+	for (const t of allTouchpoints) {
+		(touchpointsByPerson[t.personId] ??= []).push({
+			id: t.id,
+			occurredOn: t.occurredOn,
+			note: t.note
+		});
+	}
 
 	// Only what a person's modal renders, keyed by person. Completed ones are
 	// kept: crossing something off and watching it vanish reads as data loss.
@@ -37,7 +53,7 @@ export const load: PageServerLoad = async () => {
 		});
 	}
 
-	return { people, flags, tasksByPerson };
+	return { people, flags, tasksByPerson, touchpointsByPerson };
 };
 
 /** Every action posts the row it acts on; a missing id is a bug, not user error. */
@@ -105,6 +121,18 @@ export const actions: Actions = {
 		}
 
 		return { imported, skipped };
+	},
+
+	logTouchpoint: async ({ request }) => {
+		const data = Object.fromEntries(await request.formData());
+		const personId = requireId(data, 'personId');
+		if (!personId) return fail(400, { error: 'Missing person' });
+
+		const parsed = touchpointSchema.safeParse(data);
+		if (!parsed.success) return fail(400, { error: 'A reach-out needs a date' });
+
+		await touchpointsService.logTouchpoint({ ...parsed.data, personId });
+		return { logged: true };
 	},
 
 	createTaskForPerson: async ({ request }) => {

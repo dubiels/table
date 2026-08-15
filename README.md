@@ -197,6 +197,12 @@ People are **archived** rather than deleted, since a hand-written note about
 someone is not recoverable from anywhere. "Show archived" in the filter bar
 brings them back to restore.
 
+**Reach-outs** are the log of when you actually spoke. Add one from a person's
+record with a date and a line about what it was, and the card shows how long it
+has been — bold and red once ninety days have passed. Logging an older
+conversation you forgot about records it without rewriting "last contact", since
+that question only ever means the most recent.
+
 **Action items** are real Table tasks, not a second todo list. Raise one from a
 person's record with a title and a due date, and it lands on the board like
 anything else — the morning digest and the due-date notifications pick it up,
