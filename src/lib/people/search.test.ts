@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { filterPeople, type SearchablePerson } from './search';
 
-function person(overrides: Partial<SearchablePerson> & { id: string; name: string }): SearchablePerson {
+function person(
+	overrides: Partial<SearchablePerson> & { id: string; name: string }
+): SearchablePerson {
 	return {
 		company: null,
 		role: null,

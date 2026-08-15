@@ -142,7 +142,7 @@ describe('flags service', () => {
 		expect(flagRows[0].color).toBe('lilac');
 	});
 
-	it('renaming onto another flag\'s exact name reports a duplicate and does not modify the row', async () => {
+	it("renaming onto another flag's exact name reports a duplicate and does not modify the row", async () => {
 		await flagsService.createFlag('SF');
 		const nyc = await flagsService.createFlag('NYC');
 		const result = await flagsService.updateFlag(nyc.id, { name: 'SF' });
@@ -150,7 +150,7 @@ describe('flags service', () => {
 		expect(flagRows.find((f) => f.id === nyc.id)?.name).toBe('NYC');
 	});
 
-	it('renaming onto another flag\'s name in different casing also reports a duplicate', async () => {
+	it("renaming onto another flag's name in different casing also reports a duplicate", async () => {
 		await flagsService.createFlag('SF');
 		const nyc = await flagsService.createFlag('NYC');
 		const result = await flagsService.updateFlag(nyc.id, { name: 'sf' });

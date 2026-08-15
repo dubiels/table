@@ -6,11 +6,8 @@
 	import FlagPicker from './FlagPicker.svelte';
 	import type { PersonView, FlagView } from '$lib/people/types';
 
-	let {
-		person,
-		flags,
-		onclose
-	}: { person: PersonView; flags: FlagView[]; onclose: () => void } = $props();
+	let { person, flags, onclose }: { person: PersonView; flags: FlagView[]; onclose: () => void } =
+		$props();
 
 	// The modal is remounted per person — there is no in-place "next person"
 	// navigation — so props are read directly and never re-synced.
@@ -75,19 +72,20 @@
 		class="person-form"
 		method="POST"
 		action="?/updatePerson"
-		use:enhance={() => async ({ result, update }) => {
-			await update();
-			// Enumerated rather than if/else: ActionResult also carries `redirect`
-			// and `error`, and a thrown server error must not report "Saved" on top
-			// of the error boundary SvelteKit has already rendered.
-			if (result.type === 'success') {
-				saveError = null;
-				toast('Saved', 'success');
-			} else if (result.type === 'failure') {
-				saveError =
-					(result.data as { error?: string } | undefined)?.error ?? 'Something went wrong.';
-			}
-		}}
+		use:enhance={() =>
+			async ({ result, update }) => {
+				await update();
+				// Enumerated rather than if/else: ActionResult also carries `redirect`
+				// and `error`, and a thrown server error must not report "Saved" on top
+				// of the error boundary SvelteKit has already rendered.
+				if (result.type === 'success') {
+					saveError = null;
+					toast('Saved', 'success');
+				} else if (result.type === 'failure') {
+					saveError =
+						(result.data as { error?: string } | undefined)?.error ?? 'Something went wrong.';
+				}
+			}}
 	>
 		<input type="hidden" name="id" value={person.id} />
 

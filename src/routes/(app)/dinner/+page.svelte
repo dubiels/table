@@ -43,9 +43,7 @@
 		return tally;
 	});
 
-	let total = $derived(
-		data.people.filter((p) => includeArchived || !p.archivedAt).length
-	);
+	let total = $derived(data.people.filter((p) => includeArchived || !p.archivedAt).length);
 
 	function toggleFlag(id: string) {
 		// The "All" chip posts an empty id and means "clear the filters".

@@ -105,22 +105,23 @@
 					<form
 						method="POST"
 						action="?/updateFlag"
-						use:enhance={() => async ({ result, update }) => {
-							await update();
-							// A failed rename keeps the menu open so the error is visible
-							// and the name is still there to correct.
-							if (result.type === 'failure') {
-								renameError = {
-									flagId: flag.id,
-									message:
-										(result.data as { error?: string } | undefined)?.error ??
-										'Something went wrong.'
-								};
-							} else {
-								renameError = null;
-								editing = null;
-							}
-						}}
+						use:enhance={() =>
+							async ({ result, update }) => {
+								await update();
+								// A failed rename keeps the menu open so the error is visible
+								// and the name is still there to correct.
+								if (result.type === 'failure') {
+									renameError = {
+										flagId: flag.id,
+										message:
+											(result.data as { error?: string } | undefined)?.error ??
+											'Something went wrong.'
+									};
+								} else {
+									renameError = null;
+									editing = null;
+								}
+							}}
 					>
 						<input type="hidden" name="id" value={flag.id} />
 						<input
@@ -147,10 +148,11 @@
 					<form
 						method="POST"
 						action="?/deleteFlag"
-						use:enhance={() => async ({ update }) => {
-							await update();
-							editing = null;
-						}}
+						use:enhance={() =>
+							async ({ update }) => {
+								await update();
+								editing = null;
+							}}
 					>
 						<input type="hidden" name="id" value={flag.id} />
 						<!-- Deleting a flag is not deleting people; say so, because the
@@ -162,7 +164,12 @@
 		</span>
 	{/each}
 
-	<button type="button" class="chip archived-toggle" class:on={includeArchived} onclick={onToggleArchived}>
+	<button
+		type="button"
+		class="chip archived-toggle"
+		class:on={includeArchived}
+		onclick={onToggleArchived}
+	>
 		{includeArchived ? 'Hide archived' : 'Show archived'}
 	</button>
 </div>

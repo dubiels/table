@@ -2,11 +2,7 @@ import type { PageServerLoad, Actions } from './$types';
 import { fail } from '@sveltejs/kit';
 import * as peopleService from '$lib/server/people/service';
 import * as flagsService from '$lib/server/people/flags';
-import {
-	quickAddPersonSchema,
-	updatePersonSchema,
-	flagSchema
-} from '$lib/server/people/forms';
+import { quickAddPersonSchema, updatePersonSchema, flagSchema } from '$lib/server/people/forms';
 
 export const load: PageServerLoad = async () => {
 	const [people, flags] = await Promise.all([peopleService.listPeople(), flagsService.listFlags()]);

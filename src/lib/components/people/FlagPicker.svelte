@@ -48,10 +48,11 @@
 				<form
 					method="POST"
 					action="?/attachFlag"
-					use:enhance={() => async ({ update }) => {
-						await update();
-						newName = '';
-					}}
+					use:enhance={() =>
+						async ({ update }) => {
+							await update();
+							newName = '';
+						}}
 				>
 					<input type="hidden" name="personId" value={personId} />
 					<input type="hidden" name="flagId" value={flag.id} />
@@ -65,10 +66,11 @@
 				<form
 					method="POST"
 					action="?/createFlag"
-					use:enhance={() => async ({ update }) => {
-						await update();
-						newName = '';
-					}}
+					use:enhance={() =>
+						async ({ update }) => {
+							await update();
+							newName = '';
+						}}
 				>
 					<input type="hidden" name="personId" value={personId} />
 					<input type="hidden" name="name" value={newName.trim()} />
