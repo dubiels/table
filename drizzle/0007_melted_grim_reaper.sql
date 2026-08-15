@@ -1,0 +1,1 @@
+ALTER TABLE `people` ADD `last_spoke_at` text;

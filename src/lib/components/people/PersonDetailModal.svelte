@@ -110,6 +110,9 @@
 		<label>Phone<input name="phone" value={person.phone ?? ''} /></label>
 		<label>Met at<input name="metAt" value={person.metAt ?? ''} /></label>
 		<label>Met on<input type="date" name="metOn" value={person.metOn ?? ''} /></label>
+		<label>
+			Last spoke<input type="date" name="lastSpokeAt" value={person.lastSpokeAt ?? ''} />
+		</label>
 		<label class="wide">
 			Who they are
 			<textarea name="notes" rows="6">{person.notes ?? ''}</textarea>

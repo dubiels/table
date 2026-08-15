@@ -1,11 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import {
-	normalizeLinkedinUrl,
-	quickAddPersonSchema,
-	updatePersonSchema,
-	flagSchema
-} from './forms';
+import { normalizeLinkedinUrl, addPersonSchema, updatePersonSchema, flagSchema } from './forms';
 
 describe('normalizeLinkedinUrl', () => {
 	it('adds the scheme to a bare profile path', () => {
@@ -60,37 +55,72 @@ describe('normalizeLinkedinUrl', () => {
 	});
 });
 
-describe('quickAddPersonSchema', () => {
-	it('accepts a name alone', () => {
-		const parsed = quickAddPersonSchema.safeParse({ name: 'Devon Reyes' });
+describe('addPersonSchema', () => {
+	it('accepts a name alone, because everything else is optional', () => {
+		const parsed = addPersonSchema.safeParse({ name: 'Devon Reyes' });
 		expect(parsed.success).toBe(true);
 	});
 
-	it('accepts a name with the optional note', () => {
-		const parsed = quickAddPersonSchema.safeParse({
+	it('accepts every field the dialog offers', () => {
+		const parsed = addPersonSchema.safeParse({
 			name: 'Devon Reyes',
-			notes: 'met at Ana&apos;s dinner, builds scheduling infra'
+			linkedinUrl: 'linkedin.com/in/devonreyes',
+			email: 'devon@cadence.dev',
+			phone: '+1 917 555 0148',
+			metAt: "Ana's dinner party",
+			metOn: '2026-01-14',
+			lastSpokeAt: '2026-03-02',
+			notes: 'builds scheduling infra'
 		});
-		expect(parsed.data?.notes).toContain('scheduling infra');
+		expect(parsed.success).toBe(true);
+		expect(parsed.data).toMatchObject({
+			metAt: "Ana's dinner party",
+			metOn: '2026-01-14',
+			lastSpokeAt: '2026-03-02'
+		});
 	});
 
-	// The browser posts every rendered control, so an untouched note arrives as
-	// an empty string rather than an absent key.
-	it('treats a blank note as absent', () => {
-		const parsed = quickAddPersonSchema.safeParse({ name: 'Devon Reyes', notes: '' });
+	it('normalises the linkedin url as part of parsing', () => {
+		const parsed = addPersonSchema.safeParse({
+			name: 'Devon Reyes',
+			linkedinUrl: 'linkedin.com/in/devonreyes'
+		});
+		expect(parsed.data?.linkedinUrl).toBe('https://linkedin.com/in/devonreyes');
+	});
+
+	// The browser posts every rendered control, so untouched fields arrive as
+	// empty strings rather than absent keys. All seven, not a sample.
+	it('treats every blank optional field as absent', () => {
+		const parsed = addPersonSchema.safeParse({
+			name: 'Devon Reyes',
+			linkedinUrl: '',
+			email: '',
+			phone: '',
+			metAt: '',
+			metOn: '',
+			lastSpokeAt: '',
+			notes: ''
+		});
+		expect(parsed.success).toBe(true);
+		expect(parsed.data?.linkedinUrl).toBeUndefined();
+		expect(parsed.data?.email).toBeUndefined();
+		expect(parsed.data?.phone).toBeUndefined();
+		expect(parsed.data?.metAt).toBeUndefined();
+		expect(parsed.data?.metOn).toBeUndefined();
+		expect(parsed.data?.lastSpokeAt).toBeUndefined();
 		expect(parsed.data?.notes).toBeUndefined();
 	});
 
 	it('rejects an empty name', () => {
-		expect(quickAddPersonSchema.safeParse({ name: '' }).success).toBe(false);
+		expect(addPersonSchema.safeParse({ name: '' }).success).toBe(false);
 	});
 
 	it('rejects a whitespace-only name', () => {
-		expect(quickAddPersonSchema.safeParse({ name: '   ' }).success).toBe(false);
+		expect(addPersonSchema.safeParse({ name: '   ' }).success).toBe(false);
 	});
 
 	it('trims the stored name', () => {
-		const parsed = quickAddPersonSchema.safeParse({ name: '  Devon Reyes  ' });
+		const parsed = addPersonSchema.safeParse({ name: '  Devon Reyes  ' });
 		expect(parsed.data?.name).toBe('Devon Reyes');
 	});
 });
@@ -107,9 +137,11 @@ describe('updatePersonSchema', () => {
 			city: 'New York',
 			metAt: "Ana's dinner party",
 			metOn: '2026-01-14',
+			lastSpokeAt: '2026-03-02',
 			notes: 'Ask about queue design.'
 		});
 		expect(parsed.success).toBe(true);
+		expect(parsed.data?.lastSpokeAt).toBe('2026-03-02');
 	});
 
 	it('normalises the linkedin url as part of parsing', () => {
@@ -131,6 +163,7 @@ describe('updatePersonSchema', () => {
 			city: '',
 			metAt: '',
 			metOn: '',
+			lastSpokeAt: '',
 			notes: ''
 		});
 		expect(parsed.success).toBe(true);
@@ -142,6 +175,7 @@ describe('updatePersonSchema', () => {
 		expect(parsed.data?.city).toBeUndefined();
 		expect(parsed.data?.metAt).toBeUndefined();
 		expect(parsed.data?.metOn).toBeUndefined();
+		expect(parsed.data?.lastSpokeAt).toBeUndefined();
 		expect(parsed.data?.notes).toBeUndefined();
 	});
 

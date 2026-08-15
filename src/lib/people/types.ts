@@ -19,6 +19,7 @@ export interface PersonView extends SearchablePerson {
 	linkedinUrl: string | null;
 	email: string | null;
 	phone: string | null;
+	lastSpokeAt: string | null;
 	createdAt: string;
 	updatedAt: string;
 }

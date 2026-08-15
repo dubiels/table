@@ -1,9 +1,10 @@
 <script lang="ts">
-	import QuickAddPerson from '$lib/components/people/QuickAddPerson.svelte';
+	import AddPersonDialog from '$lib/components/people/AddPersonDialog.svelte';
 	import FlagFilterBar from '$lib/components/people/FlagFilterBar.svelte';
 	import PersonGrid from '$lib/components/people/PersonGrid.svelte';
 	import PersonDetailModal from '$lib/components/people/PersonDetailModal.svelte';
 	import { filterPeople } from '$lib/people/search';
+	import { localDateString } from '$lib/date';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -12,6 +13,16 @@
 	let selectedFlagIds = $state<string[]>([]);
 	let includeArchived = $state(false);
 	let openPersonId = $state<string | null>(null);
+	let adding = $state(false);
+	// Stamped when the dialog opens rather than at render: reading the clock
+	// during render makes the server and client disagree, and this only has to be
+	// right at the moment you press Add.
+	let todayValue = $state('');
+
+	function openAdd() {
+		todayValue = localDateString();
+		adding = true;
+	}
 	// Re-read from `data` rather than captured on click, so a save re-render shows
 	// the saved values instead of the ones the modal opened with.
 	let openPerson = $derived(data.people.find((p) => p.id === openPersonId) ?? null);
@@ -68,9 +79,8 @@
 			aria-label="Search people"
 			class="search"
 		/>
+		<button type="button" class="add" onclick={openAdd}>+ Add person</button>
 	</header>
-
-	<QuickAddPerson />
 
 	<FlagFilterBar
 		flags={data.flags}
@@ -88,6 +98,10 @@
 		hasAnyPeople={data.people.length > 0}
 		onopen={(id) => (openPersonId = id)}
 	/>
+
+	{#if adding}
+		<AddPersonDialog flags={data.flags} today={todayValue} onclose={() => (adding = false)} />
+	{/if}
 
 	{#if openPerson}
 		{#key openPerson.id}
@@ -127,5 +141,16 @@
 		background: var(--surface, #fff);
 		font: inherit;
 		color: inherit;
+	}
+	.add {
+		padding: 0.45rem 0.9rem;
+		border: none;
+		border-radius: 7px;
+		background: var(--accent);
+		color: var(--accent-ink);
+		font: inherit;
+		font-weight: 600;
+		white-space: nowrap;
+		cursor: pointer;
 	}
 </style>

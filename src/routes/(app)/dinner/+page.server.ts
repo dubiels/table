@@ -2,7 +2,7 @@ import type { PageServerLoad, Actions } from './$types';
 import { fail } from '@sveltejs/kit';
 import * as peopleService from '$lib/server/people/service';
 import * as flagsService from '$lib/server/people/flags';
-import { quickAddPersonSchema, updatePersonSchema, flagSchema } from '$lib/server/people/forms';
+import { addPersonSchema, updatePersonSchema, flagSchema } from '$lib/server/people/forms';
 
 export const load: PageServerLoad = async () => {
 	const [people, flags] = await Promise.all([peopleService.listPeople(), flagsService.listFlags()]);
@@ -17,11 +17,27 @@ function requireId(data: Record<string, unknown>, key = 'id'): string | null {
 
 export const actions: Actions = {
 	createPerson: async ({ request }) => {
-		const data = Object.fromEntries(await request.formData());
-		const parsed = quickAddPersonSchema.safeParse(data);
+		// Read once: `flagIds` is a repeated field, so it needs getAll() rather
+		// than the single value Object.fromEntries would keep.
+		const form = await request.formData();
+		const parsed = addPersonSchema.safeParse(Object.fromEntries(form));
 		if (!parsed.success) return fail(400, { error: 'A name is required' });
 
 		const person = await peopleService.createPerson(parsed.data);
+
+		// Flags can only be attached once the person exists, so this happens here
+		// rather than inside createPerson — one round trip either way.
+		const flagIds = form.getAll('flagIds').filter((v): v is string => typeof v === 'string' && !!v);
+		for (const flagId of flagIds) await flagsService.attachFlag(person.id, flagId);
+
+		// A name typed into the picker's "new flag" box. createFlag reuses an
+		// existing flag case-insensitively, so this cannot mint a near-duplicate.
+		const newFlagName = form.get('newFlagName');
+		if (typeof newFlagName === 'string' && newFlagName.trim()) {
+			const flag = await flagsService.createFlag(newFlagName);
+			await flagsService.attachFlag(person.id, flag.id);
+		}
+
 		return { created: person.id };
 	},
 
@@ -43,6 +59,7 @@ export const actions: Actions = {
 			city: parsed.data.city ?? null,
 			metAt: parsed.data.metAt ?? null,
 			metOn: parsed.data.metOn ?? null,
+			lastSpokeAt: parsed.data.lastSpokeAt ?? null,
 			notes: parsed.data.notes ?? null
 		});
 		return { saved: true };

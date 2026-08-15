@@ -128,8 +128,13 @@ export const people = sqliteTable('people', {
 	city: text('city'),
 	/** Free text: "Ana's dinner party", "Recurse pairing night". */
 	metAt: text('met_at'),
-	/** ISO date. Defaults to today at quick-add, because you add someone right after meeting them. */
+	/** ISO date. Defaults to today when adding, because you add someone right after meeting them. */
 	metOn: text('met_on'),
+	// Seeded from `metOn` — meeting someone is the first time you spoke to them —
+	// then moved by hand as you talk again. A single date, deliberately: the full
+	// history of conversations belongs to the Touchpoints work, which will
+	// supersede this column rather than sit beside it.
+	lastSpokeAt: text('last_spoke_at'),
 	/** Who they are, what they can help with. The field the later LLM phase reads. */
 	notes: text('notes'),
 	// Archive rather than delete: a hand-written paragraph about someone you met

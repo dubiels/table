@@ -86,6 +86,50 @@ describe('people service', () => {
 		expect(p.metOn).toBe('2026-01-14');
 	});
 
+	// Meeting someone is the first time you spoke to them, so the two agree until
+	// the form says otherwise.
+	it('seeds lastSpokeAt from the explicit metOn', async () => {
+		const p = await peopleService.createPerson({ name: 'Devon Reyes', metOn: '2026-01-14' });
+		expect(p.lastSpokeAt).toBe('2026-01-14');
+	});
+
+	it('seeds lastSpokeAt from the defaulted metOn when no date is given', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-08-15T02:30:00Z')); // 10:30pm Eastern on Aug 14
+		try {
+			const p = await peopleService.createPerson({ name: 'Devon Reyes' });
+			expect(p.lastSpokeAt).toBe('2026-08-14');
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('honours an explicit lastSpokeAt later than the meeting', async () => {
+		const p = await peopleService.createPerson({
+			name: 'Devon Reyes',
+			metOn: '2026-01-14',
+			lastSpokeAt: '2026-03-02'
+		});
+		expect(p.lastSpokeAt).toBe('2026-03-02');
+		expect(p.metOn).toBe('2026-01-14');
+	});
+
+	it('stores the contact fields the add dialog collects', async () => {
+		const p = await peopleService.createPerson({
+			name: 'Devon Reyes',
+			linkedinUrl: 'https://linkedin.com/in/devonreyes',
+			email: 'devon@cadence.dev',
+			phone: '+1 917 555 0148',
+			metAt: "Ana's dinner party"
+		});
+		expect(p).toMatchObject({
+			linkedinUrl: 'https://linkedin.com/in/devonreyes',
+			email: 'devon@cadence.dev',
+			phone: '+1 917 555 0148',
+			metAt: "Ana's dinner party"
+		});
+	});
+
 	it('creates a person unarchived', async () => {
 		const p = await peopleService.createPerson({ name: 'Devon Reyes' });
 		expect(p.archivedAt).toBeNull();

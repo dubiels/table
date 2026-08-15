@@ -170,14 +170,21 @@ name stay in Table — Google Tasks has no field for either.
 Dinner Table is a contact book for people you have actually met in person: who
 they are, how to reach them, and what they can help with. It lives at `/dinner`.
 
-Add someone with the field at the top — a name is the only requirement, and the
-optional one-line note captures the context you forget by the next morning.
-Everything else (LinkedIn, email, phone, company, role, city, where and when you
-met) is filled in from the card's detail view whenever you get to it.
+**+ Add person** opens a dialog with the name field focused. A name is the only
+requirement — type one, press Enter, and you are done — but the rest is there
+when you have a moment: LinkedIn, email, phone, where and when you met, when you
+last spoke, flags, and a note for who they are and what they can help with.
+Company, role and city are the things you look up rather than remember, so they
+live in the detail view instead.
 
-**Flags** are reusable labels — "SF", "NYC", "founders" — created from a person's
-detail view and applied by picking them, so the same idea cannot drift into three
-spellings. Typing `sf` when `SF` exists reuses the existing flag. The filter bar
+**Last spoke** starts out matching the day you met — meeting someone is the first
+time you spoke to them — and follows that date until you set it yourself. Move it
+whenever you talk again.
+
+**Flags** are reusable labels — "SF", "NYC", "founders", or a conference you both
+attended — picked rather than typed, so the same idea cannot drift into three
+spellings. Attach them while adding someone or later from their detail view;
+typing `sf` when `SF` exists reuses the existing flag. The filter bar
 above the grid narrows by flag; selecting two flags shows people carrying
 _either_, which is what planning a trip asks. Deleting a flag keeps the people
 who carried it.

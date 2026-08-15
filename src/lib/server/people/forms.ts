@@ -28,19 +28,31 @@ export function normalizeLinkedinUrl(value: string): string | undefined {
 	return `https://${trimmedValue}`;
 }
 
-export const quickAddPersonSchema = z.object({
+/** The scheme-normalising optional URL field, shared by the add and edit forms. */
+const optionalLinkedin = z.preprocess(
+	blankToUndefined,
+	trimmed
+		.optional()
+		.transform((value) => (value === undefined ? undefined : normalizeLinkedinUrl(value)))
+);
+
+export const addPersonSchema = z.object({
 	name: trimmed.min(1),
+	linkedinUrl: optionalLinkedin,
+	email: optionalText,
+	phone: optionalText,
+	metAt: optionalText,
+	metOn: optionalText,
+	// Left blank, the service seeds this from `metOn` — meeting someone is the
+	// first time you spoke to them.
+	lastSpokeAt: optionalText,
 	notes: optionalText
 });
 
 export const updatePersonSchema = z.object({
 	name: trimmed.min(1),
-	linkedinUrl: z.preprocess(
-		blankToUndefined,
-		trimmed
-			.optional()
-			.transform((value) => (value === undefined ? undefined : normalizeLinkedinUrl(value)))
-	),
+	linkedinUrl: optionalLinkedin,
+	lastSpokeAt: optionalText,
 	// Email and phone are stored as typed, unvalidated, on purpose.
 	email: optionalText,
 	phone: optionalText,
