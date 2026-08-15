@@ -28,9 +28,36 @@ vi.mock('../db', async () => {
 				// Copies, never the objects the service returned — see the note in
 				// service.test.ts. Aliasing turns assertions into tautologies.
 				values: (r: Record<string, unknown>) => {
-					if (getTableName(table) === 'flags') flagRows.push({ ...r } as Flag);
-					else joins.push({ ...r } as { personId: string; flagId: string; createdAt: string });
-					return Promise.resolve();
+					if (getTableName(table) === 'flags') {
+						flagRows.push({ ...r } as Flag);
+						return Promise.resolve();
+					}
+
+					// people_flags has a composite primary key on (person_id, flag_id).
+					// A bare insert of a duplicate pair must behave like the real
+					// constraint and reject; only `.onConflictDoNothing()` swallows it —
+					// otherwise the double-attach tests below would pass vacuously.
+					const row = { ...r } as { personId: string; flagId: string; createdAt: string };
+					const conflicts = () =>
+						joins.some((j) => j.personId === row.personId && j.flagId === row.flagId);
+					return {
+						onConflictDoNothing: () => {
+							if (!conflicts()) joins.push(row);
+							return Promise.resolve();
+						},
+						then: (resolve: (v: void) => void, reject: (e: unknown) => void) => {
+							if (conflicts()) {
+								reject(
+									new Error(
+										'UNIQUE constraint failed: people_flags.person_id, people_flags.flag_id'
+									)
+								);
+								return;
+							}
+							joins.push(row);
+							resolve();
+						}
+					};
 				}
 			}),
 			query: {
@@ -115,10 +142,52 @@ describe('flags service', () => {
 		expect(flagRows[0].color).toBe('lilac');
 	});
 
+	it('renaming onto another flag\'s exact name reports a duplicate and does not modify the row', async () => {
+		await flagsService.createFlag('SF');
+		const nyc = await flagsService.createFlag('NYC');
+		const result = await flagsService.updateFlag(nyc.id, { name: 'SF' });
+		expect(result).toBe('duplicate-name');
+		expect(flagRows.find((f) => f.id === nyc.id)?.name).toBe('NYC');
+	});
+
+	it('renaming onto another flag\'s name in different casing also reports a duplicate', async () => {
+		await flagsService.createFlag('SF');
+		const nyc = await flagsService.createFlag('NYC');
+		const result = await flagsService.updateFlag(nyc.id, { name: 'sf' });
+		expect(result).toBe('duplicate-name');
+		expect(flagRows.find((f) => f.id === nyc.id)?.name).toBe('NYC');
+	});
+
+	it('renaming a flag to a different casing of its own name succeeds', async () => {
+		const f = await flagsService.createFlag('SF');
+		const result = await flagsService.updateFlag(f.id, { name: 'Sf' });
+		expect(result).toBe('ok');
+		expect(flagRows[0].name).toBe('Sf');
+	});
+
 	it('attaches a flag to a person', async () => {
 		const f = await flagsService.createFlag('SF');
 		await flagsService.attachFlag('p1', f.id);
 		expect(joins).toHaveLength(1);
+	});
+
+	// A double-click before the UI refreshes, a resubmitted form, or createFlag's
+	// auto-attach can all fire attachFlag for a flag the person already has. The
+	// desired end state is already true, so this must be a no-op, not a crash.
+	it('attaching the same flag to the same person twice leaves exactly one join row', async () => {
+		const f = await flagsService.createFlag('SF');
+		await flagsService.attachFlag('p1', f.id);
+		await expect(flagsService.attachFlag('p1', f.id)).resolves.toBeUndefined();
+		expect(joins).toHaveLength(1);
+	});
+
+	// The idempotency must be keyed on the (person, flag) pair, not on the flag
+	// alone: two different people each attaching the same flag are two rows.
+	it('attaching the same flag to two different people still creates two join rows', async () => {
+		const f = await flagsService.createFlag('SF');
+		await flagsService.attachFlag('p1', f.id);
+		await flagsService.attachFlag('p2', f.id);
+		expect(joins).toHaveLength(2);
 	});
 
 	it('detaches a flag from a person', async () => {

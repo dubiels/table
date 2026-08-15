@@ -89,10 +89,13 @@ export const actions: Actions = {
 		const parsed = flagSchema.safeParse(data);
 		if (!parsed.success) return fail(400, { error: 'A flag name is required' });
 
-		await flagsService.updateFlag(id, {
+		const result = await flagsService.updateFlag(id, {
 			name: parsed.data.name,
 			color: parsed.data.color
 		});
+		if (result === 'duplicate-name') {
+			return fail(400, { error: 'A flag with that name already exists' });
+		}
 		return { saved: true };
 	},
 

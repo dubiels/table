@@ -35,11 +35,30 @@ export async function createFlag(name: string, color: FlagColor = 'sage'): Promi
 	return row;
 }
 
+/**
+ * Renames/recolours a flag, guarding the rename against another flag already
+ * holding the target name.
+ *
+ * Checked case-insensitively — stricter than the database's exact-match unique
+ * index — for the same reason `createFlag` reuses `sf` for an existing `SF`:
+ * without it the filter bar fills with near-duplicate labels. A flag renaming
+ * to a different casing of its OWN name (`SF` -> `Sf`) is not a collision and
+ * must still succeed.
+ */
 export async function updateFlag(
 	id: string,
 	patch: { name?: string; color?: FlagColor }
-): Promise<void> {
+): Promise<'ok' | 'duplicate-name'> {
+	if (patch.name !== undefined) {
+		const trimmed = patch.name.trim();
+		const collision = (await db.query.flags.findMany()).find(
+			(f) => f.id !== id && f.name.toLowerCase() === trimmed.toLowerCase()
+		);
+		if (collision) return 'duplicate-name';
+	}
+
 	await db.update(flags).set(patch).where(eq(flags.id, id));
+	return 'ok';
 }
 
 /**
@@ -60,12 +79,23 @@ export async function deleteFlag(id: string): Promise<void> {
 	});
 }
 
+/**
+ * Attaches a flag to a person, idempotently.
+ *
+ * The desired end state is "this person has this flag" — already true if it's
+ * attached twice (double-click before the UI refreshes, a resubmitted form, or
+ * `createFlag`'s auto-attach landing on a flag already on that person), so a
+ * repeat attach is a no-op rather than a UNIQUE constraint crash.
+ */
 export async function attachFlag(personId: string, flagId: string): Promise<void> {
-	await db.insert(peopleFlags).values({
-		personId,
-		flagId,
-		createdAt: new Date().toISOString()
-	});
+	await db
+		.insert(peopleFlags)
+		.values({
+			personId,
+			flagId,
+			createdAt: new Date().toISOString()
+		})
+		.onConflictDoNothing();
 }
 
 export async function detachFlag(personId: string, flagId: string): Promise<void> {
