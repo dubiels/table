@@ -5,10 +5,21 @@
 	import { toast } from '$lib/toast.svelte';
 	import FlagPicker from './FlagPicker.svelte';
 	import PersonFields from './PersonFields.svelte';
+	import PersonTasks from './PersonTasks.svelte';
+	import type { PersonTask } from './PersonTasks.svelte';
 	import type { PersonView, FlagView } from '$lib/people/types';
 
-	let { person, flags, onclose }: { person: PersonView; flags: FlagView[]; onclose: () => void } =
-		$props();
+	let {
+		person,
+		flags,
+		tasks = [],
+		onclose
+	}: {
+		person: PersonView;
+		flags: FlagView[];
+		tasks?: PersonTask[];
+		onclose: () => void;
+	} = $props();
 
 	// The modal is remounted per person — there is no in-place "next person"
 	// navigation — so props are read directly and never re-synced.
@@ -101,6 +112,8 @@
 			{/if}
 			<button type="submit" class="save">Save</button>
 		</div>
+
+		<PersonTasks personId={person.id} {tasks} />
 	</form>
 
 	<form

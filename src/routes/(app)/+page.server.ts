@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { fail } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import * as zonesService from '$lib/server/zones/service';
+import * as peopleService from '$lib/server/people/service';
 import * as tasksService from '$lib/server/tasks/service';
 import { newTaskSchema } from '$lib/server/tasks/forms';
 import { evictedTaskPoints } from '$lib/bento';
@@ -54,11 +55,21 @@ export const load: PageServerLoad = async () => {
 	await syncGoogleTasksIfStale();
 	// getAgenda() already swallows per-calendar failures; the catch is a belt for
 	// anything unexpected, because a calendar must never stop the board loading.
-	const [tasks, zones, agenda] = await Promise.all([
+	const [rawTasks, zones, agenda, people] = await Promise.all([
 		tasksService.listActiveTasks(),
 		zonesService.listZones(),
-		getAgenda().catch(() => [])
+		getAgenda().catch(() => []),
+		// Table may reference people; people never reference the board. Reading
+		// names here is that arrow pointing the allowed way.
+		peopleService.listPeople()
 	]);
+
+	// Denormalised onto the row rather than shipped as a separate lookup the
+	// views would each have to thread through: a card only ever needs the name.
+	const personNames = new Map(people.map((p) => [p.id, p.name]));
+	const tasks = rawTasks.map((task) =>
+		task.personId ? { ...task, personName: personNames.get(task.personId) ?? null } : task
+	);
 	// Whether the feed URLs exist, never the URLs themselves — they are bearer
 	// secrets, and the panel only needs to know which of its two faces to show.
 	// The same names syncLmsAssignments() and getAgenda() read, so they can never

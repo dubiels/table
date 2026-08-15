@@ -13,6 +13,8 @@ export type ListTask = {
 	googleSync?: boolean;
 	googleTaskId?: string | null;
 	googleError?: string | null;
+	/** Denormalised by the board's load, so a card can say who a task is about. */
+	personName?: string | null;
 };
 
 /** The fields category resolution actually reads. */

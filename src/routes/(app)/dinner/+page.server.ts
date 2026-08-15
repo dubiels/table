@@ -2,11 +2,41 @@ import type { PageServerLoad, Actions } from './$types';
 import { fail } from '@sveltejs/kit';
 import * as peopleService from '$lib/server/people/service';
 import * as flagsService from '$lib/server/people/flags';
-import { addPersonSchema, updatePersonSchema, flagSchema } from '$lib/server/people/forms';
+// The route is the composition layer: `src/lib/server/people/**` stays free of
+// the board so it remains extractable, but the page that shows a person and
+// their follow-ups is allowed to reach for both.
+import * as tasksService from '$lib/server/tasks/service';
+import {
+	addPersonSchema,
+	updatePersonSchema,
+	flagSchema,
+	personTaskSchema
+} from '$lib/server/people/forms';
 
 export const load: PageServerLoad = async () => {
-	const [people, flags] = await Promise.all([peopleService.listPeople(), flagsService.listFlags()]);
-	return { people, flags };
+	const [people, flags, allTasks] = await Promise.all([
+		peopleService.listPeople(),
+		flagsService.listFlags(),
+		tasksService.listTasks()
+	]);
+
+	// Only what a person's modal renders, keyed by person. Completed ones are
+	// kept: crossing something off and watching it vanish reads as data loss.
+	const tasksByPerson: Record<
+		string,
+		{ id: string; title: string; dueDate: string | null; done: boolean }[]
+	> = {};
+	for (const task of allTasks) {
+		if (!task.personId) continue;
+		(tasksByPerson[task.personId] ??= []).push({
+			id: task.id,
+			title: task.title,
+			dueDate: task.dueDate,
+			done: task.done
+		});
+	}
+
+	return { people, flags, tasksByPerson };
 };
 
 /** Every action posts the row it acts on; a missing id is a bug, not user error. */
@@ -39,6 +69,26 @@ export const actions: Actions = {
 		}
 
 		return { created: person.id };
+	},
+
+	createTaskForPerson: async ({ request }) => {
+		const data = Object.fromEntries(await request.formData());
+		const personId = requireId(data, 'personId');
+		if (!personId) return fail(400, { error: 'Missing person' });
+
+		const parsed = personTaskSchema.safeParse(data);
+		if (!parsed.success) return fail(400, { error: 'A task needs a title' });
+
+		await tasksService.createTask({ ...parsed.data, personId });
+		return { taskCreated: true };
+	},
+
+	toggleTaskForPerson: async ({ request }) => {
+		const data = Object.fromEntries(await request.formData());
+		const id = requireId(data, 'taskId');
+		if (!id) return fail(400, { error: 'Missing task' });
+		await tasksService.toggleTaskDone(id);
+		return { taskToggled: id };
 	},
 
 	updatePerson: async ({ request }) => {

@@ -17,6 +17,8 @@
 			googleSync?: boolean;
 			googleTaskId?: string | null;
 			googleError?: string | null;
+			/** Denormalised by the board's load — a task about someone says whose. */
+			personName?: string | null;
 		};
 		zoneColor?: { fill: string; border: string } | null;
 		onclick?: () => void;
@@ -79,6 +81,7 @@
 	     that also carries a priority or due chip. -->
 	<div class="content">
 		<span class="title">{task.title}</span>
+		{#if task.personName}<span class="person">{task.personName}</span>{/if}
 
 		{#if task.priority || task.dueDate}
 			<div class="row-meta">
@@ -161,6 +164,17 @@
 	.done .title {
 		text-decoration: line-through;
 		color: var(--muted);
+	}
+	/* Who the task is about. "Send the queue-design doc" is meaningless on its
+	   own; the name is what makes it actionable from the board. */
+	.person {
+		display: inline-block;
+		margin-top: 0.2rem;
+		padding: 0.05rem 0.4rem;
+		border-radius: 999px;
+		background: var(--zone-lilac-fill);
+		border: 1px solid var(--zone-lilac-border);
+		font-size: 0.65rem;
 	}
 	.row-meta {
 		display: flex;

@@ -136,6 +136,7 @@
 			<PersonDetailModal
 				person={openPerson}
 				flags={data.flags}
+				tasks={data.tasksByPerson[openPerson.id] ?? []}
 				onclose={() => (openPersonId = null)}
 			/>
 		{/key}
