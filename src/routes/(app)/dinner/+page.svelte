@@ -145,7 +145,14 @@
 	{/if}
 
 	{#if openPerson}
-		{#key openPerson.id}
+		<!-- Keyed on updatedAt as well as id. PersonFields seeds its date inputs
+		     once at mount (untracked, so typing is never clobbered), so a modal
+		     kept mounted across a change would hold a stale "last spoke" — and
+		     since updatePerson overwrites the whole record, the next Save would
+		     write that stale value back, silently undoing a reach-out you had
+		     just logged. logTouchpoint bumps updatedAt exactly when it moves
+		     lastSpokeAt, so this remounts precisely when the stored data moved. -->
+		{#key `${openPerson.id}:${openPerson.updatedAt}`}
 			<PersonDetailModal
 				person={openPerson}
 				flags={data.flags}
