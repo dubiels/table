@@ -77,12 +77,15 @@
 		action="?/updatePerson"
 		use:enhance={() => async ({ result, update }) => {
 			await update();
-			if (result.type === 'failure') {
-				saveError =
-					(result.data as { error?: string } | undefined)?.error ?? 'Something went wrong.';
-			} else {
+			// Enumerated rather than if/else: ActionResult also carries `redirect`
+			// and `error`, and a thrown server error must not report "Saved" on top
+			// of the error boundary SvelteKit has already rendered.
+			if (result.type === 'success') {
 				saveError = null;
 				toast('Saved', 'success');
+			} else if (result.type === 'failure') {
+				saveError =
+					(result.data as { error?: string } | undefined)?.error ?? 'Something went wrong.';
 			}
 		}}
 	>
