@@ -19,7 +19,10 @@
 			.split(/\s+/)
 			.filter(Boolean)
 			.slice(0, 2)
-			.map((part) => part[0]?.toUpperCase() ?? '')
+			// Spread rather than [0]: indexing a string yields a UTF-16 code unit,
+			// so a name led by an astral-plane character would take half a
+			// surrogate pair and render as tofu.
+			.map((part) => [...part][0]?.toUpperCase() ?? '')
 			.join('')
 	);
 
@@ -33,7 +36,10 @@
 	class:archived={Boolean(person.archivedAt)}
 	onclick={() => onopen(person.id)}
 >
-	<span class="avatar">{initials}</span>
+	<!-- Hidden from assistive tech: it stands in for a photo, and the name it
+	     abbreviates is announced right after it. Same reason TaskCard hides its
+	     zone dot. -->
+	<span class="avatar" aria-hidden="true">{initials}</span>
 	<span class="name">{person.name}</span>
 	{#if subtitle}<span class="subtitle">{subtitle}</span>{/if}
 
