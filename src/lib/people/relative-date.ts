@@ -56,11 +56,44 @@ export function describeAge(from: string | null | undefined, today: string): str
 	return years === 1 ? 'a year ago' : `${years} years ago`;
 }
 
-/** Long enough without contact to be worth noticing on a card. */
-export const STALE_AFTER_DAYS = 90;
+/**
+ * How cold a relationship has gone, on a scale rather than a switch.
+ *
+ * A binary stale/not-stale flag answers the wrong question: at a glance you
+ * want to see who is drifting, not only who has already gone. The bands are
+ * deliberately coarse — nobody acts differently at 44 days than at 46.
+ *
+ * `none` is not a degree of cold. Someone with no logged contact has nothing to
+ * have gone quiet on, and colouring them as the worst case would bury the
+ * people who genuinely have.
+ */
+export type ContactHeat = 'none' | 'fresh' | 'recent' | 'cooling' | 'stale' | 'cold';
 
-export function isStale(from: string | null | undefined, today: string): boolean {
-	if (!from) return false;
+/** Lower bound in days for each band, coldest first. */
+const HEAT_BANDS: { from: number; heat: ContactHeat }[] = [
+	{ from: 180, heat: 'cold' },
+	{ from: 90, heat: 'stale' },
+	{ from: 45, heat: 'cooling' },
+	{ from: 14, heat: 'recent' },
+	{ from: 0, heat: 'fresh' }
+];
+
+export function contactHeat(from: string | null | undefined, today: string): ContactHeat {
+	if (!from) return 'none';
 	const days = daysSince(from, today);
-	return days !== null && days >= STALE_AFTER_DAYS;
+	if (days === null) return 'none';
+	// A date in the future is a typo or a plan; treat it as freshly in touch
+	// rather than letting a negative number fall off the bottom of the scale.
+	if (days < 0) return 'fresh';
+	return HEAT_BANDS.find((band) => days >= band.from)?.heat ?? 'fresh';
 }
+
+/** Human label for a band, for the pill on a card and its title attribute. */
+export const HEAT_LABEL: Record<ContactHeat, string> = {
+	none: 'No contact logged',
+	fresh: 'In touch',
+	recent: 'Recent',
+	cooling: 'Cooling off',
+	stale: 'Going quiet',
+	cold: 'Gone cold'
+};

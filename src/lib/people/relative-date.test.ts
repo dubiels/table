@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { daysSince, describeAge, isStale } from './relative-date';
+import { contactHeat, daysSince, describeAge } from './relative-date';
 
 const TODAY = '2026-08-15';
 
@@ -72,22 +72,36 @@ describe('describeAge', () => {
 	});
 });
 
-describe('isStale', () => {
-	it('is false for recent contact', () => {
-		expect(isStale('2026-08-01', TODAY)).toBe(false);
+describe('contactHeat', () => {
+	// Boundaries are asserted on both sides: an off-by-one here would silently
+	// mis-colour a whole band and nothing else would catch it.
+	it.each([
+		['2026-08-15', 'fresh', 'same day'],
+		['2026-08-02', 'fresh', '13 days'],
+		['2026-08-01', 'recent', '14 days, the first recent day'],
+		['2026-07-02', 'recent', '44 days'],
+		['2026-07-01', 'cooling', '45 days, the first cooling day'],
+		['2026-05-18', 'cooling', '89 days'],
+		['2026-05-17', 'stale', '90 days, the first stale day'],
+		['2026-02-17', 'stale', '179 days'],
+		['2026-02-16', 'cold', '180 days, the first cold day'],
+		['2020-01-01', 'cold', 'years']
+	])('%s is %s (%s)', (date, expected) => {
+		expect(contactHeat(date, TODAY)).toBe(expected);
 	});
 
-	it('is true once ninety days have passed', () => {
-		expect(isStale('2026-05-17', TODAY)).toBe(true);
+	// Not a degree of cold: there is nothing to have gone quiet on, and treating
+	// it as the worst case would bury the people who genuinely have.
+	it('is none when nothing has been logged', () => {
+		expect(contactHeat(null, TODAY)).toBe('none');
+		expect(contactHeat(undefined, TODAY)).toBe('none');
 	});
 
-	it('is false on the day before the threshold', () => {
-		expect(isStale('2026-05-19', TODAY)).toBe(false);
+	it('is none for an unparseable date rather than guessing a band', () => {
+		expect(contactHeat('whenever', TODAY)).toBe('none');
 	});
 
-	// Someone with no recorded contact is not "stale" — there is nothing to have
-	// gone quiet on, and flagging them would bury the people who really have.
-	it('is false when there is no date at all', () => {
-		expect(isStale(null, TODAY)).toBe(false);
+	it('treats a future date as freshly in touch', () => {
+		expect(contactHeat('2026-09-01', TODAY)).toBe('fresh');
 	});
 });

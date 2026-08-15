@@ -66,12 +66,6 @@
 	// conversation to have gone quiet on, so the two date fields are hidden
 	// rather than shown empty and vaguely accusing.
 	let wishlist = $derived(status === 'to_meet');
-
-	// From the saved values, so the closed summary reports what is stored rather
-	// than what is half-typed underneath it.
-	let summary = $derived(
-		[values.role, values.company, values.city].filter(Boolean).join(' · ') || 'Contact details'
-	);
 </script>
 
 <label class="wide">
@@ -97,7 +91,10 @@
 </label>
 
 <details class="wide details" open={detailsOpen}>
-	<summary><span class="summary-text">{summary}</span></summary>
+	<!-- A fixed label, not a summary of the fields inside. Rendering
+	     "role · company · city" here read as the person's employer rather than as
+	     the name of a section you can open. -->
+	<summary><span class="summary-text">Contact details</span></summary>
 
 	<div class="grid">
 		<fieldset class="status wide">

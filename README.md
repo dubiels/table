@@ -199,7 +199,10 @@ brings them back to restore.
 
 **Reach-outs** are the log of when you actually spoke. Add one from a person's
 record with a date and a line about what it was, and the card shows how long it
-has been — bold and red once ninety days have passed. Logging an older
+has been on a five-band scale — in touch, recent, cooling off, going quiet, gone
+cold — coloured so a drifting relationship is visible before it has already gone.
+The band's name is in the pill's tooltip, so the meaning never rests on colour
+alone. Logging an older
 conversation you forgot about records it without rewriting "last contact", since
 that question only ever means the most recent.
 

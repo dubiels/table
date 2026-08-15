@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { flagColorVars } from '$lib/people/colors';
-	import { describeAge, isStale } from '$lib/people/relative-date';
+	import { contactHeat, describeAge, HEAT_LABEL } from '$lib/people/relative-date';
 	import type { PersonView, FlagView } from '$lib/people/types';
 
 	let {
@@ -21,7 +21,7 @@
 	let lastContact = $derived(
 		person.status === 'met' ? describeAge(person.lastSpokeAt, today) : null
 	);
-	let stale = $derived(person.status === 'met' && isStale(person.lastSpokeAt, today));
+	let heat = $derived(person.status === 'met' ? contactHeat(person.lastSpokeAt, today) : 'none');
 
 	let subtitle = $derived([person.role, person.company].filter(Boolean).join(', '));
 	let attached = $derived(flags.filter((f) => person.flagIds.includes(f.id)));
@@ -48,10 +48,10 @@
 	{/if}
 
 	{#if person.notes}<span class="notes">{person.notes}</span>{/if}
-	{#if lastContact}
-		<span class="last-contact" class:stale>Last contact {lastContact}</span>
-	{:else if person.status === 'met'}
-		<span class="last-contact never">No contact logged</span>
+	{#if person.status === 'met'}
+		<span class="heat heat-{heat}" title={HEAT_LABEL[heat]}>
+			{lastContact ?? 'No contact logged'}
+		</span>
 	{/if}
 	{#if person.status === 'to_meet'}<span class="badge">Want to meet</span>{/if}
 	{#if person.archivedAt}<span class="badge">Archived</span>{/if}
@@ -111,18 +111,42 @@
 		-webkit-box-orient: vertical;
 		overflow: hidden;
 	}
-	.last-contact {
+	/* A graded scale, not a switch: at a glance you want to see who is drifting,
+	   not only who has already gone. The `title` carries the band's name, so the
+	   meaning never rests on colour alone. */
+	.heat {
+		align-self: flex-start;
+		padding: 0.05rem 0.45rem;
+		border: 1px solid transparent;
+		border-radius: 999px;
 		font-size: 0.68rem;
+	}
+	.heat-none {
 		color: var(--muted);
-	}
-	/* Ninety days without a word. Weight rather than colour alone, so it still
-	   reads for anyone who cannot tell the two apart. */
-	.last-contact.stale {
-		font-weight: 600;
-		color: var(--danger);
-	}
-	.last-contact.never {
 		opacity: 0.7;
+	}
+	.heat-fresh {
+		background: var(--zone-sage-fill);
+		border-color: var(--zone-sage-border);
+	}
+	.heat-recent {
+		background: var(--zone-sky-fill);
+		border-color: var(--zone-sky-border);
+	}
+	.heat-cooling {
+		background: var(--zone-butter-fill);
+		border-color: var(--zone-butter-border);
+	}
+	.heat-stale {
+		background: var(--zone-clay-fill);
+		border-color: var(--zone-clay-border);
+		font-weight: 600;
+	}
+	.heat-cold {
+		background: var(--danger-soft);
+		border-color: var(--danger);
+		color: var(--danger);
+		font-weight: 600;
 	}
 	.badge {
 		font-size: 0.65rem;
