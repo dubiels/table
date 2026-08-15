@@ -1,32 +1,16 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { flagColorVars } from '$lib/people/colors';
 	import { toast } from '$lib/toast.svelte';
+	import PersonFields from './PersonFields.svelte';
 	import type { FlagView } from '$lib/people/types';
 
 	let { flags, today, onclose }: { flags: FlagView[]; today: string; onclose: () => void } =
 		$props();
 
-	let nameEl = $state<HTMLInputElement | null>(null);
+	let formEl = $state<HTMLFormElement | null>(null);
 	let saving = $state(false);
 	let addError = $state<string | null>(null);
-
-	// Read once, untracked: the dialog is mounted fresh each time it opens (it
-	// lives inside an {#if}), so `today` cannot change underneath it, and
-	// re-syncing would fight the user's own edits. Same pattern TaskDetailModal
-	// uses for the fields it seeds from its prop.
-	let metOn = $state(untrack(() => today));
-	// Follows `metOn` until the field is touched: meeting someone is the first
-	// time you spoke to them, so the two agree until you say otherwise. Once
-	// edited it stops following, or correcting the meeting date would silently
-	// rewrite a conversation you deliberately recorded.
-	let lastSpokeAt = $state(untrack(() => today));
-	let lastSpokeTouched = $state(false);
-	$effect(() => {
-		if (!lastSpokeTouched) lastSpokeAt = metOn;
-	});
-
 	let selectedFlagIds = $state<string[]>([]);
 
 	function toggleFlag(id: string) {
@@ -35,10 +19,10 @@
 			: [...selectedFlagIds, id];
 	}
 
-	// Autofocus on open so "type a name, press Enter" stays a three-second path
-	// even though the rest of the form is on screen.
+	// Focus the name field on open, so "type a name, press Enter" stays a
+	// three-second path even with the whole form on screen.
 	$effect(() => {
-		nameEl?.focus();
+		formEl?.querySelector<HTMLInputElement>('input[name="name"]')?.focus();
 	});
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -57,89 +41,64 @@
 	</header>
 
 	<form
+		bind:this={formEl}
 		method="POST"
 		action="?/createPerson"
 		use:enhance={() => {
 			saving = true;
 			return async ({ result, update }) => {
-				await update();
 				saving = false;
-				// Enumerated rather than if/else: ActionResult also carries `redirect`
-				// and `error`, and neither of those added anyone.
+				// Close BEFORE awaiting the refresh. Closing afterwards leaves the
+				// dialog on screen for the length of the round trip still holding
+				// what was typed, which reads as a second, duplicate add waiting to
+				// be submitted. Nothing below this touches component state, so
+				// unmounting here is safe.
 				if (result.type === 'success') {
-					addError = null;
-					toast('Added', 'success');
 					onclose();
-				} else if (result.type === 'failure') {
+					await update();
+					toast('Added', 'success');
+					return;
+				}
+				await update();
+				// Enumerated rather than a bare else: ActionResult also carries
+				// `redirect` and `error`, and neither of those added anyone.
+				if (result.type === 'failure') {
 					addError =
 						(result.data as { error?: string } | undefined)?.error ?? 'Something went wrong.';
 				}
 			};
 		}}
 	>
-		<label class="wide">
-			Name
-			<input
-				bind:this={nameEl}
-				name="name"
-				required
-				autocomplete="off"
-				aria-invalid={addError !== null}
-				aria-describedby={addError ? 'add-error' : undefined}
-			/>
-			{#if addError}
-				<span class="status-error" role="alert" id="add-error">{addError}</span>
-			{/if}
-		</label>
+		<PersonFields
+			values={{ metOn: today, lastSpokeAt: today }}
+			errorId="add-error"
+			error={addError}
+			linkDates
+		/>
 
-		<label>LinkedIn<input name="linkedinUrl" autocomplete="off" /></label>
-		<label>Email<input name="email" autocomplete="off" /></label>
-		<label>Phone<input name="phone" autocomplete="off" /></label>
-
-		<label>
-			When we met
-			<input type="date" name="metOn" bind:value={metOn} />
-		</label>
-		<label>
-			Last spoke
-			<input
-				type="date"
-				name="lastSpokeAt"
-				bind:value={lastSpokeAt}
-				oninput={() => (lastSpokeTouched = true)}
-			/>
-		</label>
-
-		<div class="met-row wide">
-			<label class="met-at">
-				Where we met
-				<input name="metAt" placeholder="Ana's dinner party" autocomplete="off" />
-			</label>
-
-			<div class="flags">
-				<span class="label">Flags</span>
-				<div class="chips">
-					{#each flags as flag (flag.id)}
-						{@const vars = flagColorVars(flag.color)}
-						<button
-							type="button"
-							class="chip"
-							class:on={selectedFlagIds.includes(flag.id)}
-							style="background:{vars.fill};border-color:{vars.border}"
-							aria-pressed={selectedFlagIds.includes(flag.id)}
-							onclick={() => toggleFlag(flag.id)}
-						>
-							{flag.name}
-						</button>
-					{/each}
-					<input
-						class="new-flag"
-						name="newFlagName"
-						placeholder="+ new flag"
-						autocomplete="off"
-						aria-label="Create and attach a new flag"
-					/>
-				</div>
+		<div class="flags wide">
+			<span>Flags</span>
+			<div class="chips">
+				{#each flags as flag (flag.id)}
+					{@const vars = flagColorVars(flag.color)}
+					<button
+						type="button"
+						class="chip"
+						class:on={selectedFlagIds.includes(flag.id)}
+						style="background:{vars.fill};border-color:{vars.border}"
+						aria-pressed={selectedFlagIds.includes(flag.id)}
+						onclick={() => toggleFlag(flag.id)}
+					>
+						{flag.name}
+					</button>
+				{/each}
+				<input
+					class="new-flag"
+					name="newFlagName"
+					placeholder="+ new flag"
+					autocomplete="off"
+					aria-label="Create and attach a new flag"
+				/>
 			</div>
 		</div>
 
@@ -148,14 +107,6 @@
 		{#each selectedFlagIds as id (id)}
 			<input type="hidden" name="flagIds" value={id} />
 		{/each}
-
-		<label class="wide">
-			Who they are
-			<textarea
-				name="notes"
-				rows="4"
-				placeholder="What they work on, what they can help with, how you know them"></textarea>
-		</label>
 
 		<div class="actions">
 			<button type="button" class="cancel" onclick={onclose}>Cancel</button>
@@ -181,7 +132,7 @@
 		z-index: 1001;
 		inset: 4vh 50% auto auto;
 		transform: translateX(50%);
-		width: min(640px, 92vw);
+		width: min(680px, 92vw);
 		max-height: 92vh;
 		overflow-y: auto;
 		padding: 1.1rem 1.25rem;
@@ -212,7 +163,6 @@
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: 0.6rem;
 	}
-	label,
 	.flags {
 		display: flex;
 		flex-direction: column;
@@ -222,15 +172,6 @@
 	}
 	.wide {
 		grid-column: 1 / -1;
-	}
-	.met-row {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-		gap: 0.6rem;
-		align-items: start;
-	}
-	.met-at {
-		min-width: 0;
 	}
 	.chips {
 		display: flex;
@@ -255,22 +196,13 @@
 	}
 	.new-flag {
 		width: 7rem;
-		font-size: 0.7rem;
-	}
-	input,
-	textarea {
-		padding: 0.35rem 0.5rem;
+		padding: 0.25rem 0.45rem;
 		border: 1px solid var(--border);
 		border-radius: var(--radius-s);
 		background: var(--surface);
 		font: inherit;
-		font-size: 0.85rem;
+		font-size: 0.7rem;
 		color: inherit;
-	}
-	.status-error {
-		margin: 0;
-		font-size: 0.72rem;
-		color: var(--danger);
 	}
 	.actions {
 		grid-column: 1 / -1;
@@ -304,8 +236,7 @@
 		cursor: default;
 	}
 	@media (max-width: 640px) {
-		form,
-		.met-row {
+		form {
 			grid-template-columns: 1fr;
 		}
 	}

@@ -22,6 +22,9 @@ export async function createPerson(input: {
 	linkedinUrl?: string;
 	email?: string;
 	phone?: string;
+	company?: string;
+	role?: string;
+	city?: string;
 	metAt?: string;
 	metOn?: string;
 	lastSpokeAt?: string;
@@ -37,11 +40,9 @@ export async function createPerson(input: {
 		linkedinUrl: input.linkedinUrl ?? null,
 		email: input.email ?? null,
 		phone: input.phone ?? null,
-		// Company, role and city are not on the add form — they are the fields you
-		// look up later rather than remember in the moment.
-		company: null,
-		role: null,
-		city: null,
+		company: input.company ?? null,
+		role: input.role ?? null,
+		city: input.city ?? null,
 		metAt: input.metAt ?? null,
 		metOn,
 		// Meeting someone is the first time you spoke to them, so this starts

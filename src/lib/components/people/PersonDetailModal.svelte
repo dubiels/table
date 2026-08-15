@@ -4,6 +4,7 @@
 	import { resolve } from '$app/paths';
 	import { toast } from '$lib/toast.svelte';
 	import FlagPicker from './FlagPicker.svelte';
+	import PersonFields from './PersonFields.svelte';
 	import type { PersonView, FlagView } from '$lib/people/types';
 
 	let { person, flags, onclose }: { person: PersonView; flags: FlagView[]; onclose: () => void } =
@@ -89,34 +90,7 @@
 	>
 		<input type="hidden" name="id" value={person.id} />
 
-		<label>
-			Name
-			<input
-				name="name"
-				value={person.name}
-				required
-				aria-invalid={saveError !== null}
-				aria-describedby={saveError ? 'save-error' : undefined}
-			/>
-			{#if saveError}
-				<span class="status-error" role="alert" id="save-error">{saveError}</span>
-			{/if}
-		</label>
-		<label>Role<input name="role" value={person.role ?? ''} /></label>
-		<label>Company<input name="company" value={person.company ?? ''} /></label>
-		<label>City<input name="city" value={person.city ?? ''} /></label>
-		<label>LinkedIn<input name="linkedinUrl" value={person.linkedinUrl ?? ''} /></label>
-		<label>Email<input name="email" value={person.email ?? ''} /></label>
-		<label>Phone<input name="phone" value={person.phone ?? ''} /></label>
-		<label>Met at<input name="metAt" value={person.metAt ?? ''} /></label>
-		<label>Met on<input type="date" name="metOn" value={person.metOn ?? ''} /></label>
-		<label>
-			Last spoke<input type="date" name="lastSpokeAt" value={person.lastSpokeAt ?? ''} />
-		</label>
-		<label class="wide">
-			Who they are
-			<textarea name="notes" rows="6">{person.notes ?? ''}</textarea>
-		</label>
+		<PersonFields values={person} errorId="save-error" error={saveError} />
 
 		<div class="actions">
 			{#if person.linkedinUrl}
@@ -222,23 +196,9 @@
 		gap: 0.6rem;
 		margin-top: 0.9rem;
 	}
-	label {
-		display: flex;
-		flex-direction: column;
-		gap: 0.2rem;
-		font-size: 0.72rem;
-		color: var(--muted, #93897d);
-	}
-	.wide {
-		grid-column: 1 / -1;
-	}
-	.status-error {
-		margin: 0;
-		font-size: 0.78rem;
-		color: var(--danger);
-	}
-	input,
-	textarea {
+	/* The field styles live in PersonFields now, which owns the markup they
+	   apply to. Only the hidden id input is still rendered here. */
+	input {
 		padding: 0.35rem 0.5rem;
 		border: 1px solid var(--border, #e2dace);
 		border-radius: 6px;

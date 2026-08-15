@@ -36,11 +36,16 @@ const optionalLinkedin = z.preprocess(
 		.transform((value) => (value === undefined ? undefined : normalizeLinkedinUrl(value)))
 );
 
+// Deliberately the same field set as `updatePersonSchema`: adding someone shows
+// exactly what editing them shows, so nothing has to be discovered later.
 export const addPersonSchema = z.object({
 	name: trimmed.min(1),
 	linkedinUrl: optionalLinkedin,
 	email: optionalText,
 	phone: optionalText,
+	company: optionalText,
+	role: optionalText,
+	city: optionalText,
 	metAt: optionalText,
 	metOn: optionalText,
 	// Left blank, the service seeds this from `metOn` — meeting someone is the

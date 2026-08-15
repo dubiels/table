@@ -120,12 +120,18 @@ describe('people service', () => {
 			linkedinUrl: 'https://linkedin.com/in/devonreyes',
 			email: 'devon@cadence.dev',
 			phone: '+1 917 555 0148',
+			company: 'Cadence',
+			role: 'Founder',
+			city: 'New York',
 			metAt: "Ana's dinner party"
 		});
 		expect(p).toMatchObject({
 			linkedinUrl: 'https://linkedin.com/in/devonreyes',
 			email: 'devon@cadence.dev',
 			phone: '+1 917 555 0148',
+			company: 'Cadence',
+			role: 'Founder',
+			city: 'New York',
 			metAt: "Ana's dinner party"
 		});
 	});

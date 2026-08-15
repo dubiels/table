@@ -67,6 +67,9 @@ describe('addPersonSchema', () => {
 			linkedinUrl: 'linkedin.com/in/devonreyes',
 			email: 'devon@cadence.dev',
 			phone: '+1 917 555 0148',
+			company: 'Cadence',
+			role: 'Founder',
+			city: 'New York',
 			metAt: "Ana's dinner party",
 			metOn: '2026-01-14',
 			lastSpokeAt: '2026-03-02',
@@ -74,10 +77,22 @@ describe('addPersonSchema', () => {
 		});
 		expect(parsed.success).toBe(true);
 		expect(parsed.data).toMatchObject({
+			company: 'Cadence',
+			role: 'Founder',
+			city: 'New York',
 			metAt: "Ana's dinner party",
 			metOn: '2026-01-14',
 			lastSpokeAt: '2026-03-02'
 		});
+	});
+
+	// The add form and the edit form must offer the same fields, so a person can
+	// be entered completely in one go rather than half now and half discovered
+	// later. Compared as key sets so a field added to one and not the other fails.
+	it('accepts exactly the same fields as updatePersonSchema', () => {
+		expect(Object.keys(addPersonSchema.shape).sort()).toEqual(
+			Object.keys(updatePersonSchema.shape).sort()
+		);
 	});
 
 	it('normalises the linkedin url as part of parsing', () => {
@@ -96,6 +111,9 @@ describe('addPersonSchema', () => {
 			linkedinUrl: '',
 			email: '',
 			phone: '',
+			company: '',
+			role: '',
+			city: '',
 			metAt: '',
 			metOn: '',
 			lastSpokeAt: '',
@@ -105,6 +123,9 @@ describe('addPersonSchema', () => {
 		expect(parsed.data?.linkedinUrl).toBeUndefined();
 		expect(parsed.data?.email).toBeUndefined();
 		expect(parsed.data?.phone).toBeUndefined();
+		expect(parsed.data?.company).toBeUndefined();
+		expect(parsed.data?.role).toBeUndefined();
+		expect(parsed.data?.city).toBeUndefined();
 		expect(parsed.data?.metAt).toBeUndefined();
 		expect(parsed.data?.metOn).toBeUndefined();
 		expect(parsed.data?.lastSpokeAt).toBeUndefined();
