@@ -65,9 +65,11 @@ export async function updateFlag(
  * A flag and every attachment of it, in one transaction.
  *
  * `db/index.ts` sets only `journal_mode`, leaving the `foreign_keys` pragma off,
- * so `ON DELETE CASCADE` is declared but never enforced — the join rows have to
- * go explicitly, and first, or a crash between the two statements would strand
- * rows pointing at a flag that no longer exists.
+ * so `ON DELETE CASCADE` is declared but never enforced — SQLite will not clean
+ * up the join rows itself, so they have to go explicitly, and first, or they'd
+ * be left pointing at a flag that no longer exists. (The transaction below is
+ * still atomic — a throw mid-callback rolls back both statements — so this
+ * ordering is defensive practice, not a guard against a partial write.)
  *
  * better-sqlite3 transactions are synchronous, so the callback must not await;
  * `.run()` executes each statement inline.

@@ -119,6 +119,7 @@
 			{#if person.linkedinUrl}
 				<!-- The freshness mechanism: LinkedIn exposes no API for this, so the
 				     live profile is one click away instead of mirrored and stale. -->
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- external absolute URL (a LinkedIn profile), not an app route; resolve() does not apply -->
 				<a href={person.linkedinUrl} target="_blank" rel="noreferrer noopener">Open LinkedIn</a>
 			{/if}
 			<button type="submit" class="save">Save</button>
@@ -132,9 +133,16 @@
 			archiving = true;
 			const wasArchived = Boolean(person.archivedAt);
 			const id = person.id;
-			return async ({ update }) => {
+			return async ({ result, update }) => {
 				await update();
 				archiving = false;
+				// Enumerated rather than if/else, mirroring the save form above:
+				// ActionResult also carries `redirect` and `error` — an expired
+				// session comes back as {type:'redirect'} riding a 200 (the
+				// x-sveltekit-action header suppresses the real redirect), and
+				// offline synthesises {type:'error'} — and neither must be able to
+				// report success and close the modal over nothing having happened.
+				if (result.type !== 'success') return;
 				onclose();
 				if (wasArchived) {
 					toast('Restored', 'success');

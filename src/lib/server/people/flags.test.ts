@@ -169,6 +169,7 @@ describe('flags service', () => {
 		const f = await flagsService.createFlag('SF');
 		await flagsService.attachFlag('p1', f.id);
 		expect(joins).toHaveLength(1);
+		expect(joins[0]).toMatchObject({ personId: 'p1', flagId: f.id });
 	});
 
 	// A double-click before the UI refreshes, a resubmitted form, or createFlag's
@@ -190,6 +191,10 @@ describe('flags service', () => {
 		expect(joins).toHaveLength(2);
 	});
 
+	// The mock's plain `db.delete(...)` (unlike `tx.delete`) doesn't parse the
+	// `where` condition and clears every join row on any call, so it can't
+	// distinguish "this person's row" from "some other row" — a selectivity
+	// assertion here would fail for a mock-fidelity reason, not a real bug.
 	it('detaches a flag from a person', async () => {
 		const f = await flagsService.createFlag('SF');
 		await flagsService.attachFlag('p1', f.id);

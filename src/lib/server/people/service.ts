@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { localDateString } from '$lib/date';
 import { db } from '../db';
-import { people, peopleFlags } from '../db/schema';
+import { people } from '../db/schema';
 
 export type Person = typeof people.$inferSelect;
 export type PersonWithFlags = Person & { flagIds: string[] };
