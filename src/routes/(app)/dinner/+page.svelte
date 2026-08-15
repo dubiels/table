@@ -12,6 +12,7 @@
 	let query = $state('');
 	let selectedFlagIds = $state<string[]>([]);
 	let includeArchived = $state(false);
+	let status = $state<'met' | 'to_meet' | 'all'>('met');
 	let openPersonId = $state<string | null>(null);
 	let adding = $state(false);
 	// Stamped when the dialog opens rather than at render: reading the clock
@@ -40,7 +41,7 @@
 	);
 
 	let visible = $derived(
-		filterPeople(data.people, { query, flagIds: activeFlagIds, includeArchived })
+		filterPeople(data.people, { query, flagIds: activeFlagIds, includeArchived, status })
 	);
 
 	// Counts describe the whole book, not the current result set — a chip reading
@@ -49,12 +50,23 @@
 		const tally: Record<string, number> = {};
 		for (const person of data.people) {
 			if (person.archivedAt && !includeArchived) continue;
+			if (status !== 'all' && person.status !== status) continue;
 			for (const id of person.flagIds) tally[id] = (tally[id] ?? 0) + 1;
 		}
 		return tally;
 	});
 
-	let total = $derived(data.people.filter((p) => includeArchived || !p.archivedAt).length);
+	let total = $derived(
+		data.people.filter(
+			(p) => (includeArchived || !p.archivedAt) && (status === 'all' || p.status === status)
+		).length
+	);
+
+	// Shown on the wishlist tab so an empty one is legible, and so you can see at
+	// a glance how many introductions you owe yourself.
+	let toMeetCount = $derived(
+		data.people.filter((p) => !p.archivedAt && p.status === 'to_meet').length
+	);
 
 	function toggleFlag(id: string) {
 		// The "All" chip posts an empty id and means "clear the filters".
@@ -82,6 +94,21 @@
 		<button type="button" class="add" onclick={openAdd}>+ Add person</button>
 	</header>
 
+	<div class="tabs" role="tablist" aria-label="Which people to show">
+		{#each [{ key: 'met', label: 'Met' }, { key: 'to_meet', label: `To meet${toMeetCount ? ` \u00b7 ${toMeetCount}` : ''}` }, { key: 'all', label: 'All' }] as tab (tab.key)}
+			<button
+				type="button"
+				role="tab"
+				class="tab"
+				class:on={status === tab.key}
+				aria-selected={status === tab.key}
+				onclick={() => (status = tab.key as 'met' | 'to_meet' | 'all')}
+			>
+				{tab.label}
+			</button>
+		{/each}
+	</div>
+
 	<FlagFilterBar
 		flags={data.flags}
 		{counts}
@@ -96,6 +123,7 @@
 		people={visible}
 		flags={data.flags}
 		hasAnyPeople={data.people.length > 0}
+		{status}
 		onopen={(id) => (openPersonId = id)}
 	/>
 
@@ -141,6 +169,27 @@
 		background: var(--surface, #fff);
 		font: inherit;
 		color: inherit;
+	}
+	.tabs {
+		display: flex;
+		gap: 0.25rem;
+		margin-bottom: 0.75rem;
+	}
+	.tab {
+		padding: 0.25rem 0.7rem;
+		border: 1px solid var(--border);
+		border-radius: 999px;
+		background: none;
+		font: inherit;
+		font-size: 0.78rem;
+		color: var(--muted);
+		cursor: pointer;
+	}
+	.tab.on {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: var(--accent-ink);
+		font-weight: 600;
 	}
 	.add {
 		padding: 0.45rem 0.9rem;

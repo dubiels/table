@@ -28,6 +28,7 @@
 			metOn?: string | null;
 			lastSpokeAt?: string | null;
 			notes?: string | null;
+			status?: 'met' | 'to_meet' | null;
 		};
 		/** Id the name field points at with aria-describedby while `error` is set. */
 		errorId?: string | null;
@@ -47,10 +48,16 @@
 	let metOn = $state(untrack(() => values.metOn ?? ''));
 	let lastSpokeAt = $state(untrack(() => values.lastSpokeAt ?? ''));
 	let lastSpokeTouched = $state(false);
+	let status = $state(untrack(() => values.status ?? 'met'));
 
 	$effect(() => {
 		if (linkDates && !lastSpokeTouched) lastSpokeAt = metOn;
 	});
+
+	// Someone you have only been meaning to meet has no meeting date and no
+	// conversation to have gone quiet on, so the two date fields are hidden
+	// rather than shown empty and vaguely accusing.
+	let wishlist = $derived(status === 'to_meet');
 </script>
 
 <label>
@@ -84,16 +91,36 @@
 		autocomplete="off"
 	/>
 </label>
-<label>When we met<input type="date" name="metOn" bind:value={metOn} /></label>
-<label>
-	Last spoke
-	<input
-		type="date"
-		name="lastSpokeAt"
-		bind:value={lastSpokeAt}
-		oninput={() => (lastSpokeTouched = true)}
-	/>
-</label>
+<fieldset class="status wide">
+	<legend>Have we met?</legend>
+	<label class="radio">
+		<input type="radio" name="status" value="met" bind:group={status} />
+		Met them
+	</label>
+	<label class="radio">
+		<input type="radio" name="status" value="to_meet" bind:group={status} />
+		Want to meet them
+	</label>
+</fieldset>
+
+{#if wishlist}
+	<!-- Submitted empty rather than omitted: the update action overwrites the
+	     whole record, so leaving the keys out would keep stale dates on someone
+	     moved back to the wishlist. -->
+	<input type="hidden" name="metOn" value="" />
+	<input type="hidden" name="lastSpokeAt" value="" />
+{:else}
+	<label>When we met<input type="date" name="metOn" bind:value={metOn} /></label>
+	<label>
+		Last spoke
+		<input
+			type="date"
+			name="lastSpokeAt"
+			bind:value={lastSpokeAt}
+			oninput={() => (lastSpokeTouched = true)}
+		/>
+	</label>
+{/if}
 <label class="wide">
 	Who they are
 	<textarea
@@ -129,5 +156,28 @@
 		margin: 0;
 		font-size: 0.72rem;
 		color: var(--danger);
+	}
+	.status {
+		display: flex;
+		align-items: center;
+		gap: 0.9rem;
+		margin: 0;
+		padding: 0.4rem 0.6rem;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-s);
+		font-size: 0.72rem;
+		color: var(--muted);
+	}
+	.status legend {
+		padding: 0 0.3rem;
+	}
+	.radio {
+		flex-direction: row;
+		align-items: center;
+		gap: 0.3rem;
+	}
+	.radio input {
+		width: auto;
+		padding: 0;
 	}
 </style>

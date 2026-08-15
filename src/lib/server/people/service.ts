@@ -19,6 +19,7 @@ function today(): string {
 
 export async function createPerson(input: {
 	name: string;
+	status?: 'met' | 'to_meet';
 	linkedinUrl?: string;
 	email?: string;
 	phone?: string;
@@ -32,11 +33,14 @@ export async function createPerson(input: {
 }): Promise<Person> {
 	const now = new Date().toISOString();
 	// You add someone right after meeting them, so today is nearly always right
-	// and never has to be typed.
-	const metOn = input.metOn ?? today();
+	// and never has to be typed — but someone you have only been meaning to meet
+	// has no meeting date at all, and defaulting one in would invent a history.
+	const wishlist = input.status === 'to_meet';
+	const metOn = input.metOn ?? (wishlist ? null : today());
 	const row = {
 		id: randomUUID(),
 		name: input.name,
+		status: input.status ?? 'met',
 		linkedinUrl: input.linkedinUrl ?? null,
 		email: input.email ?? null,
 		phone: input.phone ?? null,

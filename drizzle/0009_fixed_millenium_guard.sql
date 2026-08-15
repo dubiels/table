@@ -1,0 +1,1 @@
+ALTER TABLE `people` ADD `status` text DEFAULT 'met' NOT NULL;

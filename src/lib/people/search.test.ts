@@ -12,6 +12,7 @@ function person(
 		notes: null,
 		metOn: null,
 		archivedAt: null,
+		status: 'met' as const,
 		flagIds: [],
 		...overrides
 	};
@@ -52,7 +53,7 @@ const sam = person({
 });
 
 const everyone = [maya, devon, sam];
-const noFilter = { query: '', flagIds: [], includeArchived: false };
+const noFilter = { query: '', flagIds: [], includeArchived: false, status: 'met' as const };
 
 describe('filterPeople — text matching', () => {
 	it('returns everyone when the query is empty', () => {
@@ -149,9 +150,48 @@ describe('filterPeople — archived', () => {
 		const found = filterPeople([...everyone, archived], {
 			query: 'jonas',
 			flagIds: [],
-			includeArchived: true
+			includeArchived: true,
+			status: 'met'
 		});
 		expect(found.map((p) => p.id)).toEqual(['p4']);
+	});
+});
+
+describe('filterPeople — status', () => {
+	const wishlist = person({ id: 'p6', name: 'Ada Okafor', status: 'to_meet' });
+
+	// The default view is people you have met: someone you have never spoken to
+	// cannot have gone cold, so mixing them in makes every follow-up question
+	// harder to answer.
+	it('hides to-meet people from the met view', () => {
+		const found = filterPeople([...everyone, wishlist], noFilter);
+		expect(found.map((p) => p.id)).not.toContain('p6');
+	});
+
+	it('shows only to-meet people when asked for them', () => {
+		const found = filterPeople([...everyone, wishlist], { ...noFilter, status: 'to_meet' });
+		expect(found.map((p) => p.id)).toEqual(['p6']);
+	});
+
+	it('shows both sides under "all"', () => {
+		const found = filterPeople([...everyone, wishlist], { ...noFilter, status: 'all' });
+		expect(found).toHaveLength(4);
+	});
+
+	it('still applies the text query within a status', () => {
+		const found = filterPeople([...everyone, wishlist], {
+			...noFilter,
+			status: 'to_meet',
+			query: 'ada'
+		});
+		expect(found.map((p) => p.id)).toEqual(['p6']);
+	});
+
+	// A wishlist entry has no dates at all, which must not throw or sort oddly.
+	it('sorts a dateless to-meet person without error', () => {
+		const other = person({ id: 'p7', name: 'Bo Chen', status: 'to_meet' });
+		const found = filterPeople([wishlist, other], { ...noFilter, status: 'to_meet' });
+		expect(found.map((p) => p.id)).toEqual(['p6', 'p7']);
 	});
 });
 

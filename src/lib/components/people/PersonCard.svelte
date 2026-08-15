@@ -55,6 +55,7 @@
 	{/if}
 
 	{#if person.notes}<span class="notes">{person.notes}</span>{/if}
+	{#if person.status === 'to_meet'}<span class="badge">Want to meet</span>{/if}
 	{#if person.archivedAt}<span class="badge">Archived</span>{/if}
 </button>
 

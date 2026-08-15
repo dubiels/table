@@ -104,6 +104,21 @@ describe('people service', () => {
 		}
 	});
 
+	it('defaults status to met', async () => {
+		const p = await peopleService.createPerson({ name: 'Devon Reyes' });
+		expect(p.status).toBe('met');
+	});
+
+	// Defaulting today's date onto someone you have only been meaning to meet
+	// would invent a meeting that never happened, and they would then show up in
+	// any "who have I gone quiet on" question.
+	it('gives a to-meet person no meeting or last-spoke date', async () => {
+		const p = await peopleService.createPerson({ name: 'Ada Okafor', status: 'to_meet' });
+		expect(p.status).toBe('to_meet');
+		expect(p.metOn).toBeNull();
+		expect(p.lastSpokeAt).toBeNull();
+	});
+
 	it('honours an explicit lastSpokeAt later than the meeting', async () => {
 		const p = await peopleService.createPerson({
 			name: 'Devon Reyes',

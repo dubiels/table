@@ -6,12 +6,15 @@
 		people,
 		flags,
 		hasAnyPeople,
+		status = 'met',
 		onopen
 	}: {
 		people: PersonView[];
 		flags: FlagView[];
 		/** Distinguishes "no one yet" from "nothing matched", which want different copy. */
 		hasAnyPeople: boolean;
+		/** Which tab is showing, so an empty one explains itself in its own terms. */
+		status?: 'met' | 'to_meet' | 'all';
 		onopen: (id: string) => void;
 	} = $props();
 </script>
@@ -24,10 +27,15 @@
 	</div>
 {:else if hasAnyPeople}
 	<p class="empty">No one matches. Try clearing the search or the flag filters.</p>
+{:else if status === 'to_meet'}
+	<p class="empty">
+		No one on the list yet. This is for people you want to meet but haven't — add them with
+		<strong>+ Add person</strong> and mark them <em>Want to meet them</em>.
+	</p>
 {:else}
 	<p class="empty">
-		No one here yet. Dinner Table is for people you have actually met — add the last person you
-		talked to using the field above.
+		No one here yet. Add the last person you talked to with <strong>+ Add person</strong> — a name is
+		the only thing you have to fill in.
 	</p>
 {/if}
 

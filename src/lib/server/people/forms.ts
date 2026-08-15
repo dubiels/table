@@ -40,6 +40,7 @@ const optionalLinkedin = z.preprocess(
 // exactly what editing them shows, so nothing has to be discovered later.
 export const addPersonSchema = z.object({
 	name: trimmed.min(1),
+	status: z.enum(['met', 'to_meet']).default('met'),
 	linkedinUrl: optionalLinkedin,
 	email: optionalText,
 	phone: optionalText,
@@ -56,6 +57,7 @@ export const addPersonSchema = z.object({
 
 export const updatePersonSchema = z.object({
 	name: trimmed.min(1),
+	status: z.enum(['met', 'to_meet']).default('met'),
 	linkedinUrl: optionalLinkedin,
 	lastSpokeAt: optionalText,
 	// Email and phone are stored as typed, unvalidated, on purpose.

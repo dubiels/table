@@ -6,9 +6,13 @@
  * `gtasks/plan.ts` already use against their `sync.ts`.
  */
 
+/** Someone you have met, or someone you want to. */
+export type PersonStatus = 'met' | 'to_meet';
+
 export interface SearchablePerson {
 	id: string;
 	name: string;
+	status: PersonStatus;
 	company: string | null;
 	role: string | null;
 	city: string | null;
@@ -23,6 +27,12 @@ export interface SearchOptions {
 	query: string;
 	flagIds: string[];
 	includeArchived: boolean;
+	/**
+	 * Which side of the book to show. `met` is the default view: people you want
+	 * to meet have no history to go cold, so mixing them into the main list would
+	 * make every follow-up question harder to answer.
+	 */
+	status: PersonStatus | 'all';
 }
 
 /** Every field the query is matched against. */
@@ -57,6 +67,7 @@ export function filterPeople<T extends SearchablePerson>(people: T[], options: S
 
 	const matched = people.filter((person) => {
 		if (person.archivedAt && !options.includeArchived) return false;
+		if (options.status !== 'all' && person.status !== options.status) return false;
 		// Flags OR among themselves; the text query ANDs with the result.
 		if (options.flagIds.length > 0 && !options.flagIds.some((id) => person.flagIds.includes(id))) {
 			return false;

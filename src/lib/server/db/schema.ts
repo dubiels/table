@@ -123,6 +123,13 @@ export const notifications = sqliteTable('notifications', {
 export const people = sqliteTable('people', {
 	id: text('id').primaryKey(),
 	name: text('name').notNull(),
+	// Someone you have met, or someone you want to. A `to_meet` record carries no
+	// meeting date and no last-spoke date, and "who have I gone quiet on" must
+	// never sweep in a person you have never spoken to — which is why this is a
+	// column rather than just another flag.
+	status: text('status', { enum: ['met', 'to_meet'] })
+		.notNull()
+		.default('met'),
 	linkedinUrl: text('linkedin_url'),
 	email: text('email'),
 	phone: text('phone'),
