@@ -24,6 +24,7 @@ Every task's requirements implicitly include this section.
 - **No external services.** This module makes no network calls. Every failure is a zod rejection returned via `fail(400, ...)` or a SQLite error.
 - **Commit style:** Conventional Commits v1.0.0. Lowercase imperative description, no trailing period. Scope `dinner`.
 - **Run all tests with** `npm test` (`vitest --run`). Run one file with `npx vitest run <path>`.
+- **`data/table.sqlite` holds real data** — 30 tasks and 5 zones as of 2026-08-15 — and the Dockerfile migrates production automatically on every boot. No task may write a migration that drops, alters, or deletes anything in an existing table. Task 1 verifies this explicitly. A verified backup sits at `data/backups/table-pre-dinner-2026-08-15.sqlite`.
 
 ---
 
@@ -155,17 +156,58 @@ import { sqliteTable, text, integer, uniqueIndex, primaryKey } from 'drizzle-orm
 Run: `npm run db:generate`
 Expected: a new file `drizzle/0006_<random_name>.sql` containing `CREATE TABLE people`, `CREATE TABLE flags`, and `CREATE TABLE people_flags`.
 
-- [ ] **Step 4: Apply the migration**
+- [ ] **Step 4: Prove the migration cannot destroy anything**
+
+This database holds real data, and the Dockerfile runs migrations automatically
+on every production boot — so this file will execute against production
+unattended. Read it before letting it near either database.
+
+Run: `grep -iE 'drop|delete|alter|update' drizzle/0006_*.sql`
+Expected: **no output.** The migration must contain only `CREATE TABLE`
+statements for `people`, `flags`, and `people_flags`.
+
+If anything matches, STOP and report it rather than continuing. A generated
+migration that rewrites an existing table means the schema edit in Step 1
+disturbed something it should not have.
+
+- [ ] **Step 5: Record the baseline row counts**
+
+Run:
+
+```bash
+npx tsx -e "
+const D=require('better-sqlite3');
+const d=new D('./data/table.sqlite',{readonly:true});
+for (const t of ['tasks','zones','users','notifications','push_subscriptions'])
+  console.log(t, d.prepare('select count(*) c from '+t).get().c);
+"
+```
+
+Expected: `tasks 30`, `zones 5`, `users 1`, `notifications 7`, `push_subscriptions 4`.
+Write down whatever it prints — Step 7 compares against it.
+
+A verified backup already exists at
+`data/backups/table-pre-dinner-2026-08-15.sqlite`. Restore with
+`cp data/backups/table-pre-dinner-2026-08-15.sqlite data/table.sqlite` after
+stopping the dev server, and delete the stale `-wal` and `-shm` files alongside it.
+
+- [ ] **Step 6: Apply the migration**
 
 Run: `npm run db:migrate`
 Expected: `Migrations applied.`
 
-- [ ] **Step 5: Verify the tables exist**
+- [ ] **Step 7: Verify nothing was lost**
+
+Re-run the count command from Step 5.
+Expected: **identical numbers.** Any difference means the migration touched
+existing data — stop, restore from the backup, and report it.
+
+- [ ] **Step 8: Verify the tables exist**
 
 Run: `npx tsx -e "const D=require('better-sqlite3');const d=new D('./data/table.sqlite');console.log(d.prepare(\"select name from sqlite_master where type='table' and name in ('people','flags','people_flags')\").all())"`
 Expected: three rows — `people`, `flags`, `people_flags`.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add src/lib/server/db/schema.ts drizzle/
