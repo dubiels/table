@@ -43,6 +43,13 @@
       "when": 1786486755031,
       "tag": "0005_third_electro",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1786817082971,
+      "tag": "0006_organic_silver_surfer",
+      "breakpoints": true
     }
   ]
 }

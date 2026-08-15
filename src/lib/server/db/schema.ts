@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, uniqueIndex, primaryKey } from 'drizzle-orm/sqlite-core';
 
 export const users = sqliteTable('users', {
 	id: text('id').primaryKey(),
@@ -114,3 +114,56 @@ export const notifications = sqliteTable('notifications', {
 	sentAt: text('sent_at').notNull(),
 	readAt: text('read_at')
 });
+
+export const people = sqliteTable('people', {
+	id: text('id').primaryKey(),
+	name: text('name').notNull(),
+	linkedinUrl: text('linkedin_url'),
+	email: text('email'),
+	phone: text('phone'),
+	company: text('company'),
+	// Separate from company: they display as one line ("Founder, Cadence") but
+	// answer different questions, and either may be worth filtering on.
+	role: text('role'),
+	city: text('city'),
+	/** Free text: "Ana's dinner party", "Recurse pairing night". */
+	metAt: text('met_at'),
+	/** ISO date. Defaults to today at quick-add, because you add someone right after meeting them. */
+	metOn: text('met_on'),
+	/** Who they are, what they can help with. The field the later LLM phase reads. */
+	notes: text('notes'),
+	// Archive rather than delete: a hand-written paragraph about someone you met
+	// once cannot be recovered from anywhere, precisely because no import exists.
+	archivedAt: text('archived_at'),
+	createdAt: text('created_at').notNull(),
+	updatedAt: text('updated_at').notNull()
+});
+
+export const flags = sqliteTable('flags', {
+	id: text('id').primaryKey(),
+	// Exact-match backstop only. SQLite compares text case-sensitively, so
+	// case-insensitive reuse ("sf" finding "SF") is enforced in the service.
+	name: text('name').notNull().unique(),
+	color: text('color').notNull().default('sage'),
+	createdAt: text('created_at').notNull()
+});
+
+export const peopleFlags = sqliteTable(
+	'people_flags',
+	{
+		personId: text('person_id')
+			.notNull()
+			.references(() => people.id),
+		flagId: text('flag_id')
+			.notNull()
+			.references(() => flags.id),
+		createdAt: text('created_at').notNull()
+	},
+	(t) => ({
+		// A composite primary key makes the same flag twice on one person
+		// unrepresentable. The uniqueIndex workaround elsewhere in this file
+		// exists only because SQLite cannot ALTER TABLE ADD COLUMN ... UNIQUE;
+		// that does not apply to a new table.
+		pk: primaryKey({ columns: [t.personId, t.flagId] })
+	})
+);
