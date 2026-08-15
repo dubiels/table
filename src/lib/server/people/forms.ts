@@ -83,6 +83,30 @@ export const personTaskSchema = z.object({
 	dueDate: optionalText
 });
 
+/**
+ * One contact from a vCard import.
+ *
+ * Parsed in the browser and posted as JSON, so this validates a payload the
+ * server never saw as a file. Every field but the name is optional and stored
+ * as-is — an address book is full of half-filled entries, and refusing them
+ * would just mean importing fewer of the people you actually know.
+ */
+export const importedContactSchema = z.object({
+	name: trimmed.min(1),
+	email: optionalText,
+	phone: optionalText,
+	company: optionalText,
+	role: optionalText,
+	city: optionalText,
+	linkedinUrl: optionalLinkedin,
+	notes: optionalText
+});
+
+export const importPayloadSchema = z.object({
+	status: z.enum(['met', 'to_meet']).default('met'),
+	contacts: z.array(importedContactSchema).min(1)
+});
+
 export const flagSchema = z.object({
 	name: trimmed.min(1),
 	color: z.enum(FLAG_COLOR_KEYS as [FlagColor, ...FlagColor[]]).default('sage')

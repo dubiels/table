@@ -197,9 +197,23 @@ People are **archived** rather than deleted, since a hand-written note about
 someone is not recoverable from anywhere. "Show archived" in the filter bar
 brings them back to restore.
 
-There is deliberately **no bulk import and no LinkedIn API**. LinkedIn removed
-its Connections API in 2015 and nothing self-serve replaced it, so the stored
-profile URL simply links out to the live page — always current, nothing to sync.
+**Follow-ups** are real Table tasks, not a second todo list. Raise one from a
+person's record with a title and a due date, and it lands on the board like
+anything else — the morning digest and the due-date notifications pick it up,
+and the task's card shows whose it is.
+
+**People you want to meet** live in the same book under the _To meet_ tab. They
+carry no meeting date and no last-spoke date, so a question like "who have I gone
+quiet on" never sweeps in someone you have never spoken to.
+
+**Importing** reads a vCard exported from Apple's Contacts.app — select the
+people you want, then **File → Export → Export vCard**, and choose the `.vcf` in
+the Import dialog. The file is parsed in your browser and nothing is sent
+anywhere until you have ticked exactly who to bring in; names already in the book
+start unticked. There is deliberately no automatic sync, and **no LinkedIn API**:
+LinkedIn removed its Connections API in 2015 and nothing self-serve replaced it,
+so the stored profile URL simply links out to the live page — always current,
+nothing to sync.
 
 ### Serving it from a subdomain
 

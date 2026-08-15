@@ -1,5 +1,6 @@
 <script lang="ts">
 	import AddPersonDialog from '$lib/components/people/AddPersonDialog.svelte';
+	import ImportContactsDialog from '$lib/components/people/ImportContactsDialog.svelte';
 	import FlagFilterBar from '$lib/components/people/FlagFilterBar.svelte';
 	import PersonGrid from '$lib/components/people/PersonGrid.svelte';
 	import PersonDetailModal from '$lib/components/people/PersonDetailModal.svelte';
@@ -15,6 +16,8 @@
 	let status = $state<'met' | 'to_meet' | 'all'>('met');
 	let openPersonId = $state<string | null>(null);
 	let adding = $state(false);
+	let importing = $state(false);
+	let existingNames = $derived(new Set(data.people.map((p) => p.name.trim().toLowerCase())));
 	// Stamped when the dialog opens rather than at render: reading the clock
 	// during render makes the server and client disagree, and this only has to be
 	// right at the moment you press Add.
@@ -91,6 +94,7 @@
 			aria-label="Search people"
 			class="search"
 		/>
+		<button type="button" class="import" onclick={() => (importing = true)}>Import</button>
 		<button type="button" class="add" onclick={openAdd}>+ Add person</button>
 	</header>
 
@@ -126,6 +130,10 @@
 		{status}
 		onopen={(id) => (openPersonId = id)}
 	/>
+
+	{#if importing}
+		<ImportContactsDialog {existingNames} onclose={() => (importing = false)} />
+	{/if}
 
 	{#if adding}
 		<AddPersonDialog flags={data.flags} today={todayValue} onclose={() => (adding = false)} />
@@ -191,6 +199,16 @@
 		border-color: var(--accent);
 		color: var(--accent-ink);
 		font-weight: 600;
+	}
+	.import {
+		padding: 0.45rem 0.9rem;
+		border: 1px solid var(--border);
+		border-radius: 7px;
+		background: none;
+		font: inherit;
+		color: var(--muted);
+		white-space: nowrap;
+		cursor: pointer;
 	}
 	.add {
 		padding: 0.45rem 0.9rem;

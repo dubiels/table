@@ -10,7 +10,8 @@ import {
 	addPersonSchema,
 	updatePersonSchema,
 	flagSchema,
-	personTaskSchema
+	personTaskSchema,
+	importPayloadSchema
 } from '$lib/server/people/forms';
 
 export const load: PageServerLoad = async () => {
@@ -69,6 +70,41 @@ export const actions: Actions = {
 		}
 
 		return { created: person.id };
+	},
+
+	importPeople: async ({ request }) => {
+		const data = Object.fromEntries(await request.formData());
+		let payload: unknown;
+		try {
+			payload = JSON.parse(typeof data.payload === 'string' ? data.payload : '');
+		} catch {
+			return fail(400, { error: 'That file could not be read' });
+		}
+
+		const parsed = importPayloadSchema.safeParse(payload);
+		if (!parsed.success) return fail(400, { error: 'Nothing selected to import' });
+
+		// Names already in the book are skipped rather than merged: a second
+		// "Devon Reyes" is a judgement call about whether they are the same
+		// person, and quietly overwriting the notes you wrote by hand with a
+		// blank field from an address book would be the worst possible answer.
+		const existing = new Set(
+			(await peopleService.listPeople()).map((p) => p.name.trim().toLowerCase())
+		);
+
+		let imported = 0;
+		let skipped = 0;
+		for (const contact of parsed.data.contacts) {
+			if (existing.has(contact.name.trim().toLowerCase())) {
+				skipped++;
+				continue;
+			}
+			await peopleService.createPerson({ ...contact, status: parsed.data.status });
+			existing.add(contact.name.trim().toLowerCase());
+			imported++;
+		}
+
+		return { imported, skipped };
 	},
 
 	createTaskForPerson: async ({ request }) => {
