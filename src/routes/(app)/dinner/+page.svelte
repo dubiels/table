@@ -2,6 +2,7 @@
 	import QuickAddPerson from '$lib/components/people/QuickAddPerson.svelte';
 	import FlagFilterBar from '$lib/components/people/FlagFilterBar.svelte';
 	import PersonGrid from '$lib/components/people/PersonGrid.svelte';
+	import PersonDetailModal from '$lib/components/people/PersonDetailModal.svelte';
 	import { filterPeople } from '$lib/people/search';
 	import type { PageData } from './$types';
 
@@ -10,6 +11,10 @@
 	let query = $state('');
 	let selectedFlagIds = $state<string[]>([]);
 	let includeArchived = $state(false);
+	let openPersonId = $state<string | null>(null);
+	// Re-read from `data` rather than captured on click, so a save re-render shows
+	// the saved values instead of the ones the modal opened with.
+	let openPerson = $derived(data.people.find((p) => p.id === openPersonId) ?? null);
 
 	// A flag deleted while it's an active filter would otherwise leave its id
 	// stranded in `selectedFlagIds` — the chip that could clear it is gone, the
@@ -83,8 +88,18 @@
 		people={visible}
 		flags={data.flags}
 		hasAnyPeople={data.people.length > 0}
-		onopen={() => {}}
+		onopen={(id) => (openPersonId = id)}
 	/>
+
+	{#if openPerson}
+		{#key openPerson.id}
+			<PersonDetailModal
+				person={openPerson}
+				flags={data.flags}
+				onclose={() => (openPersonId = null)}
+			/>
+		{/key}
+	{/if}
 </section>
 
 <style>

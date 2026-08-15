@@ -1,11 +1,23 @@
 <script lang="ts">
-	import { toasts } from '$lib/toast.svelte';
+	import { toasts, dismissToast } from '$lib/toast.svelte';
 </script>
 
 <div class="toasts" role="status" aria-live="polite">
 	{#each toasts as t (t.id)}
 		<div class="toast" class:success={t.tone === 'success'} class:error={t.tone === 'error'}>
 			{t.message}
+			{#if t.action}
+				<button
+					type="button"
+					class="action"
+					onclick={() => {
+						t.action?.run();
+						dismissToast(t.id);
+					}}
+				>
+					{t.action.label}
+				</button>
+			{/if}
 		</div>
 	{/each}
 </div>
@@ -36,6 +48,23 @@
 		font-weight: 500;
 		text-align: center;
 		animation: toast-in 160ms ease-out;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.6rem;
+	}
+
+	.action {
+		/* Only the button re-enables pointer events, so the pill itself stays
+		   click-through exactly as before. */
+		pointer-events: auto;
+		border: none;
+		background: none;
+		padding: 0;
+		font: inherit;
+		font-weight: 600;
+		color: var(--accent);
+		text-decoration: underline;
+		cursor: pointer;
 	}
 
 	.toast.success {

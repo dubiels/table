@@ -1,0 +1,207 @@
+<script lang="ts">
+	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
+	import { toast } from '$lib/toast.svelte';
+	import FlagPicker from './FlagPicker.svelte';
+	import type { PersonView, FlagView } from '$lib/people/types';
+
+	let {
+		person,
+		flags,
+		onclose
+	}: { person: PersonView; flags: FlagView[]; onclose: () => void } = $props();
+
+	// The modal is remounted per person — there is no in-place "next person"
+	// navigation — so props are read directly and never re-synced.
+	let archiving = $state(false);
+
+	/**
+	 * Undo, from the toast raised after archiving.
+	 *
+	 * It posts to the action endpoint by hand rather than through `use:enhance`,
+	 * because by the time the toast is clicked the modal — and its form — has
+	 * already closed. The header is what makes SvelteKit answer with an action
+	 * result instead of a redirect.
+	 */
+	async function restore(id: string) {
+		const body = new FormData();
+		body.set('id', id);
+		await fetch('?/restorePerson', {
+			method: 'POST',
+			body,
+			headers: { 'x-sveltekit-action': 'true' }
+		});
+		await invalidateAll();
+	}
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape') onclose();
+	}
+</script>
+
+<svelte:window onkeydown={handleKeydown} />
+
+<div class="backdrop" role="presentation" onclick={onclose}></div>
+
+<div class="modal" role="dialog" aria-modal="true" aria-label={person.name}>
+	<header>
+		<h2>{person.name}</h2>
+		<button type="button" class="close" aria-label="Close" onclick={onclose}>✕</button>
+	</header>
+
+	<FlagPicker personId={person.id} {flags} attachedIds={person.flagIds} />
+
+	<form method="POST" action="?/updatePerson" use:enhance={() => async ({ update }) => {
+		await update();
+		toast('Saved', 'success');
+	}}>
+		<input type="hidden" name="id" value={person.id} />
+
+		<label>Name<input name="name" value={person.name} required /></label>
+		<label>Role<input name="role" value={person.role ?? ''} /></label>
+		<label>Company<input name="company" value={person.company ?? ''} /></label>
+		<label>City<input name="city" value={person.city ?? ''} /></label>
+		<label>LinkedIn<input name="linkedinUrl" value={person.linkedinUrl ?? ''} /></label>
+		<label>Email<input name="email" value={person.email ?? ''} /></label>
+		<label>Phone<input name="phone" value={person.phone ?? ''} /></label>
+		<label>Met at<input name="metAt" value={person.metAt ?? ''} /></label>
+		<label>Met on<input type="date" name="metOn" value={person.metOn ?? ''} /></label>
+		<label class="wide">
+			Who they are
+			<textarea name="notes" rows="6">{person.notes ?? ''}</textarea>
+		</label>
+
+		<div class="actions">
+			{#if person.linkedinUrl}
+				<!-- The freshness mechanism: LinkedIn exposes no API for this, so the
+				     live profile is one click away instead of mirrored and stale. -->
+				<a href={person.linkedinUrl} target="_blank" rel="noreferrer noopener">Open LinkedIn</a>
+			{/if}
+			<button type="submit" class="save">Save</button>
+		</div>
+	</form>
+
+	<form
+		method="POST"
+		action={person.archivedAt ? '?/restorePerson' : '?/archivePerson'}
+		use:enhance={() => {
+			archiving = true;
+			const wasArchived = Boolean(person.archivedAt);
+			const id = person.id;
+			return async ({ update }) => {
+				await update();
+				archiving = false;
+				onclose();
+				if (wasArchived) {
+					toast('Restored', 'success');
+				} else {
+					// Longer than the default: an undo nobody has time to read is not
+					// an undo. "Show archived" remains the slower path back.
+					toast('Archived', 'success', 8000, { label: 'Undo', run: () => void restore(id) });
+				}
+			};
+		}}
+	>
+		<input type="hidden" name="id" value={person.id} />
+		<button type="submit" class="archive" disabled={archiving}>
+			{person.archivedAt ? 'Restore' : 'Archive'}
+		</button>
+	</form>
+</div>
+
+<style>
+	.backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 40;
+		background: rgba(45, 38, 28, 0.35);
+	}
+	.modal {
+		position: fixed;
+		z-index: 41;
+		inset: 4vh 50% auto auto;
+		transform: translateX(50%);
+		width: min(680px, 92vw);
+		max-height: 92vh;
+		overflow-y: auto;
+		padding: 1.1rem 1.25rem;
+		border: 1px solid var(--border, #ddd4c6);
+		border-radius: 12px;
+		background: var(--surface, #fff);
+		box-shadow: 0 18px 48px rgba(60, 50, 35, 0.26);
+	}
+	header {
+		display: flex;
+		align-items: center;
+		margin-bottom: 0.75rem;
+	}
+	h2 {
+		margin: 0;
+		font-size: 1.05rem;
+	}
+	.close {
+		margin-left: auto;
+		border: none;
+		background: none;
+		font: inherit;
+		color: var(--muted, #b0a698);
+		cursor: pointer;
+	}
+	form {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.6rem;
+		margin-top: 0.9rem;
+	}
+	label {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+		font-size: 0.72rem;
+		color: var(--muted, #93897d);
+	}
+	.wide {
+		grid-column: 1 / -1;
+	}
+	input,
+	textarea {
+		padding: 0.35rem 0.5rem;
+		border: 1px solid var(--border, #e2dace);
+		border-radius: 6px;
+		background: var(--surface, #fff);
+		font: inherit;
+		font-size: 0.85rem;
+		color: inherit;
+	}
+	.actions {
+		grid-column: 1 / -1;
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+	.save {
+		margin-left: auto;
+		padding: 0.4rem 1rem;
+		border: none;
+		border-radius: 7px;
+		background: var(--accent, #6f7f5f);
+		color: #fff;
+		font: inherit;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.archive {
+		border: none;
+		background: none;
+		padding: 0;
+		font: inherit;
+		font-size: 0.78rem;
+		color: var(--danger, #a3462f);
+		cursor: pointer;
+	}
+	@media (max-width: 640px) {
+		form {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>
