@@ -111,6 +111,9 @@
 		   scannable. The full text is one click away in the modal. */
 		display: -webkit-box;
 		-webkit-line-clamp: 3;
+		/* The standard property alongside the prefixed one. Browsers that support
+		   it use this; the -webkit-box pair stays for the ones that do not. */
+		line-clamp: 3;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
 	}
