@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { z } from 'zod';
 import {
 	normalizeLinkedinUrl,
 	quickAddPersonSchema,
@@ -21,6 +22,26 @@ describe('normalizeLinkedinUrl', () => {
 
 	it('upgrades http to https', () => {
 		expect(normalizeLinkedinUrl('http://linkedin.com/in/devonreyes')).toBe(
+			'https://linkedin.com/in/devonreyes'
+		);
+	});
+
+	// Mobile keyboards auto-capitalise the first character typed into a field,
+	// so a capitalised scheme is realistic input, not a contrived edge case.
+	it('normalises a capitalised https scheme instead of doubling it', () => {
+		expect(normalizeLinkedinUrl('HTTPS://linkedin.com/in/devonreyes')).toBe(
+			'https://linkedin.com/in/devonreyes'
+		);
+	});
+
+	it('normalises a mixed-case http scheme and upgrades it to https', () => {
+		expect(normalizeLinkedinUrl('Http://linkedin.com/in/devonreyes')).toBe(
+			'https://linkedin.com/in/devonreyes'
+		);
+	});
+
+	it('normalises an upper-case http scheme and upgrades it to https', () => {
+		expect(normalizeLinkedinUrl('HTTP://linkedin.com/in/devonreyes')).toBe(
 			'https://linkedin.com/in/devonreyes'
 		);
 	});
@@ -113,8 +134,15 @@ describe('updatePersonSchema', () => {
 			notes: ''
 		});
 		expect(parsed.success).toBe(true);
+		expect(parsed.data?.linkedinUrl).toBeUndefined();
 		expect(parsed.data?.email).toBeUndefined();
+		expect(parsed.data?.phone).toBeUndefined();
+		expect(parsed.data?.company).toBeUndefined();
+		expect(parsed.data?.role).toBeUndefined();
+		expect(parsed.data?.city).toBeUndefined();
+		expect(parsed.data?.metAt).toBeUndefined();
 		expect(parsed.data?.metOn).toBeUndefined();
+		expect(parsed.data?.notes).toBeUndefined();
 	});
 
 	// Deliberately loose: rejecting a number copied off a napkin fails worse than
@@ -149,5 +177,16 @@ describe('flagSchema', () => {
 
 	it('rejects an empty flag name', () => {
 		expect(flagSchema.safeParse({ name: '  ' }).success).toBe(false);
+	});
+
+	// Compile-time guard: the inferred colour type must stay the FlagColor
+	// literal union, not widen to `string`. If the cast in forms.ts ever goes
+	// back to `as [string, ...string[]]`, `'neon'` becomes assignable and this
+	// `@ts-expect-error` starts reporting as unused, which fails `npm run check`.
+	it('infers a FlagColor literal union for color, not string', () => {
+		type InferredColor = z.infer<typeof flagSchema>['color'];
+		// @ts-expect-error 'neon' is not a valid FlagColor
+		const bogus: InferredColor = 'neon';
+		expect(bogus).toBe('neon');
 	});
 });

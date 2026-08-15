@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FLAG_COLOR_KEYS } from '$lib/people/colors';
+import { FLAG_COLOR_KEYS, type FlagColor } from '$lib/people/colors';
 
 // A browser submits every control the form has rendered, so untouched optional
 // fields post empty strings rather than leaving the keys out. Treat blank as
@@ -21,8 +21,9 @@ const optionalText = z.preprocess(blankToUndefined, trimmed.optional());
 export function normalizeLinkedinUrl(value: string): string | undefined {
 	const trimmedValue = value.trim();
 	if (!trimmedValue) return undefined;
-	if (trimmedValue.startsWith('https://')) return trimmedValue;
-	if (trimmedValue.startsWith('http://')) return `https://${trimmedValue.slice('http://'.length)}`;
+	const lower = trimmedValue.toLowerCase();
+	if (lower.startsWith('https://')) return `https://${trimmedValue.slice('https://'.length)}`;
+	if (lower.startsWith('http://')) return `https://${trimmedValue.slice('http://'.length)}`;
 	return `https://${trimmedValue}`;
 }
 
@@ -52,5 +53,5 @@ export const updatePersonSchema = z.object({
 
 export const flagSchema = z.object({
 	name: trimmed.min(1),
-	color: z.enum(FLAG_COLOR_KEYS as [string, ...string[]]).default('sage')
+	color: z.enum(FLAG_COLOR_KEYS as [FlagColor, ...FlagColor[]]).default('sage')
 });
