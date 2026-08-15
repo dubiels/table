@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { deserialize, enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { toast } from '$lib/toast.svelte';
 	import FlagPicker from './FlagPicker.svelte';
 	import type { PersonView, FlagView } from '$lib/people/types';
@@ -14,6 +15,9 @@
 	// The modal is remounted per person — there is no in-place "next person"
 	// navigation — so props are read directly and never re-synced.
 	let archiving = $state(false);
+	// A failed save's message, shown next to the Name field — the field that
+	// usually needs correcting — rather than only as a toast.
+	let saveError = $state<string | null>(null);
 
 	/**
 	 * Undo, from the toast raised after archiving.
@@ -26,12 +30,28 @@
 	async function restore(id: string) {
 		const body = new FormData();
 		body.set('id', id);
-		await fetch('?/restorePerson', {
+		// Absolute to the Dinner Table route rather than relative: '?/restorePerson'
+		// resolves against the *current* URL, and by the time the toast is
+		// clicked the user may well have navigated away from /dinner already.
+		const res = await fetch(`${resolve('/dinner')}?/restorePerson`, {
 			method: 'POST',
 			body,
-			headers: { 'x-sveltekit-action': 'true' }
+			headers: { accept: 'application/json', 'x-sveltekit-action': 'true' }
 		});
-		await invalidateAll();
+		// A bare res.ok check is not enough: an expired session comes back as
+		// HTTP 200 carrying {type:'redirect'} — the action header suppresses the
+		// real redirect response — so the result has to be deserialized and
+		// branched on its type instead.
+		const result = deserialize(await res.text());
+		if (result.type === 'success') {
+			await invalidateAll();
+			return;
+		}
+		const message =
+			result.type === 'failure'
+				? ((result.data as { error?: string } | undefined)?.error ?? 'Could not undo the archive')
+				: 'Could not undo the archive';
+		toast(message, 'error');
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -51,13 +71,36 @@
 
 	<FlagPicker personId={person.id} {flags} attachedIds={person.flagIds} />
 
-	<form method="POST" action="?/updatePerson" use:enhance={() => async ({ update }) => {
-		await update();
-		toast('Saved', 'success');
-	}}>
+	<form
+		class="person-form"
+		method="POST"
+		action="?/updatePerson"
+		use:enhance={() => async ({ result, update }) => {
+			await update();
+			if (result.type === 'failure') {
+				saveError =
+					(result.data as { error?: string } | undefined)?.error ?? 'Something went wrong.';
+			} else {
+				saveError = null;
+				toast('Saved', 'success');
+			}
+		}}
+	>
 		<input type="hidden" name="id" value={person.id} />
 
-		<label>Name<input name="name" value={person.name} required /></label>
+		<label>
+			Name
+			<input
+				name="name"
+				value={person.name}
+				required
+				aria-invalid={saveError !== null}
+				aria-describedby={saveError ? 'save-error' : undefined}
+			/>
+			{#if saveError}
+				<span class="status-error" role="alert" id="save-error">{saveError}</span>
+			{/if}
+		</label>
 		<label>Role<input name="role" value={person.role ?? ''} /></label>
 		<label>Company<input name="company" value={person.company ?? ''} /></label>
 		<label>City<input name="city" value={person.city ?? ''} /></label>
@@ -97,7 +140,14 @@
 				} else {
 					// Longer than the default: an undo nobody has time to read is not
 					// an undo. "Show archived" remains the slower path back.
-					toast('Archived', 'success', 8000, { label: 'Undo', run: () => void restore(id) });
+					toast('Archived', 'success', 8000, {
+						label: 'Undo',
+						// Offline or a network blip would otherwise turn this into an
+						// unhandled promise rejection — restore() already toasts on a
+						// server-reported failure, so this only needs to cover the fetch
+						// itself throwing.
+						run: () => void restore(id).catch(() => toast('Could not undo the archive', 'error'))
+					});
 				}
 			};
 		}}
@@ -113,12 +163,16 @@
 	.backdrop {
 		position: fixed;
 		inset: 0;
-		z-index: 40;
-		background: rgba(45, 38, 28, 0.35);
+		/* Same band TaskDetailModal uses, and for the same reason: TopBar is
+		   sticky with z-index 999 and is a sibling of <main> in a parent that
+		   creates no stacking context of its own, so anything under ~1000 loses
+		   to it. Toasts sit at 2000 deliberately, so this stays under that. */
+		z-index: 1000;
+		background: var(--overlay);
 	}
 	.modal {
 		position: fixed;
-		z-index: 41;
+		z-index: 1001;
 		inset: 4vh 50% auto auto;
 		transform: translateX(50%);
 		width: min(680px, 92vw);
@@ -126,9 +180,9 @@
 		overflow-y: auto;
 		padding: 1.1rem 1.25rem;
 		border: 1px solid var(--border, #ddd4c6);
-		border-radius: 12px;
+		border-radius: var(--radius-l);
 		background: var(--surface, #fff);
-		box-shadow: 0 18px 48px rgba(60, 50, 35, 0.26);
+		box-shadow: var(--shadow-raised);
 	}
 	header {
 		display: flex;
@@ -147,7 +201,10 @@
 		color: var(--muted, #b0a698);
 		cursor: pointer;
 	}
-	form {
+	/* Scoped to the update form only — this was a bare element selector, so it
+	   was also squeezing the archive/restore form's single button into one of
+	   two grid columns. */
+	.person-form {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: 0.6rem;
@@ -162,6 +219,11 @@
 	}
 	.wide {
 		grid-column: 1 / -1;
+	}
+	.status-error {
+		margin: 0;
+		font-size: 0.78rem;
+		color: var(--danger);
 	}
 	input,
 	textarea {
@@ -185,7 +247,7 @@
 		border: none;
 		border-radius: 7px;
 		background: var(--accent, #6f7f5f);
-		color: #fff;
+		color: var(--accent-ink);
 		font: inherit;
 		font-weight: 600;
 		cursor: pointer;
@@ -196,11 +258,11 @@
 		padding: 0;
 		font: inherit;
 		font-size: 0.78rem;
-		color: var(--danger, #a3462f);
+		color: var(--danger);
 		cursor: pointer;
 	}
 	@media (max-width: 640px) {
-		form {
+		.person-form {
 			grid-template-columns: 1fr;
 		}
 	}

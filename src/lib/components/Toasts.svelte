@@ -59,7 +59,11 @@
 		pointer-events: auto;
 		border: none;
 		background: none;
-		padding: 0;
+		/* Only this button is hit-testable (the pill itself stays click-through),
+		   so a bit of padding here costs nothing and keeps the tap target off the
+		   floor of the 24x24 minimum — bare text was landing around 30x20. */
+		padding: 0.25rem 0.4rem;
+		margin: -0.25rem -0.4rem;
 		font: inherit;
 		font-weight: 600;
 		color: var(--accent);
