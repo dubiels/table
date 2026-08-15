@@ -1,0 +1,123 @@
+<script lang="ts">
+	import { flagColorVars } from '$lib/people/colors';
+	import type { PersonView, FlagView } from '$lib/people/types';
+
+	let {
+		person,
+		flags,
+		onopen
+	}: {
+		person: PersonView;
+		flags: FlagView[];
+		onopen: (id: string) => void;
+	} = $props();
+
+	// Two letters at most: initials are a stand-in for a photo, and three or more
+	// stop reading as a monogram.
+	let initials = $derived(
+		person.name
+			.split(/\s+/)
+			.filter(Boolean)
+			.slice(0, 2)
+			.map((part) => part[0]?.toUpperCase() ?? '')
+			.join('')
+	);
+
+	let subtitle = $derived([person.role, person.company].filter(Boolean).join(', '));
+	let attached = $derived(flags.filter((f) => person.flagIds.includes(f.id)));
+</script>
+
+<button
+	type="button"
+	class="card"
+	class:archived={Boolean(person.archivedAt)}
+	onclick={() => onopen(person.id)}
+>
+	<span class="avatar">{initials}</span>
+	<span class="name">{person.name}</span>
+	{#if subtitle}<span class="subtitle">{subtitle}</span>{/if}
+
+	{#if attached.length > 0}
+		<span class="chips">
+			{#each attached as flag (flag.id)}
+				{@const vars = flagColorVars(flag.color)}
+				<span class="chip" style="background:{vars.fill};border-color:{vars.border}">
+					{flag.name}
+				</span>
+			{/each}
+		</span>
+	{/if}
+
+	{#if person.notes}<span class="notes">{person.notes}</span>{/if}
+	{#if person.archivedAt}<span class="badge">Archived</span>{/if}
+</button>
+
+<style>
+	.card {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.35rem;
+		width: 100%;
+		padding: 0.85rem;
+		border: 1px solid var(--border, #e7e0d5);
+		border-radius: 10px;
+		background: var(--surface, #fff);
+		text-align: left;
+		font: inherit;
+		color: inherit;
+		cursor: pointer;
+	}
+	.card:hover {
+		border-color: var(--border-strong, #d5c9b6);
+	}
+	.archived {
+		opacity: 0.6;
+	}
+	.avatar {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 30px;
+		height: 30px;
+		border-radius: 50%;
+		background: var(--zone-sage-fill);
+		font-size: 0.72rem;
+		font-weight: 700;
+	}
+	.name {
+		font-weight: 600;
+	}
+	.subtitle {
+		font-size: 0.78rem;
+		color: var(--muted, #93897d);
+	}
+	.chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem;
+	}
+	.chip {
+		padding: 0.1rem 0.45rem;
+		border: 1px solid transparent;
+		border-radius: 999px;
+		font-size: 0.68rem;
+	}
+	.notes {
+		font-size: 0.78rem;
+		line-height: 1.45;
+		color: var(--muted, #6b6258);
+		/* Three lines: enough to tell people apart, short enough to keep the grid
+		   scannable. The full text is one click away in the modal. */
+		display: -webkit-box;
+		-webkit-line-clamp: 3;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+	.badge {
+		font-size: 0.65rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--muted, #93897d);
+	}
+</style>
