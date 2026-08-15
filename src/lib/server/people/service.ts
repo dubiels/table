@@ -1,14 +1,20 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
+import { localDateString } from '$lib/listView';
 import { db } from '../db';
 import { people, peopleFlags } from '../db/schema';
 
 export type Person = typeof people.$inferSelect;
 export type PersonWithFlags = Person & { flagIds: string[] };
 
-/** Local date, matching the timezone `fly.toml` pins the process to. */
+/**
+ * Local date, matching the timezone `fly.toml` pins the process to.
+ *
+ * `new Date().toISOString()` answers a UTC question, not a local one, so
+ * anywhere west of Greenwich it rolls over to tomorrow during the evening.
+ */
 function today(): string {
-	return new Date().toISOString().slice(0, 10);
+	return localDateString();
 }
 
 export async function createPerson(input: {

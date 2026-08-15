@@ -55,9 +55,30 @@ describe('people service', () => {
 	});
 
 	// You add someone right after meeting them, so today is the right default.
-	it('defaults metOn to today', async () => {
-		const p = await peopleService.createPerson({ name: 'Devon Reyes' });
-		expect(p.metOn).toBe(new Date().toISOString().slice(0, 10));
+	// These pin an exact instant rather than deriving the expected value from
+	// `Date`, so a UTC-vs-local bug (like `toISOString().slice(0, 10)`) can
+	// actually make the test fail instead of agreeing with itself. The vitest
+	// config pins TZ to America/New_York for this project.
+	it('defaults metOn to today, in local time, when UTC has already rolled to tomorrow', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-08-15T02:30:00Z')); // 10:30pm Eastern on Aug 14
+		try {
+			const p = await peopleService.createPerson({ name: 'Devon Reyes' });
+			expect(p.metOn).toBe('2026-08-14');
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('defaults metOn to today, in local time, when UTC and local agree', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-08-14T16:30:00Z')); // 12:30pm Eastern on Aug 14
+		try {
+			const p = await peopleService.createPerson({ name: 'Devon Reyes' });
+			expect(p.metOn).toBe('2026-08-14');
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('honours an explicit metOn', async () => {
