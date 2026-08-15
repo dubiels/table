@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { localDateString } from '$lib/listView';
+import { localDateString } from '$lib/date';
 import { db } from '../db';
 import { people, peopleFlags } from '../db/schema';
 

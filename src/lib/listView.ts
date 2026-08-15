@@ -70,20 +70,9 @@ export function categoryColorFor(task: Categorizable, zones: ListZone[]): string
 	return zones.find((z) => z.id === hit.id)?.color ?? null;
 }
 
-/**
- * `date` as a local calendar date in `YYYY-MM-DD`.
- *
- * Task due dates are stored as the date the user picked, with no time or zone
- * attached. `new Date().toISOString()` answers a different question — where the
- * current instant falls on the UTC calendar — so anywhere west of Greenwich it
- * rolls over to tomorrow during the evening, and everything due today starts
- * reading as overdue hours early.
- */
-export function localDateString(date = new Date()): string {
-	const month = String(date.getMonth() + 1).padStart(2, '0');
-	const day = String(date.getDate()).padStart(2, '0');
-	return `${date.getFullYear()}-${month}-${day}`;
-}
+// Re-exported from its own module so the board's many callers keep importing it
+// from here, while code that must not depend on the board can reach it directly.
+export { localDateString } from './date';
 
 function addDays(dateStr: string, days: number): string {
 	const d = new Date(`${dateStr}T00:00:00Z`);
