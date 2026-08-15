@@ -9,7 +9,6 @@
 		selected,
 		includeArchived,
 		total,
-		form,
 		onToggle,
 		onToggleArchived
 	}: {
@@ -19,8 +18,6 @@
 		selected: string[];
 		includeArchived: boolean;
 		total: number;
-		/** The page's action result, so a failed rename can be shown in the open menu. */
-		form: { error?: string } | null;
 		onToggle: (id: string) => void;
 		onToggleArchived: () => void;
 	} = $props();
@@ -30,8 +27,13 @@
 	let menuEl = $state<HTMLDivElement | undefined>();
 	// The ⋯ button that opened the current menu, so Escape can return focus to it.
 	let triggerEl = $state<HTMLButtonElement | undefined>();
+	// A failed rename's message, scoped to the flag that produced it. Local
+	// (not the page-level `form` prop) so dismissing one flag's menu can't
+	// leave a stale error to leak into another flag's menu later.
+	let renameError = $state<{ flagId: string; message: string } | null>(null);
 
 	function toggleMenu(id: string, trigger: HTMLButtonElement) {
+		renameError = null;
 		if (editing === id) {
 			editing = null;
 		} else {
@@ -42,6 +44,7 @@
 
 	function closeMenu() {
 		editing = null;
+		renameError = null;
 	}
 
 	function onWindowPointerdown(e: PointerEvent) {
@@ -106,11 +109,29 @@
 							await update();
 							// A failed rename keeps the menu open so the error is visible
 							// and the name is still there to correct.
-							if (result.type !== 'failure') editing = null;
+							if (result.type === 'failure') {
+								renameError = {
+									flagId: flag.id,
+									message:
+										(result.data as { error?: string } | undefined)?.error ??
+										'Something went wrong.'
+								};
+							} else {
+								renameError = null;
+								editing = null;
+							}
 						}}
 					>
 						<input type="hidden" name="id" value={flag.id} />
-						<input name="name" value={flag.name} aria-label="Flag name" />
+						<input
+							name="name"
+							value={flag.name}
+							aria-label="Flag name"
+							aria-invalid={renameError?.flagId === flag.id}
+							aria-describedby={renameError?.flagId === flag.id
+								? `flag-rename-error-${flag.id}`
+								: undefined}
+						/>
 						<select name="color" value={flag.color} aria-label="Flag colour">
 							{#each FLAG_COLOR_KEYS as key (key)}
 								<option value={key}>{key}</option>
@@ -118,8 +139,10 @@
 						</select>
 						<button type="submit">Save</button>
 					</form>
-					{#if form?.error}
-						<p class="status-error" role="alert">{form.error}</p>
+					{#if renameError?.flagId === flag.id}
+						<p class="status-error" role="alert" id="flag-rename-error-{flag.id}">
+							{renameError.message}
+						</p>
 					{/if}
 					<form
 						method="POST"

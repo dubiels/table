@@ -5,7 +5,7 @@
 	import { filterPeople } from '$lib/people/search';
 	import type { PageData } from './$types';
 
-	let { data, form }: { data: PageData; form: { error?: string } | null } = $props();
+	let { data }: { data: PageData } = $props();
 
 	let query = $state('');
 	let selectedFlagIds = $state<string[]>([]);
@@ -75,7 +75,6 @@
 		selected={activeFlagIds}
 		{includeArchived}
 		{total}
-		{form}
 		onToggle={toggleFlag}
 		onToggleArchived={() => (includeArchived = !includeArchived)}
 	/>
