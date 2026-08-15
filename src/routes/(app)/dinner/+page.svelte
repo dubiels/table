@@ -3,15 +3,28 @@
 	import FlagFilterBar from '$lib/components/people/FlagFilterBar.svelte';
 	import PersonGrid from '$lib/components/people/PersonGrid.svelte';
 	import { filterPeople } from '$lib/people/search';
+	import type { PageData } from './$types';
 
-	let { data } = $props();
+	let { data, form }: { data: PageData; form: { error?: string } | null } = $props();
 
 	let query = $state('');
 	let selectedFlagIds = $state<string[]>([]);
 	let includeArchived = $state(false);
 
+	// A flag deleted while it's an active filter would otherwise leave its id
+	// stranded in `selectedFlagIds` — the chip that could clear it is gone, the
+	// grid goes empty, and "All" doesn't look selected because the raw array
+	// isn't. A $derived view (rather than an $effect writing back into
+	// `selectedFlagIds`) keeps this a pure read of state + props: it recomputes
+	// whenever `data.flags` changes after a delete, and there's nothing to
+	// feed back into itself, so there's no risk of it re-triggering its own
+	// recomputation.
+	let activeFlagIds = $derived(
+		selectedFlagIds.filter((id) => data.flags.some((flag) => flag.id === id))
+	);
+
 	let visible = $derived(
-		filterPeople(data.people, { query, flagIds: selectedFlagIds, includeArchived })
+		filterPeople(data.people, { query, flagIds: activeFlagIds, includeArchived })
 	);
 
 	// Counts describe the whole book, not the current result set — a chip reading
@@ -59,9 +72,10 @@
 	<FlagFilterBar
 		flags={data.flags}
 		{counts}
-		selected={selectedFlagIds}
+		selected={activeFlagIds}
 		{includeArchived}
 		{total}
+		{form}
 		onToggle={toggleFlag}
 		onToggleArchived={() => (includeArchived = !includeArchived)}
 	/>

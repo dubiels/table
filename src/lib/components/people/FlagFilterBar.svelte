@@ -9,6 +9,7 @@
 		selected,
 		includeArchived,
 		total,
+		form,
 		onToggle,
 		onToggleArchived
 	}: {
@@ -18,16 +19,59 @@
 		selected: string[];
 		includeArchived: boolean;
 		total: number;
+		/** The page's action result, so a failed rename can be shown in the open menu. */
+		form: { error?: string } | null;
 		onToggle: (id: string) => void;
 		onToggleArchived: () => void;
 	} = $props();
 
 	// Which flag's ⋯ menu is open. One at a time, keyed by id.
 	let editing = $state<string | null>(null);
+	let menuEl = $state<HTMLDivElement | undefined>();
+	// The ⋯ button that opened the current menu, so Escape can return focus to it.
+	let triggerEl = $state<HTMLButtonElement | undefined>();
+
+	function toggleMenu(id: string, trigger: HTMLButtonElement) {
+		if (editing === id) {
+			editing = null;
+		} else {
+			editing = id;
+			triggerEl = trigger;
+		}
+	}
+
+	function closeMenu() {
+		editing = null;
+	}
+
+	function onWindowPointerdown(e: PointerEvent) {
+		if (editing === null) return;
+		const target = e.target as Node;
+		// The trigger is excluded so its own click can close the menu itself,
+		// instead of this closing it and the click reopening it.
+		if (menuEl && !menuEl.contains(target) && !(triggerEl && triggerEl.contains(target))) {
+			closeMenu();
+		}
+	}
+
+	function onWindowKeydown(e: KeyboardEvent) {
+		if (editing === null) return;
+		if (e.key !== 'Escape') return;
+		closeMenu();
+		triggerEl?.focus();
+	}
 </script>
 
+<svelte:window onpointerdown={onWindowPointerdown} onkeydown={onWindowKeydown} />
+
 <div class="bar">
-	<button type="button" class="chip all" class:on={selected.length === 0} onclick={() => onToggle('')}>
+	<button
+		type="button"
+		class="chip all"
+		class:on={selected.length === 0}
+		aria-pressed={selected.length === 0}
+		onclick={() => onToggle('')}
+	>
 		All · {total}
 	</button>
 
@@ -38,6 +82,7 @@
 				type="button"
 				class="chip"
 				class:on={selected.includes(flag.id)}
+				aria-pressed={selected.includes(flag.id)}
 				style="background:{vars.fill};border-color:{vars.border}"
 				onclick={() => onToggle(flag.id)}
 			>
@@ -47,17 +92,21 @@
 				type="button"
 				class="more"
 				aria-label="Edit {flag.name}"
-				onclick={() => (editing = editing === flag.id ? null : flag.id)}>⋯</button
+				aria-haspopup="true"
+				aria-expanded={editing === flag.id}
+				onclick={(e) => toggleMenu(flag.id, e.currentTarget)}>⋯</button
 			>
 
 			{#if editing === flag.id}
-				<div class="menu">
+				<div class="menu" bind:this={menuEl}>
 					<form
 						method="POST"
 						action="?/updateFlag"
-						use:enhance={() => async ({ update }) => {
+						use:enhance={() => async ({ result, update }) => {
 							await update();
-							editing = null;
+							// A failed rename keeps the menu open so the error is visible
+							// and the name is still there to correct.
+							if (result.type !== 'failure') editing = null;
 						}}
 					>
 						<input type="hidden" name="id" value={flag.id} />
@@ -69,6 +118,9 @@
 						</select>
 						<button type="submit">Save</button>
 					</form>
+					{#if form?.error}
+						<p class="status-error" role="alert">{form.error}</p>
+					{/if}
 					<form
 						method="POST"
 						action="?/deleteFlag"
@@ -160,8 +212,13 @@
 		padding: 0;
 		font: inherit;
 		font-size: 0.78rem;
-		color: #a3462f;
+		color: var(--danger);
 		cursor: pointer;
 		white-space: nowrap;
+	}
+	.status-error {
+		margin: 0;
+		font-size: 0.78rem;
+		color: var(--danger);
 	}
 </style>
