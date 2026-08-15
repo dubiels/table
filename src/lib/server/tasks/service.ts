@@ -25,6 +25,7 @@ export async function createTask(input: {
 	dueDate?: string;
 	priority?: 'low' | 'med' | 'high';
 	googleSync?: boolean;
+	personId?: string;
 	x?: number;
 	y?: number;
 }): Promise<Task> {
@@ -40,6 +41,7 @@ export async function createTask(input: {
 		source: 'manual' as const,
 		externalId: null,
 		courseName: null,
+		personId: input.personId ?? null,
 		x: input.x ?? 60,
 		y: input.y ?? 60,
 		sortOrder: await nextSortOrder(),

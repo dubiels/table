@@ -57,6 +57,13 @@
       "when": 1786827549756,
       "tag": "0007_melted_grim_reaper",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1786829503663,
+      "tag": "0008_rich_darwin",
+      "breakpoints": true
     }
   ]
 }

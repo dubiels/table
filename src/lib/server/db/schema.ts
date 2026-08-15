@@ -40,6 +40,11 @@ export const tasks = sqliteTable(
 			.default('manual'),
 		externalId: text('external_id'),
 		courseName: text('course_name'),
+		// The one seam between the board and Dinner Table, and it points this way
+		// on purpose: a task may be about a person, a person never owns tasks.
+		// Invisible to Google, so like priority and position it must never bump
+		// `updatedAt` — see GOOGLE_VISIBLE_FIELDS in tasks/service.ts.
+		personId: text('person_id'),
 		x: integer('x').notNull().default(0),
 		y: integer('y').notNull().default(0),
 		sortOrder: integer('sort_order').notNull().default(0),
