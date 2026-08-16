@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { companyLogo, companyLogos } from './logo';
+import { companyLogo, companyLogos, normalizeCompanyName, resolveLogo } from './logo';
 
 describe('companyLogo', () => {
 	it('finds a well-known company by its plain name', () => {
@@ -35,18 +35,6 @@ describe('companyLogo', () => {
 		expect(companyLogo('Acme Widgets Incorporated')).toBeNull();
 	});
 
-	// simple-icons has notability thresholds a young company will not clear, so
-	// the override file is the supported way to fill the gap.
-	it('finds a company from the override file that simple-icons lacks', () => {
-		const logo = companyLogo('Physical Intelligence');
-		expect(logo?.title).toBe('Physical Intelligence');
-		expect(logo?.src).toBe('/logos/physical-intelligence.png');
-	});
-
-	it('matches an override however the name is punctuated', () => {
-		expect(companyLogo('physical-intelligence')?.title).toBe('Physical Intelligence');
-	});
-
 	it('returns null for empty and missing names', () => {
 		expect(companyLogo('')).toBeNull();
 		expect(companyLogo('   ')).toBeNull();
@@ -74,5 +62,59 @@ describe('companyLogos', () => {
 	it('skips empty and repeated names', () => {
 		const logos = companyLogos(['Stripe', 'Stripe', null, undefined, '']);
 		expect(Object.keys(logos)).toEqual(['Stripe']);
+	});
+});
+
+// The override mechanism is tested against fixtures, never against whatever the
+// owner of this machine happens to have added: `logo-overrides.local.ts` is
+// git-ignored, so a test asserting its contents would fail on a fresh clone.
+describe('resolveLogo', () => {
+	const bundled = { stripe: { title: 'Stripe', path: 'M0 0', hex: '635BFF' } };
+	const overrides = {
+		examplecorp: { title: 'Example Corp', src: '/logos/example.png', hex: '111111' }
+	};
+
+	it('finds a bundled mark', () => {
+		expect(resolveLogo('Stripe', {}, bundled)?.title).toBe('Stripe');
+	});
+
+	it('finds an override the bundled set lacks', () => {
+		expect(resolveLogo('Example Corp', overrides, bundled)?.src).toBe('/logos/example.png');
+	});
+
+	// Overrides exist precisely because the bundled set is wrong or absent.
+	it('prefers an override over a bundled mark of the same name', () => {
+		const shadowing = { stripe: { title: 'Stripe', src: '/logos/mine.png', hex: '000000' } };
+		expect(resolveLogo('Stripe', shadowing, bundled)?.src).toBe('/logos/mine.png');
+	});
+
+	it('normalises the name before looking in either source', () => {
+		expect(resolveLogo('example-corp!', overrides, bundled)?.title).toBe('Example Corp');
+	});
+
+	it('returns null when neither source has it', () => {
+		expect(resolveLogo('Nobody Ltd', overrides, bundled)).toBeNull();
+	});
+
+	it('returns null for empty and missing names', () => {
+		expect(resolveLogo('', overrides, bundled)).toBeNull();
+		expect(resolveLogo(null, overrides, bundled)).toBeNull();
+		expect(resolveLogo('!!!', overrides, bundled)).toBeNull();
+	});
+
+	it('accepts a Map as the bundled source, which is how it is built', () => {
+		const asMap = new Map(Object.entries(bundled));
+		expect(resolveLogo('Stripe', {}, asMap)?.title).toBe('Stripe');
+	});
+});
+
+describe('normalizeCompanyName', () => {
+	it('lowercases and strips punctuation', () => {
+		expect(normalizeCompanyName('Example Corp')).toBe('examplecorp');
+	});
+
+	it('spells out & and + so they match the packaged slugs', () => {
+		expect(normalizeCompanyName('Ben & Jerry')).toBe('benandjerry');
+		expect(normalizeCompanyName('C++')).toBe('cplusplus');
 	});
 });

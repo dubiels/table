@@ -1,10 +1,41 @@
 node_modules
-.svelte-kit
-build
+
+# Build output
+/build
+/.svelte-kit
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Database — WAL mode leaves -wal/-shm beside the file
+/data/
 *.sqlite
 *.sqlite-journal
-data/
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-wal
+*.db-shm
+
+# Secrets
 .env
 .env.*
 !.env.example
+
+# Editor / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# Agent scratch
 .superpowers/
+docs/
+
+# Personal content — logos and overrides you add for your own contacts.
+# Deliberately not published: the mechanism is public, the contents are yours.
+# NOT in .dockerignore, so `fly deploy` still carries them to your instance.
+/static/logos/
+src/lib/server/people/logo-overrides.local.ts

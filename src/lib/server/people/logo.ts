@@ -1,5 +1,4 @@
 import * as simpleIcons from 'simple-icons';
-import { LOGO_OVERRIDES } from './logo-overrides';
 
 /**
  * A company's mark, resolved from the name we already store.
@@ -36,7 +35,7 @@ export interface CompanyLogo {
  * land on the same entry as the package's own `benandjerrys` slug, hence the
  * ampersand becoming "and" before anything else is stripped.
  */
-function normalize(name: string): string {
+export function normalizeCompanyName(name: string): string {
 	return name
 		.toLowerCase()
 		.replace(/&/g, 'and')
@@ -53,7 +52,7 @@ for (const icon of Object.values(simpleIcons)) {
 	// Slug first, then title — the slug is the package's own canonical form, and
 	// the title is what a person would actually type into the Company field.
 	for (const key of [entry.slug, entry.title]) {
-		const normalized = normalize(key);
+		const normalized = normalizeCompanyName(key);
 		if (normalized && !BY_NORMALIZED_NAME.has(normalized)) {
 			BY_NORMALIZED_NAME.set(normalized, {
 				title: entry.title,
@@ -65,17 +64,54 @@ for (const icon of Object.values(simpleIcons)) {
 }
 
 /**
+ * Personal overrides, if the owner of this instance has any.
+ *
+ * Loaded through `import.meta.glob` rather than a plain import because the file
+ * is deliberately absent from version control — the mechanism is public, the
+ * contents are not. A glob that matches nothing resolves to `{}`, so a fresh
+ * clone builds and runs with no overrides rather than failing on a missing
+ * module. See `logo-overrides.example.ts` for the shape.
+ */
+const overrideModules = import.meta.glob('./logo-overrides.local.ts', { eager: true }) as Record<
+	string,
+	{ LOGO_OVERRIDES?: Record<string, CompanyLogo> }
+>;
+
+const LOCAL_OVERRIDES: Record<string, CompanyLogo> = Object.values(overrideModules).reduce(
+	(all, mod) => ({ ...all, ...(mod.LOGO_OVERRIDES ?? {}) }),
+	{} as Record<string, CompanyLogo>
+);
+
+/**
+ * The pure resolution rule, separated from the two data sources so it can be
+ * tested against fixtures rather than against whatever the owner of this
+ * machine happens to have added.
+ *
+ * Overrides win: they exist precisely because the bundled set got it wrong or
+ * lacks the brand entirely.
+ */
+export function resolveLogo(
+	name: string | null | undefined,
+	overrides: Record<string, CompanyLogo>,
+	bundled: Map<string, CompanyLogo> | Record<string, CompanyLogo>
+): CompanyLogo | null {
+	if (!name) return null;
+	const key = normalizeCompanyName(name);
+	if (!key) return null;
+	if (overrides[key]) return overrides[key];
+	const fromBundled = bundled instanceof Map ? bundled.get(key) : bundled[key];
+	return fromBundled ?? null;
+}
+
+/**
  * The logo for a company name, or null when nothing matches.
  *
  * Null is the common case for young companies — `simple-icons` has notability
  * thresholds a startup will not clear — so callers must render nothing rather
- * than a placeholder. `logo-overrides.ts` is where to add one by hand.
+ * than a placeholder.
  */
 export function companyLogo(name: string | null | undefined): CompanyLogo | null {
-	if (!name) return null;
-	const normalized = normalize(name);
-	if (!normalized) return null;
-	return LOGO_OVERRIDES[normalized] ?? BY_NORMALIZED_NAME.get(normalized) ?? null;
+	return resolveLogo(name, LOCAL_OVERRIDES, BY_NORMALIZED_NAME);
 }
 
 /** Resolves a whole page's worth at once, keyed by the name as stored. */
