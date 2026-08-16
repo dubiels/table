@@ -635,12 +635,14 @@
 		font-weight: 600;
 	}
 
+	/* A clipped name is a name you cannot read, and a box header has vertical
+	   room to spare where it has none horizontally — so long names wrap onto a
+	   second line instead of trailing off into an ellipsis. `anywhere` covers
+	   the single-unbroken-word name, which no amount of wrapping would fit. */
 	.box-name {
 		flex: 1;
 		min-width: 0;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
+		overflow-wrap: anywhere;
 	}
 
 	.box-count {
