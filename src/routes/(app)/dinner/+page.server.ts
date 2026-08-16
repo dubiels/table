@@ -3,6 +3,7 @@ import { fail } from '@sveltejs/kit';
 import * as peopleService from '$lib/server/people/service';
 import * as flagsService from '$lib/server/people/flags';
 import * as touchpointsService from '$lib/server/people/touchpoints';
+import { companyLogos } from '$lib/server/people/logo';
 import { localDateString } from '$lib/date';
 // The route is the composition layer: `src/lib/server/people/**` stays free of
 // the board so it remains extractable, but the page that shows a person and
@@ -54,7 +55,12 @@ export const load: PageServerLoad = async () => {
 		});
 	}
 
-	return { people, flags, tasksByPerson, touchpointsByPerson };
+	// Resolved here, not in the browser: simple-icons is ~3,450 marks and several
+	// megabytes, and a dynamic lookup cannot be tree-shaken. Only the handful of
+	// paths this page actually needs travel over the wire.
+	const logos = companyLogos(people.map((p) => p.company));
+
+	return { people, flags, tasksByPerson, touchpointsByPerson, logos };
 };
 
 /** Every action posts the row it acts on; a missing id is a bug, not user error. */

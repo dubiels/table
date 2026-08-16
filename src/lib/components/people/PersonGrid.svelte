@@ -8,6 +8,7 @@
 		hasAnyPeople,
 		status = 'met',
 		today,
+		logos = {},
 		onopen
 	}: {
 		people: PersonView[];
@@ -17,6 +18,7 @@
 		/** Which tab is showing, so an empty one explains itself in its own terms. */
 		status?: 'met' | 'to_meet' | 'all';
 		today: string;
+		logos?: Record<string, { title: string; path: string; hex: string }>;
 		onopen: (id: string) => void;
 	} = $props();
 </script>
@@ -24,7 +26,13 @@
 {#if people.length > 0}
 	<div class="grid">
 		{#each people as person (person.id)}
-			<PersonCard {person} {flags} {today} {onopen} />
+			<PersonCard
+				{person}
+				{flags}
+				{today}
+				logo={person.company ? (logos[person.company] ?? null) : null}
+				{onopen}
+			/>
 		{/each}
 	</div>
 {:else if hasAnyPeople}

@@ -133,6 +133,7 @@
 		hasAnyPeople={data.people.length > 0}
 		{status}
 		{today}
+		logos={data.logos}
 		onopen={(id) => (openPersonId = id)}
 	/>
 
@@ -158,6 +159,7 @@
 				flags={data.flags}
 				tasks={data.tasksByPerson[openPerson.id] ?? []}
 				touchpoints={data.touchpointsByPerson[openPerson.id] ?? []}
+				logo={openPerson.company ? (data.logos[openPerson.company] ?? null) : null}
 				{today}
 				onclose={() => (openPersonId = null)}
 			/>

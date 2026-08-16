@@ -1,16 +1,19 @@
 <script lang="ts">
 	import { flagColorVars } from '$lib/people/colors';
 	import { contactHeat, describeAge, HEAT_LABEL } from '$lib/people/relative-date';
+	import CompanyLogo from './CompanyLogo.svelte';
 	import type { PersonView, FlagView } from '$lib/people/types';
 
 	let {
 		person,
 		flags,
 		today,
+		logo = null,
 		onopen
 	}: {
 		person: PersonView;
 		flags: FlagView[];
+		logo?: { title: string; path: string; hex: string } | null;
 		/** Passed in rather than read from the clock, so SSR and hydration agree. */
 		today: string;
 		onopen: (id: string) => void;
@@ -34,7 +37,9 @@
 	onclick={() => onopen(person.id)}
 >
 	<span class="name">{person.name}</span>
-	{#if subtitle}<span class="subtitle">{subtitle}</span>{/if}
+	{#if subtitle}
+		<span class="subtitle"><CompanyLogo {logo} size={13} />{subtitle}</span>
+	{/if}
 
 	{#if attached.length > 0}
 		<span class="chips">
@@ -83,6 +88,9 @@
 		font-weight: 600;
 	}
 	.subtitle {
+		display: flex;
+		align-items: center;
+		gap: 0.3rem;
 		font-size: 0.78rem;
 		color: var(--muted, #93897d);
 	}

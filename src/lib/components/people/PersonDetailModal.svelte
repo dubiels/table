@@ -8,6 +8,7 @@
 	import PersonTasks from './PersonTasks.svelte';
 	import LinkedinCard from './LinkedinCard.svelte';
 	import PersonTouchpoints from './PersonTouchpoints.svelte';
+	import CompanyLogo from './CompanyLogo.svelte';
 	import type { Touchpoint } from './PersonTouchpoints.svelte';
 	import type { PersonTask } from './PersonTasks.svelte';
 	import type { PersonView, FlagView } from '$lib/people/types';
@@ -17,10 +18,12 @@
 		flags,
 		tasks = [],
 		touchpoints = [],
+		logo = null,
 		today,
 		onclose
 	}: {
 		touchpoints?: Touchpoint[];
+		logo?: { title: string; path: string; hex: string } | null;
 		today: string;
 		person: PersonView;
 		flags: FlagView[];
@@ -81,6 +84,7 @@
 
 <div class="modal" role="dialog" aria-modal="true" aria-label={person.name}>
 	<header>
+		<CompanyLogo {logo} size={20} />
 		<h2>{person.name}</h2>
 		<button type="button" class="close" aria-label="Close" onclick={onclose}>✕</button>
 	</header>
@@ -200,6 +204,7 @@
 	header {
 		display: flex;
 		align-items: center;
+		gap: 0.5rem;
 		margin-bottom: 0.75rem;
 	}
 	h2 {

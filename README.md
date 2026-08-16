@@ -206,6 +206,17 @@ alone. Logging an older
 conversation you forgot about records it without rewriting "last contact", since
 that question only ever means the most recent.
 
+**Company logos** come from `simple-icons`, matched on the company name you
+typed. Resolution happens on the server — the package is ~3,450 marks and
+several megabytes, and a dynamic lookup cannot be tree-shaken, so only the
+handful of paths a page needs travel over the wire. Nothing is fetched from
+anywhere, so no third party learns where your contacts work.
+
+Roughly 3,450 brands are covered, which is broad but not universal: the set has
+notability thresholds most young companies will not clear. A name with no match
+renders no logo rather than a placeholder. Add one by hand in
+`src/lib/server/people/logo-overrides.ts`.
+
 **Action items** are real Table tasks, not a second todo list. Raise one from a
 person's record with a title and a due date, and it lands on the board like
 anything else — the morning digest and the due-date notifications pick it up,
