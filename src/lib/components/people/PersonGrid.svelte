@@ -1,6 +1,6 @@
 <script lang="ts">
 	import PersonCard from './PersonCard.svelte';
-	import type { PersonView, FlagView } from '$lib/people/types';
+	import type { PersonView, FlagView, LogoView } from '$lib/people/types';
 
 	let {
 		people,
@@ -18,7 +18,7 @@
 		/** Which tab is showing, so an empty one explains itself in its own terms. */
 		status?: 'met' | 'to_meet' | 'all';
 		today: string;
-		logos?: Record<string, { title: string; path: string; hex: string }>;
+		logos?: Record<string, LogoView>;
 		onopen: (id: string) => void;
 	} = $props();
 </script>

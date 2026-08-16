@@ -18,12 +18,13 @@ import type { CompanyLogo } from './logo';
  * with no leading `#`.
  */
 export const LOGO_OVERRIDES: Record<string, CompanyLogo> = {
-	// Example of the shape, kept as documentation rather than a real mark: a
-	// wordmark traced by hand would be a guess, and a wrong logo is worse than
-	// none. Replace `path` with the real one when you have it.
-	// physicalintelligence: {
-	// 	title: 'Physical Intelligence',
-	// 	path: 'M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0z',
-	// 	hex: '111111'
-	// }
+	// Supplied as a bitmap rather than a path: the mark is a π glyph, and tracing
+	// a typeface by hand would be a guess. It has no alpha channel, so the
+	// component renders bitmap marks on a light tile — otherwise it would be a
+	// white square against the dark theme.
+	physicalintelligence: {
+		title: 'Physical Intelligence',
+		src: '/logos/physical-intelligence.png',
+		hex: '111111'
+	}
 };

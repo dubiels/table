@@ -15,8 +15,16 @@ import { LOGO_OVERRIDES } from './logo-overrides';
 
 export interface CompanyLogo {
 	title: string;
-	/** A single SVG path, drawn in a 24×24 viewBox. */
-	path: string;
+	/**
+	 * A single SVG path in a 24×24 viewBox — how every simple-icons mark arrives.
+	 * Absent on an override supplying a bitmap instead.
+	 */
+	path?: string;
+	/**
+	 * A URL to an image, for an override whose mark is not available as a path.
+	 * Served from our own `static/`, never a third party.
+	 */
+	src?: string;
 	/** Brand colour as a bare hex triplet, no leading hash. */
 	hex: string;
 }

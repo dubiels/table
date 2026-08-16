@@ -11,7 +11,7 @@
 	import CompanyLogo from './CompanyLogo.svelte';
 	import type { Touchpoint } from './PersonTouchpoints.svelte';
 	import type { PersonTask } from './PersonTasks.svelte';
-	import type { PersonView, FlagView } from '$lib/people/types';
+	import type { PersonView, FlagView, LogoView } from '$lib/people/types';
 
 	let {
 		person,
@@ -23,7 +23,7 @@
 		onclose
 	}: {
 		touchpoints?: Touchpoint[];
-		logo?: { title: string; path: string; hex: string } | null;
+		logo?: LogoView | null;
 		today: string;
 		person: PersonView;
 		flags: FlagView[];

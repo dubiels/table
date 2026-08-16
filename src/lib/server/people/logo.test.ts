@@ -7,7 +7,7 @@ describe('companyLogo', () => {
 		expect(logo).not.toBeNull();
 		expect(logo?.title).toBe('Stripe');
 		expect(logo?.hex).toMatch(/^[0-9A-Fa-f]{6}$/);
-		expect(logo?.path.length).toBeGreaterThan(10);
+		expect(logo?.path?.length).toBeGreaterThan(10);
 	});
 
 	it('ignores case', () => {
@@ -31,8 +31,20 @@ describe('companyLogo', () => {
 
 	// Null is the ordinary outcome for a young company, not an error — callers
 	// must render nothing rather than a placeholder.
-	it('returns null for a company it does not carry', () => {
-		expect(companyLogo('Physical Intelligence')).toBeNull();
+	it('returns null for a company nothing carries', () => {
+		expect(companyLogo('Acme Widgets Incorporated')).toBeNull();
+	});
+
+	// simple-icons has notability thresholds a young company will not clear, so
+	// the override file is the supported way to fill the gap.
+	it('finds a company from the override file that simple-icons lacks', () => {
+		const logo = companyLogo('Physical Intelligence');
+		expect(logo?.title).toBe('Physical Intelligence');
+		expect(logo?.src).toBe('/logos/physical-intelligence.png');
+	});
+
+	it('matches an override however the name is punctuated', () => {
+		expect(companyLogo('physical-intelligence')?.title).toBe('Physical Intelligence');
 	});
 
 	it('returns null for empty and missing names', () => {
@@ -54,9 +66,9 @@ describe('companyLogos', () => {
 	});
 
 	it('omits names with no match rather than mapping them to null', () => {
-		const logos = companyLogos(['Stripe', 'Physical Intelligence']);
+		const logos = companyLogos(['Stripe', 'Acme Widgets Incorporated']);
 		expect(logos).toHaveProperty('Stripe');
-		expect(logos).not.toHaveProperty('Physical Intelligence');
+		expect(logos).not.toHaveProperty('Acme Widgets Incorporated');
 	});
 
 	it('skips empty and repeated names', () => {

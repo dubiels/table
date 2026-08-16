@@ -2,7 +2,7 @@
 	import { flagColorVars } from '$lib/people/colors';
 	import { contactHeat, describeAge, HEAT_LABEL } from '$lib/people/relative-date';
 	import CompanyLogo from './CompanyLogo.svelte';
-	import type { PersonView, FlagView } from '$lib/people/types';
+	import type { PersonView, FlagView, LogoView } from '$lib/people/types';
 
 	let {
 		person,
@@ -13,7 +13,7 @@
 	}: {
 		person: PersonView;
 		flags: FlagView[];
-		logo?: { title: string; path: string; hex: string } | null;
+		logo?: LogoView | null;
 		/** Passed in rather than read from the clock, so SSR and hydration agree. */
 		today: string;
 		onopen: (id: string) => void;
