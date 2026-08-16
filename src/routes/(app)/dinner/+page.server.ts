@@ -3,6 +3,7 @@ import { fail } from '@sveltejs/kit';
 import * as peopleService from '$lib/server/people/service';
 import * as flagsService from '$lib/server/people/flags';
 import * as touchpointsService from '$lib/server/people/touchpoints';
+import { localDateString } from '$lib/date';
 // The route is the composition layer: `src/lib/server/people/**` stays free of
 // the board so it remains extractable, but the page that shows a person and
 // their action items is allowed to reach for both.
@@ -83,6 +84,24 @@ export const actions: Actions = {
 		if (typeof newFlagName === 'string' && newFlagName.trim()) {
 			const flag = await flagsService.createFlag(newFlagName);
 			await flagsService.attachFlag(person.id, flag.id);
+		}
+
+		// Parsed apart from addPersonSchema on purpose: these are not fields of a
+		// person, and folding them in would break the invariant that the add form
+		// and the edit form offer exactly the same person fields.
+		const reachOutNote = form.get('reachOutNote');
+		if (typeof reachOutNote === 'string' && reachOutNote.trim()) {
+			const reachOutOn = form.get('reachOutOn');
+			await touchpointsService.logTouchpoint({
+				personId: person.id,
+				// Falls back to the meeting date: the meeting IS the first reach-out,
+				// so a log entry with no date of its own belongs on the day you met.
+				occurredOn:
+					typeof reachOutOn === 'string' && reachOutOn.trim()
+						? reachOutOn.trim()
+						: (person.metOn ?? localDateString()),
+				note: reachOutNote.trim()
+			});
 		}
 
 		return { created: person.id };

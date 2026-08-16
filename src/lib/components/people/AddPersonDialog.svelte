@@ -77,6 +77,22 @@
 			detailsOpen
 		/>
 
+		<div class="reach-out wide">
+			<span class="label">First reach-out (optional)</span>
+			<div class="row">
+				<input type="date" name="reachOutOn" value={today} aria-label="When you spoke" />
+				<input
+					name="reachOutNote"
+					placeholder="Met at Ana's dinner, talked about scheduling infra"
+					aria-label="What happened"
+					autocomplete="off"
+				/>
+			</div>
+			<span class="hint"
+				>Fill this in and it starts their reach-out log. Leave it blank to skip.</span
+			>
+		</div>
+
 		<div class="flags wide">
 			<span>Flags</span>
 			<div class="chips">
@@ -163,6 +179,35 @@
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: 0.6rem;
+	}
+	.reach-out {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+		font-size: 0.72rem;
+		color: var(--muted);
+	}
+	.reach-out .row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+	}
+	.reach-out input {
+		padding: 0.35rem 0.5rem;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-s);
+		background: var(--surface);
+		font: inherit;
+		font-size: 0.85rem;
+		color: inherit;
+	}
+	.reach-out input[name='reachOutNote'] {
+		flex: 1 1 14rem;
+		min-width: 0;
+	}
+	.hint {
+		font-size: 0.68rem;
+		opacity: 0.8;
 	}
 	.flags {
 		display: flex;
