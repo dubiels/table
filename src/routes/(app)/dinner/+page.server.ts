@@ -4,6 +4,7 @@ import * as peopleService from '$lib/server/people/service';
 import * as flagsService from '$lib/server/people/flags';
 import * as touchpointsService from '$lib/server/people/touchpoints';
 import { companyLogos } from '$lib/server/people/logo';
+import { resolvePersonCity } from '$lib/server/cities';
 import { localDateString } from '$lib/date';
 // The route is the composition layer: `src/lib/server/people/**` stays free of
 // the board so it remains extractable, but the page that shows a person and
@@ -188,6 +189,10 @@ export const actions: Actions = {
 		const parsed = updatePersonSchema.safeParse(data);
 		if (!parsed.success) return fail(400, { error: 'A name is required' });
 
+		// A matched id owns the text stored beside it, so the pair is resolved here
+		// rather than trusting what the form posted.
+		const location = resolvePersonCity(parsed.data);
+
 		await peopleService.updatePerson(id, {
 			name: parsed.data.name,
 			linkedinUrl: parsed.data.linkedinUrl ?? null,
@@ -195,7 +200,8 @@ export const actions: Actions = {
 			phone: parsed.data.phone ?? null,
 			company: parsed.data.company ?? null,
 			role: parsed.data.role ?? null,
-			city: parsed.data.city ?? null,
+			city: location.city,
+			cityId: location.cityId,
 			metAt: parsed.data.metAt ?? null,
 			metOn: parsed.data.metOn ?? null,
 			lastSpokeAt: parsed.data.lastSpokeAt ?? null,

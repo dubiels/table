@@ -28,6 +28,20 @@ export function normalizeLinkedinUrl(value: string): string | undefined {
 	return `https://${trimmedValue}`;
 }
 
+/**
+ * The GeoNames id the city combobox posts beside the visible text.
+ *
+ * Absent whenever the field was typed rather than picked from — which is a
+ * normal outcome, not an error, since not every place someone lives is in the
+ * dataset. The service, not this schema, decides what a present id means: it
+ * rewrites the stored text from the matched row, so a stale tab cannot leave an
+ * id describing one city next to the name of another.
+ */
+const optionalCityId = z.preprocess(
+	blankToUndefined,
+	z.coerce.number().int().positive().optional()
+);
+
 /** The scheme-normalising optional URL field, shared by the add and edit forms. */
 const optionalLinkedin = z.preprocess(
 	blankToUndefined,
@@ -47,6 +61,7 @@ export const addPersonSchema = z.object({
 	company: optionalText,
 	role: optionalText,
 	city: optionalText,
+	cityId: optionalCityId,
 	metAt: optionalText,
 	metOn: optionalText,
 	// Left blank, the service seeds this from `metOn` — meeting someone is the
@@ -66,6 +81,7 @@ export const updatePersonSchema = z.object({
 	company: optionalText,
 	role: optionalText,
 	city: optionalText,
+	cityId: optionalCityId,
 	metAt: optionalText,
 	metOn: optionalText,
 	notes: optionalText

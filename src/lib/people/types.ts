@@ -29,6 +29,25 @@ export interface FlagView {
 	color: string;
 }
 
+/**
+ * One suggestion from the city typeahead.
+ *
+ * Shared rather than server-owned because it crosses `/api/cities` in both
+ * directions — the matcher builds it, the combobox renders it — and the wire
+ * shape is the thing that has to stay agreed.
+ */
+export interface CityMatch {
+	/** GeoNames id: the identity that lands in `people.cityId`. */
+	id: number;
+	/** What gets stored as the person's city: "San Francisco, CA". */
+	label: string;
+	name: string;
+	/** The dimmed line that separates two identically named places. */
+	secondary: string | null;
+	countryCode: string;
+	population: number;
+}
+
 export interface PersonView extends SearchablePerson {
 	linkedinUrl: string | null;
 	email: string | null;

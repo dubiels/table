@@ -7,3 +7,9 @@ const sqlite = new Database(env.DATABASE_PATH ?? './data/table.sqlite');
 sqlite.pragma('journal_mode = WAL');
 
 export const db = drizzle(sqlite, { schema });
+
+// The raw handle, for the city search — its ranking is a single query with a
+// CTE and a grouped rank, which reads far better as SQL than as a query builder,
+// and taking a handle lets the tests run it against a real in-memory database
+// instead of a mock that cannot interpret `where()`.
+export const sqliteClient = sqlite;

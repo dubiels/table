@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import CityCombobox from './CityCombobox.svelte';
 
 	/**
 	 * The scalar fields of a person, shared by the add dialog and the detail
@@ -27,6 +28,7 @@
 			role?: string | null;
 			company?: string | null;
 			city?: string | null;
+			cityId?: number | null;
 			linkedinUrl?: string | null;
 			email?: string | null;
 			phone?: string | null;
@@ -111,7 +113,7 @@
 
 		<label>Role<input name="role" value={values.role ?? ''} autocomplete="off" /></label>
 		<label>Company<input name="company" value={values.company ?? ''} autocomplete="off" /></label>
-		<label>City<input name="city" value={values.city ?? ''} autocomplete="off" /></label>
+		<CityCombobox city={values.city} cityId={values.cityId} />
 		<label
 			>LinkedIn<input
 				name="linkedinUrl"

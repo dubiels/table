@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { localDateString } from '$lib/date';
 import { db } from '../db';
 import { people } from '../db/schema';
+import { resolvePersonCity } from '../cities';
 
 export type Person = typeof people.$inferSelect;
 export type PersonWithFlags = Person & { flagIds: string[] };
@@ -26,6 +27,8 @@ export async function createPerson(input: {
 	company?: string;
 	role?: string;
 	city?: string;
+	/** A GeoNames id, when the city was picked rather than typed. */
+	cityId?: number;
 	metAt?: string;
 	metOn?: string;
 	lastSpokeAt?: string;
@@ -37,6 +40,8 @@ export async function createPerson(input: {
 	// has no meeting date at all, and defaulting one in would invent a history.
 	const wishlist = input.status === 'to_meet';
 	const metOn = input.metOn ?? (wishlist ? null : today());
+	// A matched id owns the text it is stored beside — see `resolveCity`.
+	const location = resolvePersonCity(input);
 	const row = {
 		id: randomUUID(),
 		name: input.name,
@@ -46,7 +51,8 @@ export async function createPerson(input: {
 		phone: input.phone ?? null,
 		company: input.company ?? null,
 		role: input.role ?? null,
-		city: input.city ?? null,
+		city: location.city,
+		cityId: location.cityId,
 		metAt: input.metAt ?? null,
 		metOn,
 		// Meeting someone is the first time you spoke to them, so this starts

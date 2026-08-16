@@ -1,4 +1,11 @@
-import { sqliteTable, text, integer, uniqueIndex, primaryKey } from 'drizzle-orm/sqlite-core';
+import {
+	sqliteTable,
+	text,
+	integer,
+	index,
+	uniqueIndex,
+	primaryKey
+} from 'drizzle-orm/sqlite-core';
 
 export const users = sqliteTable('users', {
 	id: text('id').primaryKey(),
@@ -137,7 +144,14 @@ export const people = sqliteTable('people', {
 	// Separate from company: they display as one line ("Founder, Cadence") but
 	// answer different questions, and either may be worth filtering on.
 	role: text('role'),
+	// The canonical label of `cityId` when one is set — the service derives it
+	// rather than trusting what was posted. Free text otherwise: a vCard import
+	// or a village GeoNames has never heard of still records somewhere.
 	city: text('city'),
+	// GeoNames id. Deliberately no foreign key: `cities` is a rebuildable seed
+	// table, and a constraint would either block a reseed or cascade into people.
+	// A dangling id reads as "unmatched", a state that already has to work.
+	cityId: integer('city_id'),
 	/** Free text: "Ana's dinner party", "Recurse pairing night". */
 	metAt: text('met_at'),
 	/** ISO date. Defaults to today when adding, because you add someone right after meeting them. */
@@ -202,3 +216,71 @@ export const peopleFlags = sqliteTable(
 		pk: primaryKey({ columns: [t.personId, t.flagId] })
 	})
 );
+
+/**
+ * The places a person can be, from GeoNames — every settlement over 5,000
+ * people, worldwide.
+ *
+ * Seeded from the bundled `cities.tsv.gz` by `scripts/seed-cities.ts`, never
+ * written by the app. Treat it as read-only reference data that happens to live
+ * in the same file as the records.
+ */
+export const cities = sqliteTable(
+	'cities',
+	{
+		/** The GeoNames id, which is the stable identity the `people.cityId` points at. */
+		id: integer('id').primaryKey(),
+		/** Display name, which may carry diacritics: "Malmö". */
+		name: text('name').notNull(),
+		/** GeoNames' own transliteration, already stripped of diacritics. */
+		asciiName: text('ascii_name').notNull(),
+		// `asciiName` lowercased. The seeder cannot import the app's normaliser —
+		// it runs standalone under bare tsx — so rather than duplicate one and let
+		// the two drift, the stored side is ASCII by construction and only the
+		// user's input gets normalised at query time.
+		searchKey: text('search_key').notNull(),
+		countryCode: text('country_code').notNull(),
+		countryName: text('country_name').notNull(),
+		/** For the US this is the postal abbreviation ("CA"); elsewhere an opaque code. */
+		admin1Code: text('admin1_code'),
+		admin1Name: text('admin1_name'),
+		population: integer('population').notNull()
+	},
+	(t) => ({
+		// The only index this table needs. The ranking sorts on a computed
+		// expression (population weighted by country), which no index can serve,
+		// and at 69k rows sorting the matches is not the expensive part anyway.
+		searchKeyIdx: index('cities_search_key_idx').on(t.searchKey)
+	})
+);
+
+/**
+ * Other names a city answers to — "NYC", "SF", "Frisco".
+ *
+ * Kept apart from `cities` so an alias hit can rank below a hit on the city's
+ * real name: aliases are the loosest signal in the dataset.
+ */
+export const cityAliases = sqliteTable(
+	'city_aliases',
+	{
+		cityId: integer('city_id').notNull(),
+		/** Lowercased ASCII, matching how the query normalises input. */
+		alias: text('alias').notNull()
+	},
+	(t) => ({
+		aliasIdx: index('city_aliases_alias_idx').on(t.alias)
+	})
+);
+
+/**
+ * One row, holding the version of the dataset currently loaded.
+ *
+ * This is what makes seeding idempotent — it runs on every container start, and
+ * reloading 69k rows each boot would be pure waste.
+ */
+export const cityDatasetMeta = sqliteTable('city_dataset_meta', {
+	id: integer('id').primaryKey(),
+	version: text('version').notNull(),
+	cityCount: integer('city_count').notNull(),
+	loadedAt: text('loaded_at').notNull()
+});

@@ -35,6 +35,17 @@ vi.mock('../db', () => ({
 	}
 }));
 
+// The service reaches the city dataset only to turn a matched id into its
+// canonical text. That rule is exercised properly against a real database in
+// `cities/resolve.test.ts`; here it is stubbed to one known city so the person
+// tests stay about people.
+vi.mock('../cities', () => ({
+	resolvePersonCity: (input: { city?: string | null; cityId?: number | null }) =>
+		input.cityId === 5391959
+			? { city: 'San Francisco, CA', cityId: 5391959 }
+			: { city: input.city?.trim() || null, cityId: null }
+}));
+
 import * as peopleService from './service';
 
 describe('people service', () => {
@@ -191,5 +202,33 @@ describe('people service', () => {
 		await peopleService.archivePerson(p.id);
 		await peopleService.restorePerson(p.id);
 		expect(rows[0].archivedAt).toBeNull();
+	});
+});
+
+describe('createPerson city handling', () => {
+	beforeEach(() => {
+		rows.length = 0;
+	});
+
+	it('stores the canonical label when the city was picked, not what was typed', async () => {
+		const p = await peopleService.createPerson({
+			name: 'Devon Reyes',
+			city: 'san fran',
+			cityId: 5391959
+		});
+		expect(p.city).toBe('San Francisco, CA');
+		expect(p.cityId).toBe(5391959);
+	});
+
+	it('keeps typed text with no id, because not everywhere is in the dataset', async () => {
+		const p = await peopleService.createPerson({ name: 'Devon Reyes', city: 'Hobbiton' });
+		expect(p.city).toBe('Hobbiton');
+		expect(p.cityId).toBeNull();
+	});
+
+	it('leaves both null when no city was given at all', async () => {
+		const p = await peopleService.createPerson({ name: 'Devon Reyes' });
+		expect(p.city).toBeNull();
+		expect(p.cityId).toBeNull();
 	});
 });

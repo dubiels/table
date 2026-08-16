@@ -245,3 +245,35 @@ describe('flagSchema', () => {
 		expect(bogus).toBe('neon');
 	});
 });
+
+describe('cityId', () => {
+	// The combobox always renders the hidden field, so an untouched form posts it
+	// empty rather than omitting it.
+	it('treats the empty string the browser posts as no city id', () => {
+		const parsed = addPersonSchema.safeParse({ name: 'Devon Reyes', city: 'Berlin', cityId: '' });
+		expect(parsed.success && parsed.data.cityId).toBeUndefined();
+	});
+
+	it('coerces the string a form posts into a number', () => {
+		const parsed = addPersonSchema.safeParse({
+			name: 'Devon Reyes',
+			city: 'San Francisco, CA',
+			cityId: '5391959'
+		});
+		expect(parsed.success && parsed.data.cityId).toBe(5391959);
+	});
+
+	it('rejects an id that is not a positive whole number', () => {
+		for (const cityId of ['abc', '-1', '0', '1.5']) {
+			expect(updatePersonSchema.safeParse({ name: 'Devon Reyes', cityId }).success).toBe(false);
+		}
+	});
+
+	it('accepts free text with no id, because not everywhere is in the dataset', () => {
+		const parsed = updatePersonSchema.safeParse({
+			name: 'Devon Reyes',
+			city: "my parents' place"
+		});
+		expect(parsed.success && parsed.data.city).toBe("my parents' place");
+	});
+});
