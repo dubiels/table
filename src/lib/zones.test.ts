@@ -43,8 +43,8 @@ describe('taskCenter', () => {
 });
 
 describe('ZONE_COLOR_KEYS', () => {
-	it('exposes the six palette keys', () => {
-		expect(ZONE_COLOR_KEYS).toEqual(['sage', 'sky', 'butter', 'blush', 'lilac', 'clay']);
+	it('exposes the seven palette keys', () => {
+		expect(ZONE_COLOR_KEYS).toEqual(['sage', 'sky', 'butter', 'blush', 'lilac', 'clay', 'ember']);
 	});
 });
 

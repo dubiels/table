@@ -32,7 +32,7 @@ export function zoneForTask(point: Point, zones: ZoneBounds[]): ZoneBounds | nul
 	);
 }
 
-export type ZoneColor = 'sage' | 'sky' | 'butter' | 'blush' | 'lilac' | 'clay';
+export type ZoneColor = 'sage' | 'sky' | 'butter' | 'blush' | 'lilac' | 'clay' | 'ember';
 
 /**
  * Light-theme source of truth for the zone palette. These values are hand-copied
@@ -45,10 +45,21 @@ export const ZONE_COLORS: Record<ZoneColor, { fill: string; border: string }> = 
 	butter: { fill: '#f2e8cb', border: '#e1d09b' },
 	blush: { fill: '#eeddd8', border: '#dcbeb6' },
 	lilac: { fill: '#e6e1ec', border: '#c9bfd6' },
-	clay: { fill: '#efddd3', border: '#ddbba6' }
+	clay: { fill: '#efddd3', border: '#ddbba6' },
+	// The one loud key. Every other fill is a pastel that recedes; ember's border
+	// is a saturated orange so a zone marked with it reads as urgent at a glance.
+	ember: { fill: '#ffdcbc', border: '#f28c33' }
 };
 
-export const ZONE_COLOR_KEYS: ZoneColor[] = ['sage', 'sky', 'butter', 'blush', 'lilac', 'clay'];
+export const ZONE_COLOR_KEYS: ZoneColor[] = [
+	'sage',
+	'sky',
+	'butter',
+	'blush',
+	'lilac',
+	'clay',
+	'ember'
+];
 
 /**
  * The CSS custom properties a zone color resolves to, for inline `style=`

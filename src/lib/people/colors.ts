@@ -1,12 +1,20 @@
 /**
- * Flags reuse the app's six palette tokens. The CSS custom properties are
+ * Flags reuse the app's seven palette tokens. The CSS custom properties are
  * shared with zones deliberately — they are theme tokens defined in `app.css`,
  * not zone logic — but the token list lives here so the people module owns its
  * own vocabulary and imports nothing from the board.
  */
-export type FlagColor = 'sage' | 'sky' | 'butter' | 'blush' | 'lilac' | 'clay';
+export type FlagColor = 'sage' | 'sky' | 'butter' | 'blush' | 'lilac' | 'clay' | 'ember';
 
-export const FLAG_COLOR_KEYS: FlagColor[] = ['sage', 'sky', 'butter', 'blush', 'lilac', 'clay'];
+export const FLAG_COLOR_KEYS: FlagColor[] = [
+	'sage',
+	'sky',
+	'butter',
+	'blush',
+	'lilac',
+	'clay',
+	'ember'
+];
 
 /**
  * The CSS custom properties a flag colour resolves to, for inline `style=`

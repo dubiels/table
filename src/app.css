@@ -49,6 +49,8 @@
 	--zone-lilac-border: #c9bfd6;
 	--zone-clay-fill: #efddd3;
 	--zone-clay-border: #ddbba6;
+	--zone-ember-fill: #ffdcbc;
+	--zone-ember-border: #f28c33;
 
 	/* The shell's one fixed dimension. Anything that has to start below the topbar
 	   — the side panel's drawer, for now — measures from this rather than
@@ -116,6 +118,8 @@
 	--zone-lilac-border: #4f4760;
 	--zone-clay-fill: #3e3128;
 	--zone-clay-border: #5b473b;
+	--zone-ember-fill: #4a2c15;
+	--zone-ember-border: #9c5620;
 
 	--overlay: rgba(8, 6, 4, 0.62);
 	/* Deeper than the light theme's: a warm-grey shadow disappears against a

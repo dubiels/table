@@ -7,6 +7,7 @@ import * as peopleService from '$lib/server/people/service';
 import * as tasksService from '$lib/server/tasks/service';
 import { newTaskSchema } from '$lib/server/tasks/forms';
 import { evictedTaskPoints } from '$lib/bento';
+import { ZONE_COLOR_KEYS, type ZoneColor } from '$lib/zones';
 import { getAgenda } from '$lib/server/gcal/service';
 import { syncGoogleTasks, isGoogleTasksEnabled, readSyncState } from '$lib/server/gtasks/sync';
 import { pushTaskNow, pushDeletionNow } from '$lib/server/gtasks/push';
@@ -80,8 +81,14 @@ export const load: PageServerLoad = async () => {
 	return { tasks, zones, agenda, lmsConfigured, gcalConfigured };
 };
 
-const zoneColors = ['sage', 'sky', 'butter', 'blush', 'lilac', 'clay'] as const;
-const zoneColor = z.enum(zoneColors);
+const zoneColor = z.enum(ZONE_COLOR_KEYS as [ZoneColor, ...ZoneColor[]]);
+
+/**
+ * The rotation a zone created without an explicit color falls into. Ember is
+ * deliberately absent: it is the one saturated key in an otherwise pastel
+ * palette, so it should be chosen rather than handed out to every seventh group.
+ */
+const zoneColorRotation = ZONE_COLOR_KEYS.filter((c) => c !== 'ember');
 
 const newZoneSchema = z.object({
 	name: z.string().optional(),
@@ -234,7 +241,9 @@ export const actions: Actions = {
 		const existingCount = (await zonesService.listZones()).length;
 		const zone = await zonesService.createZone({
 			name,
-			color: color.success ? color.data : zoneColors[existingCount % zoneColors.length],
+			color: color.success
+				? color.data
+				: zoneColorRotation[existingCount % zoneColorRotation.length],
 			x: parsed.data.x,
 			y: parsed.data.y,
 			width: parsed.data.width,
