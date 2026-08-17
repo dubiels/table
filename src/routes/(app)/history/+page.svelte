@@ -3,7 +3,13 @@
 	import TaskCard from '$lib/components/TaskCard.svelte';
 	import TaskDetailModal from '$lib/components/TaskDetailModal.svelte';
 	import Mascot from '$lib/components/Mascot.svelte';
+	import { categoryNameFor, categoryColorFor } from '$lib/listView';
+	import { zoneColorVars } from '$lib/zones';
 	let { data } = $props();
+
+	function dotColor(color: string): string {
+		return zoneColorVars(color).border;
+	}
 
 	let openTaskId = $state<string | null>(null);
 	let openTask = $derived(data.tasks.find((t) => t.id === openTaskId) ?? null);
@@ -60,11 +66,20 @@
 		{#each groups as group (group.label)}
 			<div class="day">{group.label}</div>
 			{#each group.items as task (task.id)}
+				{@const categoryColor = categoryColorFor(task, data.zones)}
 				<div class="row">
 					<div class="card-wrap">
 						<TaskCard {task} onclick={() => (openTaskId = task.id)} />
 					</div>
-					<span class="completed-at">{formatCompletedAt(task.completedAt)}</span>
+					<span class="meta">
+						<span class="category">
+							{#if categoryColor}
+								<span class="category-dot" style:background={dotColor(categoryColor)}></span>
+							{/if}
+							{categoryNameFor(task, data.zones)}
+						</span>
+						<span class="completed-at">{formatCompletedAt(task.completedAt)}</span>
+					</span>
 				</div>
 			{/each}
 		{/each}
@@ -121,11 +136,39 @@
 		width: 100%;
 	}
 
-	.completed-at {
+	/* Category over time rather than beside it: the two together are wider than
+	   a zone name has any business pushing the card, and stacked they stay one
+	   column whatever the zone is called. */
+	.meta {
+		display: flex;
 		flex-shrink: 0;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 0.15rem;
 		font-size: 0.75rem;
 		color: var(--muted);
 		white-space: nowrap;
+	}
+
+	.category {
+		display: flex;
+		align-items: center;
+		max-width: 9rem;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.category-dot {
+		display: inline-block;
+		width: 0.5rem;
+		height: 0.5rem;
+		border-radius: 50%;
+		margin-right: 0.3rem;
+		flex-shrink: 0;
+	}
+
+	.completed-at {
+		flex-shrink: 0;
 	}
 
 	.empty {
