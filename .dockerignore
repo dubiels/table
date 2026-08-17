@@ -9,4 +9,11 @@ data
 *.sqlite
 *.sqlite3
 *.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-wal
+*.db-shm
 .superpowers
+.DS_Store
+*.log
