@@ -1,0 +1,25 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # Linux, deliberately. Windows filesystems are case-insensitive, so an
+      # import written with the wrong case works on the server and breaks
+      # nowhere until it breaks everywhere.
+      - run: npm run lint
+      - run: npm run check
+      - run: npm test
