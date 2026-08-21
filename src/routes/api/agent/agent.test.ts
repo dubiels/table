@@ -170,7 +170,7 @@ describe('tasks round trip', () => {
 		expect(planned.body.task.dueDate).toBe('2026-09-01');
 	});
 
-	it('updates the planned date through PATCH', async () => {
+	it('updates the planned date through PATCH, including clearing it with null', async () => {
 		const task = await tasksService.createTask({ title: 'Reschedule me' });
 
 		const patched = await write(
@@ -182,6 +182,30 @@ describe('tasks round trip', () => {
 		expect(patched.status).toBe(200);
 		expect(patched.body.task.plannedDate).toBe('2026-08-22');
 		expect((await tasksService.getTask(task.id)).plannedDate).toBe('2026-08-22');
+
+		// API.md promises an explicit null clears the field, distinct from the
+		// key being absent — which `parse`'s presence check is what has to honour.
+		const cleared = await write(
+			taskRoute.PATCH,
+			{ plannedDate: null },
+			{ params: { id: task.id } }
+		);
+
+		expect(cleared.status).toBe(200);
+		expect(cleared.body.task.plannedDate).toBeNull();
+		expect((await tasksService.getTask(task.id)).plannedDate).toBeNull();
+	});
+
+	it('allows a planned date later than the due date, a legal state the board only marks visually', async () => {
+		const created = await write(tasksRoute.POST, {
+			title: 'Slipping already',
+			dueDate: '2026-08-20',
+			plannedDate: '2026-09-01'
+		});
+
+		expect(created.status).toBe(201);
+		expect(created.body.task.dueDate).toBe('2026-08-20');
+		expect(created.body.task.plannedDate).toBe('2026-09-01');
 	});
 
 	it('replays a repeated idempotency key instead of creating a second task', async () => {

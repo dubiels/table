@@ -10,6 +10,7 @@ const task = (over: Partial<Task> = {}): Task =>
 		title: 'A task',
 		notes: null,
 		dueDate: null,
+		plannedDate: null,
 		priority: null,
 		done: false,
 		completedAt: null,
