@@ -50,15 +50,15 @@ async function pushTask(taskId: string): Promise<void> {
 	try {
 		const task = await getTask(taskId);
 		if (!task.googleSync) return;
-		// The due-date rule gates creation only: an existing link is maintained
-		// with `due: null` rather than being severed.
-		if (!task.googleTaskId && !task.dueDate) return;
+		// The rule gates creation only: an existing link is maintained with
+		// `due: null` rather than being severed.
+		if (!task.googleTaskId && !task.plannedDate) return;
 
 		const token = await getAccessToken();
 		const body = {
 			title: task.title,
 			notes: task.notes,
-			due: toGoogleDue(task.dueDate),
+			due: toGoogleDue(task.plannedDate),
 			status: task.done ? ('completed' as const) : ('needsAction' as const)
 		};
 

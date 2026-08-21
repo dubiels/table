@@ -67,7 +67,7 @@ function toPlanGoogleTask(g: GoogleTask): PlanGoogleTask {
 		id: g.id,
 		title: g.title ?? '',
 		notes: g.notes ?? null,
-		dueDate: fromGoogleDue(g.due),
+		plannedDate: fromGoogleDue(g.due),
 		done: g.status === 'completed',
 		completedAt: g.completed ?? null,
 		updated: g.updated,
@@ -271,7 +271,7 @@ async function runSyncRound(options?: { full?: boolean }): Promise<GoogleTaskSyn
 			id: t.id,
 			title: t.title,
 			notes: t.notes,
-			dueDate: t.dueDate,
+			plannedDate: t.plannedDate,
 			done: t.done,
 			completedAt: t.completedAt,
 			updatedAt: t.updatedAt,
@@ -324,7 +324,7 @@ async function runSyncRound(options?: { full?: boolean }): Promise<GoogleTaskSyn
 			const created = await insertTask(token, {
 				title: create.title,
 				notes: create.notes,
-				due: toGoogleDue(create.dueDate),
+				due: toGoogleDue(create.plannedDate),
 				// A task can be completed before it is ever pushed. The create is
 				// the only chance to say so: `markPushed` leaves it clean, so no
 				// patch would ever follow and it would read as open in Google for
@@ -344,7 +344,7 @@ async function runSyncRound(options?: { full?: boolean }): Promise<GoogleTaskSyn
 			const updated = await patchTask(token, patch.googleTaskId, {
 				title: patch.title,
 				notes: patch.notes,
-				due: toGoogleDue(patch.dueDate),
+				due: toGoogleDue(patch.plannedDate),
 				status: patch.done ? 'completed' : 'needsAction'
 			});
 			await markPushed(patch.taskId, updated, sentUpdatedAt.get(patch.taskId));
@@ -360,7 +360,10 @@ async function runSyncRound(options?: { full?: boolean }): Promise<GoogleTaskSyn
 			id: randomUUID(),
 			title: create.title,
 			notes: create.notes,
-			dueDate: create.dueDate,
+			// A task arriving from Google carries a plan, not a known deadline. The
+			// deadline is Table's own and gets set by hand, once it is known.
+			dueDate: null,
+			plannedDate: create.plannedDate,
 			priority: null,
 			done: false,
 			completedAt: null,
@@ -407,7 +410,7 @@ async function runSyncRound(options?: { full?: boolean }): Promise<GoogleTaskSyn
 			.set({
 				title: patch.title,
 				notes: patch.notes,
-				dueDate: patch.dueDate,
+				plannedDate: patch.plannedDate,
 				done: patch.done,
 				completedAt: patch.completedAt,
 				updatedAt,

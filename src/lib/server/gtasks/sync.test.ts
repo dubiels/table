@@ -30,6 +30,7 @@ const taskRow = {
 	title: 'Linked',
 	notes: null,
 	dueDate: '2026-08-12',
+	plannedDate: '2026-08-12',
 	done: false,
 	completedAt: null,
 	updatedAt: '2026-08-11T12:00:00.000Z',
@@ -45,6 +46,7 @@ const taskRow = {
 let cursor: { key: string; value: string } | undefined;
 
 const updateSetMock = vi.fn();
+const insertValuesMock = vi.fn();
 
 vi.mock('../db', () => ({
 	db: {
@@ -57,10 +59,13 @@ vi.mock('../db', () => ({
 			googleTaskTombstones: { findMany: () => Promise.resolve([]) }
 		},
 		insert: () => ({
-			values: () => ({
-				onConflictDoUpdate: () => Promise.resolve(),
-				onConflictDoNothing: () => Promise.resolve()
-			})
+			values: (v: unknown) => {
+				insertValuesMock(v);
+				return {
+					onConflictDoUpdate: () => Promise.resolve(),
+					onConflictDoNothing: () => Promise.resolve()
+				};
+			}
 		}),
 		update: () => ({
 			set: (values: unknown) => {
@@ -94,6 +99,53 @@ describe('sync round serialization', () => {
 		vi.clearAllMocks();
 		cursor = { key: 'gtasks:lastSyncAt', value: '2026-08-11T12:00:00.000Z' };
 		patchTaskMock.mockResolvedValue({ id: 'g1', updated: '2026-08-11T13:00:00.000Z' });
+	});
+
+	it('writes an inbound date change to the plan, never to the deadline', async () => {
+		// taskRow is clean (updatedAt === googleSyncedAt) and Google's copy is
+		// newer, so Google wins — the exact path that used to overwrite the
+		// deadline with whatever day the phone last said.
+		listTasksMock.mockResolvedValue([
+			{
+				id: 'g1',
+				title: 'Linked',
+				notes: null,
+				due: '2026-08-27T00:00:00.000Z',
+				status: 'needsAction',
+				updated: '2026-08-11T13:00:00.000Z'
+			}
+		]);
+
+		await syncGoogleTasks();
+
+		expect(updateSetMock).toHaveBeenCalledWith(
+			expect.objectContaining({ plannedDate: '2026-08-27' })
+		);
+		// The absence is the fix: no write from a Google round may name dueDate.
+		expect(updateSetMock).not.toHaveBeenCalledWith(
+			expect.objectContaining({ dueDate: expect.anything() })
+		);
+	});
+
+	it('imports a task born in Google with a plan and no deadline', async () => {
+		// A task born on the phone carries a day someone picked to do it, not a
+		// last-possible day anybody committed to. The deadline is Table's to set.
+		listTasksMock.mockResolvedValue([
+			{
+				id: 'brand-new',
+				title: 'Buy milk',
+				notes: null,
+				due: '2026-08-22T00:00:00.000Z',
+				status: 'needsAction',
+				updated: '2026-08-11T13:00:00.000Z'
+			}
+		]);
+
+		await syncGoogleTasks({ full: true });
+
+		expect(insertValuesMock).toHaveBeenCalledWith(
+			expect.objectContaining({ plannedDate: '2026-08-22', dueDate: null })
+		);
 	});
 
 	it('joins the round already in flight instead of starting a second one', async () => {
