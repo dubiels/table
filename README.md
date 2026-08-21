@@ -1,6 +1,6 @@
 # Table
 
-Table is a personal command center: a task board in two views — a filterable, sortable list and a bento grid of drag-between categories — plus email magic-link login, Canvas LMS assignment sync, a read-only Google Calendar agenda, morning digest emails, due-date push notifications, an in-app notification inbox, and a read-only dashboard API for external displays (e.g. a Raspberry Pi wall panel). It's built with SvelteKit and Drizzle/SQLite, designed to be self-hosted as a single always-on instance.
+Table is a personal command center: a task board in two views — a filterable, sortable list and a bento grid of drag-between categories — plus email magic-link login, Canvas LMS assignment sync, a read-only Google Calendar agenda, due-date push notifications, an in-app notification inbox, and a read-only dashboard API for external displays (e.g. a Raspberry Pi wall panel). It's built with SvelteKit and Drizzle/SQLite, designed to be self-hosted as a single always-on instance.
 
 ## Views and categories
 
@@ -28,7 +28,7 @@ The dev server runs at `http://localhost:5173`.
 
 ## Generating VAPID keys
 
-Push notifications (due-date alerts and the morning digest) require a VAPID key pair. Generate one with:
+Push notifications (due-date alerts) require a VAPID key pair. Generate one with:
 
 ```sh
 npx web-push generate-vapid-keys
@@ -42,7 +42,7 @@ Paste the output into `.env`:
 
 ## Setting up Resend
 
-Table sends magic-link login emails and the morning digest through [Resend](https://resend.com):
+Table sends magic-link login emails through [Resend](https://resend.com):
 
 1. Create a Resend account.
 2. Add and verify a sending domain (or use Resend's default test domain for local testing).
@@ -236,8 +236,8 @@ renders no logo rather than a placeholder. Add one by hand in
 
 **Action items** are real Table tasks, not a second todo list. Raise one from a
 person's record with a title and a due date, and it lands on the board like
-anything else — the morning digest and the due-date notifications pick it up,
-and the task's card shows whose it is.
+anything else — the due-date notifications pick it up, and the task's card
+shows whose it is.
 
 **People you want to meet** live in the same book under the _To meet_ tab. They
 carry no meeting date and no last-spoke date, so a question like "who have I gone
@@ -300,9 +300,9 @@ Push notifications require iOS 16.4 or later, and will not work if Table is open
 
 ## Architecture note: single always-on machine
 
-Table's scheduler (morning digest, due-date checks, and LMS sync) runs in-process, on a cron schedule, inside the same server process that serves HTTP requests. There is no separate worker process or external queue.
+Table's scheduler (due-date checks and LMS sync) runs in-process, on a cron schedule, inside the same server process that serves HTTP requests. There is no separate worker process or external queue.
 
-Because of this, the app must run as exactly one always-on process. Never run a second instance against the same database — each one would run its own copy of the scheduler, sending duplicate digests and racing the Google Tasks sync.
+Because of this, the app must run as exactly one always-on process. Never run a second instance against the same database — each one would run its own copy of the scheduler, sending duplicate alerts and racing the Google Tasks sync.
 
 ## Extending Table
 
@@ -310,7 +310,7 @@ Task-creation and notification-content logic live in plain, route- and scheduler
 
 - `src/lib/server/tasks/service.ts` — creating, updating, and querying tasks.
 - `src/lib/server/zones/service.ts` — creating, updating, and querying zones.
-- `src/lib/server/notifications/digest.ts`, `src/lib/server/notifications/due-alerts.ts`, `src/lib/server/notifications/push.ts`, `src/lib/server/notifications/log.ts` — building and sending digest/due-alert notifications and logging them.
+- `src/lib/server/notifications/due-alerts.ts`, `src/lib/server/notifications/push.ts`, `src/lib/server/notifications/log.ts` — building and sending due-alert notifications and logging them.
 
 A few more pure-logic modules are the ones most worth reading before extending a given feature:
 
