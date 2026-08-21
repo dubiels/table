@@ -26,8 +26,8 @@ export interface GoogleTaskWrite {
 }
 
 /** Table's `YYYY-MM-DD` as the UTC-midnight stamp Google stores. */
-export function toGoogleDue(dueDate: string | null): string | null {
-	return dueDate ? `${dueDate}T00:00:00.000Z` : null;
+export function toGoogleDue(plannedDate: string | null): string | null {
+	return plannedDate ? `${plannedDate}T00:00:00.000Z` : null;
 }
 
 /**

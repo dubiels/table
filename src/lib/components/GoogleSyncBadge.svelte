@@ -20,7 +20,6 @@
 		task: {
 			id: string;
 			title: string;
-			dueDate?: string | null;
 			plannedDate?: string | null;
 			googleSync?: boolean;
 			googleTaskId?: string | null;

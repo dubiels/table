@@ -53,6 +53,11 @@ async function pushTask(taskId: string): Promise<void> {
 		// The rule gates creation only: an existing link is maintained with
 		// `due: null` rather than being severed.
 		if (!task.googleTaskId && !task.plannedDate) return;
+		// Already linked and clean: nothing Google can see has changed, and pushing
+		// anyway would patch Table's snapshot over a phone edit we have not pulled
+		// yet — then advance googleUpdatedAt so no later round notices. The create
+		// path is unaffected: an opt-in has no googleTaskId yet.
+		if (task.googleTaskId && task.updatedAt === task.googleSyncedAt) return;
 
 		const token = await getAccessToken();
 		const body = {

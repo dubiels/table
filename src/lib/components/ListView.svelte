@@ -20,7 +20,6 @@
 		type PriorityFilter
 	} from '$lib/listView';
 	import { zoneColorVars } from '$lib/zones';
-	import { taskMarks } from '$lib/taskMarks';
 
 	function dotColor(color: string): string {
 		return zoneColorVars(color).border;
@@ -57,6 +56,9 @@
 	}
 
 	let openTaskId = $state<string | null>(null);
+	// plannedDate rides along on ListTask even though this view never reads it
+	// itself: TaskDetailModal seeds its "Do it on" input from the row it is
+	// handed here.
 	let openTask = $derived(tasks.find((t) => t.id === openTaskId) ?? null);
 
 	function toggleSort(field: SortField) {
@@ -166,7 +168,7 @@
 			</thead>
 			<tbody>
 				{#each sorted as task (task.id)}
-					{@const marks = taskMarks(task, today)}
+					{@const overdue = !task.done && Boolean(task.dueDate) && task.dueDate! < today}
 					{@const categoryColor = categoryColorFor(task, zones)}
 					<tr
 						class:done={task.done}
@@ -202,7 +204,7 @@
 							{/if}
 							{categoryNameFor(task, zones)}
 						</td>
-						<td class="due-cell" class:overdue={marks.overdue}>{task.dueDate ?? ''}</td>
+						<td class="due-cell" class:overdue>{task.dueDate ?? ''}</td>
 						<td>
 							{#if task.priority}
 								<span class="pill pill-{task.priority}">{priorityLabel(task.priority)}</span>
