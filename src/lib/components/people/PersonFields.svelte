@@ -21,7 +21,10 @@
 		errorId = null,
 		error = null,
 		linkDates = false,
-		detailsOpen = false
+		detailsOpen = false,
+		// Read once, untracked, for the same reason the other date state below is:
+		// both callers mount this fresh, so `values` cannot change underneath it.
+		metOn = $bindable(untrack(() => values.metOn ?? ''))
 	}: {
 		values: {
 			name?: string | null;
@@ -50,12 +53,17 @@
 		linkDates?: boolean;
 		/** Open on the add form, where you are filling these in; shut when reading. */
 		detailsOpen?: boolean;
+		/**
+		 * "When we met", exposed so the add dialog's first-reach-out date can trail
+		 * it. Bindable rather than internal because that date lives outside this
+		 * component: it belongs to the touchpoint log, not to the person record.
+		 */
+		metOn?: string;
 	} = $props();
 
 	// Read once, untracked: both callers mount this fresh (inside an {#if}, and
 	// the detail modal is additionally keyed per person), so `values` cannot
 	// change underneath it — and re-syncing would overwrite what is being typed.
-	let metOn = $state(untrack(() => values.metOn ?? ''));
 	let lastSpokeAt = $state(untrack(() => values.lastSpokeAt ?? ''));
 	let lastSpokeTouched = $state(false);
 	let status = $state(untrack(() => values.status ?? 'met'));

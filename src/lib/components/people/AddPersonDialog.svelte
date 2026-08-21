@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { flagColorVars } from '$lib/people/colors';
 	import { toast } from '$lib/toast.svelte';
@@ -12,6 +13,20 @@
 	let saving = $state(false);
 	let addError = $state<string | null>(null);
 	let selectedFlagIds = $state<string[]>([]);
+	// Seeded untracked: the dialog mounts fresh each time it opens, so capturing
+	// today once is the intent, not a stale read.
+	let metOn = $state(untrack(() => today));
+	let reachOutOn = $state(untrack(() => today));
+	let reachOutTouched = $state(false);
+
+	// The first reach-out IS the meeting unless you say otherwise, so its date
+	// trails "when we met" until it is touched — the same rule `linkDates`
+	// applies to "last spoke". Pinned to today instead, adding someone you met in
+	// July logs a conversation for today, and that touchpoint then drags their
+	// last-spoke date forward over the one you just typed.
+	$effect(() => {
+		if (!reachOutTouched) reachOutOn = metOn;
+	});
 
 	function toggleFlag(id: string) {
 		selectedFlagIds = selectedFlagIds.includes(id)
@@ -70,6 +85,7 @@
 		}}
 	>
 		<PersonFields
+			bind:metOn
 			values={{ metOn: today, lastSpokeAt: today }}
 			errorId="add-error"
 			error={addError}
@@ -80,7 +96,13 @@
 		<div class="reach-out wide">
 			<span class="label">First reach-out (optional)</span>
 			<div class="row">
-				<input type="date" name="reachOutOn" value={today} aria-label="When you spoke" />
+				<input
+					type="date"
+					name="reachOutOn"
+					bind:value={reachOutOn}
+					oninput={() => (reachOutTouched = true)}
+					aria-label="When you spoke"
+				/>
 				<input
 					name="reachOutNote"
 					placeholder="Met at Ana's dinner, talked about scheduling infra"
