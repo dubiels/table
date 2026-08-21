@@ -89,11 +89,10 @@ export const GOOGLE_SYNC_STATES: {
 	}
 ];
 
-/** A task needs a due date to be created in Google; an existing link is kept without one. */
-export function canSendToGoogle(task: GoogleSyncFields & { dueDate?: string | null }): boolean {
-	return Boolean(task.dueDate) || Boolean(task.googleTaskId);
+export function canSendToGoogle(task: GoogleSyncFields & { plannedDate?: string | null }): boolean {
+	return Boolean(task.plannedDate) || Boolean(task.googleTaskId);
 }
 
-/** The one message both the board and the detail panel show when the date is missing. */
-export const NEEDS_DUE_DATE_MESSAGE =
-	'Needs a due date — an undated task never reaches the calendar grid.';
+/** The one message both the board and the detail panel show when the day is missing. */
+export const NEEDS_PLANNED_DATE_MESSAGE =
+	"Pick the day you'll do this — an undated task never reaches the calendar grid.";

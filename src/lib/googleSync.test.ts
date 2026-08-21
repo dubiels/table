@@ -84,13 +84,21 @@ describe('googleSyncActionLabel', () => {
 });
 
 describe('canSendToGoogle', () => {
-	it('requires a due date to create', () => {
-		expect(canSendToGoogle({ dueDate: null, googleTaskId: null })).toBe(false);
-		expect(canSendToGoogle({ dueDate: '2026-08-11', googleTaskId: null })).toBe(true);
+	it('requires a planned day to create', () => {
+		expect(canSendToGoogle({ plannedDate: null, googleTaskId: null })).toBe(false);
+		expect(canSendToGoogle({ plannedDate: '2026-08-11', googleTaskId: null })).toBe(true);
 	});
 
 	it('keeps an existing link alive without one', () => {
-		expect(canSendToGoogle({ dueDate: null, googleTaskId: 'g1' })).toBe(true);
+		expect(canSendToGoogle({ plannedDate: null, googleTaskId: 'g1' })).toBe(true);
+	});
+
+	it('ignores the deadline entirely', () => {
+		// Bound to a variable first: as an inline literal, TypeScript's excess
+		// property check would reject `dueDate` before the assertion could run,
+		// and the point here is that the value is ignored at runtime too.
+		const task = { plannedDate: null, dueDate: '2026-08-11', googleTaskId: null };
+		expect(canSendToGoogle(task)).toBe(false);
 	});
 });
 
