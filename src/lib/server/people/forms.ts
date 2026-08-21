@@ -91,8 +91,8 @@ export const updatePersonSchema = z.object({
  * An action item raised from a person's record.
  *
  * Title and an optional due date only. The date is what makes Table chase you —
- * the morning digest and the due-date notifications both key off it — so an
- * undated "follow up with Devon" would sit on the board in silence forever.
+ * the due-date notifications key off it — so an undated "follow up with Devon"
+ * would sit on the board in silence forever.
  */
 export const personTaskSchema = z.object({
 	title: trimmed.min(1),

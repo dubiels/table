@@ -71,7 +71,7 @@
 	<div class="empty">
 		<Mascot mood="sleepy" />
 		<p class="empty-title">All caught up.</p>
-		<p class="empty-sub">Digests and due-date alerts land here.</p>
+		<p class="empty-sub">Due-date alerts land here.</p>
 	</div>
 {:else}
 	<div class="list">

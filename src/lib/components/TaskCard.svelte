@@ -93,16 +93,29 @@
 					</span>
 				{/if}
 				{#if task.dueDate}
-					<span class="chip-due" class:overdue={marks.overdue}>{task.dueDate}</span>
+					{@const dueLabel = `Due by ${task.dueDate}`}
+					<span
+						class="chip-due"
+						class:overdue={marks.overdue}
+						title={dueLabel}
+						aria-label={dueLabel}
+					>
+						Due {task.dueDate}
+					</span>
 				{/if}
 				{#if task.plannedDate}
+					{@const planLabel = `Do it on ${task.plannedDate}`}
+					{@const planTitle = marks.unachievable
+						? `${planLabel} — planned after the last possible day`
+						: planLabel}
 					<span
 						class="chip-plan"
 						class:slipped={marks.slipped}
 						class:unachievable={marks.unachievable}
-						title={marks.unachievable ? 'Planned after the last possible day' : undefined}
+						title={planTitle}
+						aria-label={planLabel}
 					>
-						{task.plannedDate}
+						Do {task.plannedDate}
 					</span>
 				{/if}
 			</div>

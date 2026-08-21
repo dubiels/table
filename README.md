@@ -104,12 +104,20 @@ The panel is docked beside the board and open by default on screens ≥1100px. I
 ## Google Tasks sync
 
 Table mirrors tasks two ways with Google Tasks. Badged tasks become real Google
-Tasks — visible on the Google Calendar grid on their due date, and in the Google
-Tasks mobile app — and anything you add in Google Tasks comes back into Table.
+Tasks — visible on the Google Calendar grid on their planned date, and in the
+Google Tasks mobile app — and anything you add in Google Tasks comes back into
+Table.
 
 The relationship is deliberately one-sided: **everything in Google is in Table,
 but not everything in Table is in Google.** Table stays the place for everything;
 Google holds the subset you chose, and those cards carry a badge.
+
+**Every task carries two dates.** "Due by" is the deadline — the last possible
+day, and Table's alone; it is never sent to Google, so rescheduling on your
+phone can never overwrite it. "Do it on" is the planned date — the shiftable
+day you actually mean to sit down and do the work — and it is the only date
+Google ever sees. Editing the deadline never marks a task dirty and never
+triggers a push; moving the plan is what syncs.
 
 Setup, on top of the Calendar steps above:
 
@@ -125,9 +133,9 @@ How it behaves:
 - **Opting in.** Click the mark in a card's top corner, straight from the board.
   You can also tick "Send to Google Tasks" in a task's detail modal, or "Also
   add to Google Tasks" in the composer, which remembers its last setting. A task
-  needs a due date before it can be sent — an undated Google Task never appears
-  on the calendar grid, only in the Tasks side panel — and asking for one
-  without a date says so rather than refusing quietly.
+  needs a planned day before it can be sent — an undated Google Task never
+  appears on the calendar grid, only in the Tasks side panel — and asking for
+  one without a planned day says so rather than refusing quietly.
 - **Reading the marks.** Every card carries one of four: an empty ring for a
   task that lives only in Table, a grey tick for one on its way to Google, a
   green tick for one that is mirrored, and a red tick for a sync problem, whose
@@ -154,8 +162,9 @@ How it behaves:
   so it only recovers via a manual "Sync Google Tasks" from the user menu.
   Table never blocks on Google being up: the change is saved locally either way.
 
-Canvas assignments can be pushed like any other task. Priority and the course
-name stay in Table — Google Tasks has no field for either.
+Canvas assignments can be pushed like any other task. The deadline, priority,
+and the course name all stay in Table — Google Tasks has no field for any of
+them.
 
 ## Dashboard API
 

@@ -51,6 +51,11 @@
 	--zone-clay-border: #ddbba6;
 	--zone-ember-fill: #ffdcbc;
 	--zone-ember-border: #f28c33;
+	/* Foreground use only (e.g. .chip-plan.unachievable text) — darkened off
+	   --zone-ember-border so it clears 4.5:1 on --surface instead of the
+	   2.38:1 the border token measures there. Not part of the fill/border
+	   pair zones use; do not repaint zones with it. */
+	--zone-ember-fg: #b3560f;
 
 	/* The shell's one fixed dimension. Anything that has to start below the topbar
 	   — the side panel's drawer, for now — measures from this rather than
@@ -120,6 +125,9 @@
 	--zone-clay-border: #5b473b;
 	--zone-ember-fill: #4a2c15;
 	--zone-ember-border: #9c5620;
+	/* Lightened with the surface it is read against, same reasoning as --danger
+	   above: at --zone-ember-border's #9c5620 this fell to 1.85:1 on --surface. */
+	--zone-ember-fg: #e6a05a;
 
 	--overlay: rgba(8, 6, 4, 0.62);
 	/* Deeper than the light theme's: a warm-grey shadow disappears against a
@@ -330,6 +338,6 @@ summary:focus-visible {
    the only state on this card that is provably broken, so it borrows ember —
    the palette's one non-receding key. */
 .chip-plan.unachievable {
-	color: var(--zone-ember-border);
+	color: var(--zone-ember-fg);
 	font-weight: 600;
 }

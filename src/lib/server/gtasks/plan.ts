@@ -224,9 +224,12 @@ export function planGoogleTaskSync(input: {
 
 	for (const t of input.tableTasks) {
 		if (t.googleSync && !t.googleTaskId) {
-			// The rule gates creation only. With no plan the intent is simply held:
-			// the badge stays in its outline state and the create happens the moment
-			// a day is chosen.
+			// The rule gates creation only. On the reconciler's own initiative, with
+			// no plan the intent is simply held: the badge stays in its outline
+			// state and the create happens the moment a day is chosen. (A human
+			// action can still revoke the opt-in outright when the plan is cleared —
+			// TaskDetailModal does that on save — but that is a decision made at the
+			// edge, not a rule this planner enforces.)
 			if (t.plannedDate) {
 				plan.createInGoogle.push({
 					taskId: t.id,

@@ -48,7 +48,7 @@ export async function runDueAlertCheck(leadHours: number) {
 		if (due.length === 0) continue;
 
 		const alert = buildDueSoonContent(due);
-		// Guarded like the digest, and for a sharper reason: the inbox entry is
+		// Wrapped so a push failure can't skip the write below: the inbox entry is
 		// what findTasksNeedingDueAlert reads to decide a task has already been
 		// alerted about, so losing the write to a push failure would re-alert the
 		// same task every hour until its due date passed.

@@ -413,9 +413,11 @@ call, so Google Tasks two-way sync, conflict handling and tombstones apply
 unchanged. Nothing here writes to the database directly.
 
 Task writes are followed by an immediate Google push when the integration is
-configured and the task opts in. That push is bounded and never throws: if
-Google is unreachable the write still succeeds locally and the next reconcile
-retries it.
+configured, the task opts in, and the write actually changed something Google
+can see. An already-linked task left clean — a deadline edit, for instance,
+since `dueDate` never reaches Google — triggers no push. That push is bounded
+and never throws: if Google is unreachable the write still succeeds locally
+and the next reconcile retries it.
 
 ## Worked example
 
@@ -431,7 +433,7 @@ curl -s -X POST "$BASE/tasks" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: memo-2026-08-21" \
-  -d '{"title":"Draft the Q3 memo","dueDate":"2026-09-01","zoneId":"9ab1…"}'
+  -d '{"title":"Draft the Q3 memo","plannedDate":"2026-09-01","zoneId":"9ab1…"}'
 
 # Log that you spoke to someone.
 curl -s -X POST "$BASE/people/7c2e…/touchpoints" \
