@@ -1,13 +1,6 @@
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { bearerMatches } from '../auth/bearer';
 
 export type DashboardAuthDecision = 'ok' | 'unauthorized' | 'disabled';
-
-const digest = (value: string) => createHash('sha256').update(value).digest();
-
-/** Hashes both sides then compares timing-safely, so lengths always match. */
-function tokensMatch(a: string, b: string): boolean {
-	return timingSafeEqual(digest(a), digest(b));
-}
 
 /**
  * DASHBOARD_TOKEN unset/empty means the route is disabled (404) — absence of
@@ -22,7 +15,5 @@ export function decideDashboardAuth(
 ): DashboardAuthDecision {
 	if (!configuredToken) return 'disabled';
 	if (hasSession) return 'ok';
-	const match = authorizationHeader?.match(/^Bearer (.+)$/);
-	if (!match) return 'unauthorized';
-	return tokensMatch(configuredToken, match[1]) ? 'ok' : 'unauthorized';
+	return bearerMatches(configuredToken, authorizationHeader) ? 'ok' : 'unauthorized';
 }

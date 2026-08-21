@@ -165,6 +165,23 @@ name stay in Table — Google Tasks has no field for either.
 - The payload ships zone **color token names** (e.g. `"sage"`), never hex values — the consumer owns its own palette and rendering.
 - The service sets `TZ=America/New_York` so both the payload's `timezone` field and the cron schedules above reflect your local time rather than UTC. Change it if you're elsewhere.
 
+## Agent API
+
+`/api/agent/*` is a token-authenticated JSON API over tasks and Dinner Table,
+for a machine client — an assistant that reads and writes the same records you
+edit in the UI. Full contract in [API.md](API.md).
+
+- Set `AGENT_TOKEN` to a long random string; requests send
+  `Authorization: Bearer <AGENT_TOKEN>`. Unset disables every agent route (404)
+  rather than leaving it open, the same rule the dashboard follows.
+- Deliberately **not** `DASHBOARD_TOKEN`, and session cookies are not accepted.
+  A separate credential is one you can revoke on its own when the agent
+  misbehaves, without touching how you sign in.
+- Every write takes an optional `Idempotency-Key`; a repeated key returns the
+  original result instead of writing twice, because an agent retries.
+- Writes call the same service functions the UI's form actions do, so Google
+  Tasks sync, conflict handling and tombstones apply unchanged.
+
 ## Dinner Table
 
 Dinner Table is a contact book for people you have actually met in person: who

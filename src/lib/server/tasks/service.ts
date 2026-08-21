@@ -82,6 +82,10 @@ export async function updateTask(
 		notes: string | null;
 		dueDate: string | null;
 		priority: 'low' | 'med' | 'high' | null;
+		// The seam to Dinner Table. Invisible to Google, so — like priority and
+		// position — its absence from GOOGLE_VISIBLE_FIELDS is what keeps linking
+		// a task to a person from bumping `updatedAt` and firing a pointless push.
+		personId: string | null;
 	}>
 ): Promise<Task> {
 	const touchesGoogle = GOOGLE_VISIBLE_FIELDS.some((field) => field in patch);
@@ -101,17 +105,32 @@ export async function updateTaskPosition(id: string, x: number, y: number): Prom
 		.where(eq(tasks.id, id));
 }
 
-export async function toggleTaskDone(id: string): Promise<Task> {
-	const existing = await db.query.tasks.findFirst({ where: eq(tasks.id, id) });
-	if (!existing) throw new Error(`Task ${id} not found`);
-	const done = !existing.done;
+/**
+ * Drives a task to a stated done-ness, rather than flipping whatever it holds.
+ *
+ * Separate from `toggleTaskDone` because a toggle cannot be retried: replaying
+ * it undoes the first attempt, which is exactly wrong for a caller that retries
+ * on a timeout it cannot tell apart from a failure. Stating the target state
+ * makes the write safe to repeat — the second one is simply a no-op that lands
+ * on the value already there.
+ *
+ * `updatedAt` moves either way, because `done` is a field Google can see.
+ */
+export async function setTaskDone(id: string, done: boolean): Promise<Task> {
 	const now = new Date().toISOString();
 	await db
 		.update(tasks)
 		.set({ done, completedAt: done ? now : null, updatedAt: now })
 		.where(eq(tasks.id, id));
 	const updated = await db.query.tasks.findFirst({ where: eq(tasks.id, id) });
-	return updated!;
+	if (!updated) throw new Error(`Task ${id} not found`);
+	return updated;
+}
+
+export async function toggleTaskDone(id: string): Promise<Task> {
+	const existing = await db.query.tasks.findFirst({ where: eq(tasks.id, id) });
+	if (!existing) throw new Error(`Task ${id} not found`);
+	return setTaskDone(id, !existing.done);
 }
 
 export async function getTask(id: string): Promise<Task> {

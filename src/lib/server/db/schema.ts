@@ -89,6 +89,30 @@ export const googleTaskTombstones = sqliteTable('google_task_tombstones', {
 	deletedAt: text('deleted_at').notNull()
 });
 
+/**
+ * One row per idempotency key the agent API has been handed.
+ *
+ * The agent retries, so every write it makes must be safe to replay. The key is
+ * claimed by inserting this row *before* the work runs, not after: two retries
+ * that arrive together interleave across an await, and a check-then-write would
+ * let both of them past.
+ *
+ * `response` holds the JSON body the first attempt returned, so a replay is
+ * answered with the original result rather than a second row being created.
+ * It stays null while the first attempt is still in flight, which is what
+ * distinguishes "already done, here it is" from "already running".
+ */
+export const agentIdempotency = sqliteTable('agent_idempotency', {
+	key: text('key').primaryKey(),
+	// A key is scoped to the route that claimed it. The same key arriving at a
+	// different route is an agent bug — two unrelated writes collapsing into one
+	// — and is refused rather than silently replaying the wrong resource.
+	route: text('route').notNull(),
+	status: integer('status'),
+	response: text('response'),
+	createdAt: text('created_at').notNull()
+});
+
 export const syncState = sqliteTable('sync_state', {
 	key: text('key').primaryKey(),
 	value: text('value').notNull()
