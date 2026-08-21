@@ -11,6 +11,7 @@ function task(overrides: Record<string, unknown> = {}) {
 		id: 't1',
 		title: 'a task',
 		dueDate: null,
+		plannedDate: null,
 		priority: null,
 		source: 'manual',
 		courseName: null,
@@ -59,7 +60,7 @@ describe('buildDashboardPayload', () => {
 	it('ships only render fields — no coordinates or internals', () => {
 		const p = buildDashboardPayload([task()], zoneRows, new Date(), 'America/New_York');
 		expect(Object.keys(p.tasks[0]).sort()).toEqual(
-			['courseName', 'dueDate', 'id', 'priority', 'source', 'title', 'zone'].sort()
+			['courseName', 'dueDate', 'id', 'plannedDate', 'priority', 'source', 'title', 'zone'].sort()
 		);
 	});
 
@@ -72,5 +73,37 @@ describe('buildDashboardPayload', () => {
 		);
 		expect(p.generatedAt).toBe('2026-08-09T12:30:00.000Z');
 		expect(p.timezone).toBe('America/New_York');
+	});
+});
+
+describe('the planned date in the payload', () => {
+	it('carries the plan alongside the deadline', () => {
+		const payload = buildDashboardPayload(
+			[task({ id: 't1', dueDate: '2026-09-01', plannedDate: '2026-08-20' })],
+			[],
+			new Date('2026-08-21T12:00:00Z'),
+			'America/New_York'
+		);
+
+		expect(payload.tasks[0]).toMatchObject({
+			dueDate: '2026-09-01',
+			plannedDate: '2026-08-20'
+		});
+	});
+
+	it('still orders by the deadline', () => {
+		// The wall shows what is actually due. A plan can be moved; a deadline
+		// cannot, so it stays the sort key.
+		const payload = buildDashboardPayload(
+			[
+				task({ id: 'later', dueDate: '2026-09-05', plannedDate: '2026-08-01' }),
+				task({ id: 'sooner', dueDate: '2026-09-01', plannedDate: '2026-08-30' })
+			],
+			[],
+			new Date('2026-08-21T12:00:00Z'),
+			'America/New_York'
+		);
+
+		expect(payload.tasks.map((t) => t.id)).toEqual(['sooner', 'later']);
 	});
 });

@@ -10,6 +10,8 @@ export interface DashboardTask {
 	id: string;
 	title: string;
 	dueDate: string | null;
+	/** The day the work is scheduled for. Additive: the wall renderer may ignore it. */
+	plannedDate: string | null;
 	priority: string | null;
 	source: string;
 	courseName: string | null;
@@ -27,6 +29,7 @@ interface TaskRow {
 	id: string;
 	title: string;
 	dueDate: string | null;
+	plannedDate: string | null;
 	priority: string | null;
 	source: string;
 	courseName: string | null;
@@ -62,6 +65,7 @@ export function buildDashboardPayload(
 			id: t.id,
 			title: t.title,
 			dueDate: t.dueDate,
+			plannedDate: t.plannedDate,
 			priority: t.priority,
 			source: t.source,
 			courseName: t.courseName,
