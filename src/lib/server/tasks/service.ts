@@ -6,11 +6,16 @@ import { tasks, googleTaskTombstones } from '../db/schema';
 export type Task = typeof tasks.$inferSelect;
 
 /**
- * The fields Google can see. Everything else — priority, position, category —
- * is invisible to Google, so changing it is not something Google can be behind
- * on and must not mark the task dirty.
+ * The fields Google can see. Everything else — priority, position, category,
+ * and now the deadline — is invisible to Google, so changing it is not
+ * something Google can be behind on and must not mark the task dirty.
+ *
+ * `dueDate` sits on the invisible side deliberately: it is Table's own truth
+ * and there is no field on a Google task to carry it, so a deadline edit that
+ * bumped `updatedAt` would fire a pointless push and arm the task to win a
+ * both-dirty conflict against a real edit made on the phone.
  */
-const GOOGLE_VISIBLE_FIELDS = ['title', 'notes', 'dueDate'] as const;
+const GOOGLE_VISIBLE_FIELDS = ['title', 'notes', 'plannedDate'] as const;
 
 export async function nextSortOrder(): Promise<number> {
 	const existing = await db.query.tasks.findMany({
@@ -23,6 +28,7 @@ export async function createTask(input: {
 	title: string;
 	notes?: string;
 	dueDate?: string;
+	plannedDate?: string;
 	priority?: 'low' | 'med' | 'high';
 	googleSync?: boolean;
 	personId?: string;
@@ -35,7 +41,7 @@ export async function createTask(input: {
 		title: input.title,
 		notes: input.notes ?? null,
 		dueDate: input.dueDate ?? null,
-		plannedDate: null,
+		plannedDate: input.plannedDate ?? null,
 		priority: input.priority ?? null,
 		done: false,
 		completedAt: null,
@@ -82,6 +88,7 @@ export async function updateTask(
 		title: string;
 		notes: string | null;
 		dueDate: string | null;
+		plannedDate: string | null;
 		priority: 'low' | 'med' | 'high' | null;
 		// The seam to Dinner Table. Invisible to Google, so — like priority and
 		// position — its absence from GOOGLE_VISIBLE_FIELDS is what keeps linking

@@ -6,7 +6,7 @@ function tableTask(over: Partial<PlanTableTask> = {}): PlanTableTask {
 		id: 't1',
 		title: 'Write the spec',
 		notes: null,
-		dueDate: '2026-08-20',
+		plannedDate: '2026-08-20',
 		done: false,
 		completedAt: null,
 		updatedAt: '2026-08-11T10:00:00.000Z',
@@ -25,7 +25,7 @@ function googleTask(over: Partial<PlanGoogleTask> = {}): PlanGoogleTask {
 		id: 'g1',
 		title: 'Write the spec',
 		notes: null,
-		dueDate: '2026-08-20',
+		plannedDate: '2026-08-20',
 		done: false,
 		completedAt: null,
 		updated: '2026-08-11T10:00:01.000Z',
@@ -56,7 +56,7 @@ describe('inbound capture', () => {
 		expect(result.createInTable[0]).toMatchObject({
 			googleTaskId: 'new',
 			title: 'Buy milk',
-			dueDate: '2026-08-20',
+			plannedDate: '2026-08-20',
 			googleUpdatedAt: '2026-08-11T10:00:01.000Z'
 		});
 	});
@@ -69,8 +69,8 @@ describe('inbound capture', () => {
 	});
 
 	it('imports an undated google task, since the due-date rule is outbound only', () => {
-		const result = plan({ googleTasks: [googleTask({ id: 'new', dueDate: null })] });
-		expect(result.createInTable[0].dueDate).toBeNull();
+		const result = plan({ googleTasks: [googleTask({ id: 'new', plannedDate: null })] });
+		expect(result.createInTable[0].plannedDate).toBeNull();
 	});
 
 	it('processes a google task once even if pagination returns it twice', () => {
@@ -249,7 +249,7 @@ describe('outbound retry for a task the fetch could not show', () => {
 			taskId: 't1',
 			googleTaskId: 'g1',
 			title: 'Renamed in Table',
-			dueDate: '2026-08-20',
+			plannedDate: '2026-08-20',
 			done: false
 		});
 		expect(result.unlinkInTable).toEqual([]);
@@ -283,7 +283,7 @@ describe('outbound creation', () => {
 		});
 
 		expect(result.createInGoogle).toEqual([
-			{ taskId: 't1', title: 'Write the spec', notes: null, dueDate: '2026-08-20', done: false }
+			{ taskId: 't1', title: 'Write the spec', notes: null, plannedDate: '2026-08-20', done: false }
 		]);
 	});
 
@@ -311,7 +311,7 @@ describe('outbound creation', () => {
 					googleTaskId: null,
 					googleSyncedAt: null,
 					googleUpdatedAt: null,
-					dueDate: null
+					plannedDate: null
 				})
 			]
 		});
@@ -322,12 +322,12 @@ describe('outbound creation', () => {
 
 	it('patches a linked task that lost its due date instead of deleting it', () => {
 		const result = plan({
-			tableTasks: [tableTask({ dueDate: null, updatedAt: '2026-08-11T13:00:00.000Z' })],
+			tableTasks: [tableTask({ plannedDate: null, updatedAt: '2026-08-11T13:00:00.000Z' })],
 			googleTasks: [googleTask()]
 		});
 
 		expect(result.deleteInGoogle).toEqual([]);
-		expect(result.patchInGoogle[0].dueDate).toBeNull();
+		expect(result.patchInGoogle[0].plannedDate).toBeNull();
 	});
 
 	it('ignores a task that was never opted in', () => {
@@ -337,5 +337,70 @@ describe('outbound creation', () => {
 
 		expect(result.createInGoogle).toEqual([]);
 		expect(result.deleteInGoogle).toEqual([]);
+	});
+});
+
+describe('the deadline never crosses the seam', () => {
+	it('writes an inbound date change to the plan', () => {
+		const result = plan({
+			tableTasks: [
+				tableTask({
+					plannedDate: '2026-08-20',
+					updatedAt: '2026-08-11T10:00:00.000Z',
+					googleSyncedAt: '2026-08-11T10:00:00.000Z',
+					googleUpdatedAt: '2026-08-11T10:00:01.000Z'
+				})
+			],
+			googleTasks: [googleTask({ plannedDate: '2026-08-27', updated: '2026-08-12T09:00:00.000Z' })]
+		});
+
+		expect(result.patchInTable).toHaveLength(1);
+		expect(result.patchInTable[0]).toMatchObject({ taskId: 't1', plannedDate: '2026-08-27' });
+		// The planner cannot reach a deadline: PlanTableTask has no such field and
+		// no plan entry carries one. This asserts the shape stays that way.
+		expect(result.patchInTable[0]).not.toHaveProperty('dueDate');
+	});
+
+	it('pushes the plan, not the deadline, when Table wins', () => {
+		const result = plan({
+			tableTasks: [
+				tableTask({
+					plannedDate: '2026-08-25',
+					updatedAt: '2026-08-13T10:00:00.000Z',
+					googleSyncedAt: '2026-08-11T10:00:00.000Z',
+					googleUpdatedAt: '2026-08-11T10:00:01.000Z'
+				})
+			],
+			googleTasks: [googleTask({ plannedDate: '2026-08-20', updated: '2026-08-12T09:00:00.000Z' })]
+		});
+
+		expect(result.patchInGoogle).toHaveLength(1);
+		expect(result.patchInGoogle[0]).toMatchObject({ googleTaskId: 'g1', plannedDate: '2026-08-25' });
+	});
+
+	it('gates the create on a plan rather than on a deadline', () => {
+		const unplanned = plan({
+			tableTasks: [tableTask({ googleTaskId: null, googleSyncedAt: null, plannedDate: null })]
+		});
+		expect(unplanned.createInGoogle).toHaveLength(0);
+
+		const planned = plan({
+			tableTasks: [
+				tableTask({ googleTaskId: null, googleSyncedAt: null, plannedDate: '2026-08-20' })
+			]
+		});
+		expect(planned.createInGoogle).toHaveLength(1);
+		expect(planned.createInGoogle[0]).toMatchObject({ taskId: 't1', plannedDate: '2026-08-20' });
+	});
+
+	it('imports a task born in Google as a plan', () => {
+		const result = plan({
+			googleTasks: [googleTask({ id: 'new', title: 'Buy milk', plannedDate: '2026-08-22' })]
+		});
+
+		expect(result.createInTable).toHaveLength(1);
+		expect(result.createInTable[0]).toMatchObject({ googleTaskId: 'new', plannedDate: '2026-08-22' });
+		// A task arriving from the phone carries a plan, not a known deadline.
+		expect(result.createInTable[0]).not.toHaveProperty('dueDate');
 	});
 });

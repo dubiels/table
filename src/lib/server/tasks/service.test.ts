@@ -69,6 +69,7 @@ vi.mock('../db', () => ({
 }));
 
 import * as tasksService from './service';
+import { createTask, updateTask } from './service';
 
 describe('tasks service', () => {
 	beforeEach(() => {
@@ -111,20 +112,19 @@ describe('tasks service', () => {
 		}
 	});
 
-	it('bumps updatedAt when a due date is cleared', async () => {
-		// `field in patch` must stay true for `{ dueDate: null }` — clearing a due
-		// date is itself a change Google needs to know about, so a refactor to
-		// `field in patch && patch[field]` (falsy-checking the new value) would
-		// silently stop treating this as dirty. Fake timers make the clock move
-		// deterministically, so a missed bump shows up as an unchanged updatedAt
-		// rather than a coin-flip on same-millisecond timestamps.
+	it('does NOT bump updatedAt when a due date is cleared, since Google cannot see it', async () => {
+		// Superseded by the `dueDate` split in Task 3: `dueDate` moved off
+		// GOOGLE_VISIBLE_FIELDS, so clearing it is exactly as invisible to Google
+		// as setting it. Fake timers make the clock move deterministically, so an
+		// accidental bump shows up as a changed timestamp rather than a
+		// coin-flip on same-millisecond timestamps.
 		vi.useFakeTimers();
 		try {
 			const t = await tasksService.createTask({ title: 'Due today', dueDate: '2026-08-11' });
 			vi.advanceTimersByTime(1000);
 			await tasksService.updateTask(t.id, { dueDate: null });
 			expect(rows[0].dueDate).toBeNull();
-			expect(Date.parse(rows[0].updatedAt)).toBeGreaterThan(Date.parse(t.updatedAt));
+			expect(rows[0].updatedAt).toBe(t.updatedAt);
 		} finally {
 			vi.useRealTimers();
 		}
@@ -285,5 +285,37 @@ describe('tasks service', () => {
 		await expect(tasksService.deleteTask('missing-id')).resolves.toBeUndefined();
 		expect(tombstones).toEqual([]);
 		expect(rows).toHaveLength(0);
+	});
+});
+
+describe('what Google can see', () => {
+	it('does not mark a task dirty when only the deadline changes', async () => {
+		const task = await createTask({ title: 'Ship it', plannedDate: '2026-08-20' });
+		const before = task.updatedAt;
+
+		const after = await updateTask(task.id, { dueDate: '2026-09-01' });
+
+		expect(after.dueDate).toBe('2026-09-01');
+		expect(after.updatedAt).toBe(before);
+	});
+
+	it('marks a task dirty when the plan changes', async () => {
+		// Fake timers + a clock advance, like the file's other dirty-tracking
+		// tests: a same-millisecond real clock can hand back two identical
+		// timestamps here, which would let a build that stopped bumping
+		// `updatedAt` for `plannedDate` pass anyway.
+		vi.useFakeTimers();
+		try {
+			const task = await createTask({ title: 'Ship it', plannedDate: '2026-08-20' });
+			const before = task.updatedAt;
+			vi.advanceTimersByTime(1000);
+
+			const after = await updateTask(task.id, { plannedDate: '2026-08-27' });
+
+			expect(after.plannedDate).toBe('2026-08-27');
+			expect(after.updatedAt).not.toBe(before);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });

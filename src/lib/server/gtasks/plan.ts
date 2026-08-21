@@ -5,7 +5,12 @@ export interface PlanTableTask {
 	id: string;
 	title: string;
 	notes: string | null;
-	dueDate: string | null;
+	/**
+	 * The only date the mirror carries. The deadline is deliberately absent from
+	 * this type: a field the planner cannot see is a field an inbound Google edit
+	 * can never overwrite, which is the guarantee the split exists to give.
+	 */
+	plannedDate: string | null;
 	done: boolean;
 	completedAt: string | null;
 	updatedAt: string;
@@ -21,8 +26,8 @@ export interface PlanGoogleTask {
 	id: string;
 	title: string;
 	notes: string | null;
-	/** Table's vocabulary — `YYYY-MM-DD`. sync.ts maps it before calling. */
-	dueDate: string | null;
+	/** Table's vocabulary — `YYYY-MM-DD`. sync.ts maps it from `due` before calling. */
+	plannedDate: string | null;
 	done: boolean;
 	completedAt: string | null;
 	updated: string;
@@ -47,7 +52,7 @@ export interface SyncPlan {
 		taskId: string;
 		title: string;
 		notes: string | null;
-		dueDate: string;
+		plannedDate: string;
 		done: boolean;
 	}[];
 	patchInGoogle: {
@@ -55,14 +60,14 @@ export interface SyncPlan {
 		googleTaskId: string;
 		title: string;
 		notes: string | null;
-		dueDate: string | null;
+		plannedDate: string | null;
 		done: boolean;
 	}[];
 	createInTable: {
 		googleTaskId: string;
 		title: string;
 		notes: string | null;
-		dueDate: string | null;
+		plannedDate: string | null;
 		googleUpdatedAt: string;
 		x: number;
 		y: number;
@@ -71,7 +76,7 @@ export interface SyncPlan {
 		taskId: string;
 		title: string;
 		notes: string | null;
-		dueDate: string | null;
+		plannedDate: string | null;
 		done: boolean;
 		completedAt: string | null;
 		googleUpdatedAt: string;
@@ -170,7 +175,7 @@ export function planGoogleTaskSync(input: {
 				googleTaskId: g.id,
 				title: g.title,
 				notes: g.notes,
-				dueDate: g.dueDate,
+				plannedDate: g.plannedDate,
 				googleUpdatedAt: g.updated,
 				x: Math.round(slot.x),
 				y: Math.round(slot.y)
@@ -200,7 +205,7 @@ export function planGoogleTaskSync(input: {
 				taskId: t.id,
 				title: g.title,
 				notes: g.notes,
-				dueDate: g.dueDate,
+				plannedDate: g.plannedDate,
 				done: g.done,
 				completedAt: g.completedAt,
 				googleUpdatedAt: g.updated
@@ -211,7 +216,7 @@ export function planGoogleTaskSync(input: {
 				googleTaskId: g.id,
 				title: t.title,
 				notes: t.notes,
-				dueDate: t.dueDate,
+				plannedDate: t.plannedDate,
 				done: t.done
 			});
 		}
@@ -219,15 +224,15 @@ export function planGoogleTaskSync(input: {
 
 	for (const t of input.tableTasks) {
 		if (t.googleSync && !t.googleTaskId) {
-			// The due-date rule gates creation only. With no date the intent is
-			// simply held: the badge stays in its outline state and the create
-			// happens the moment a date is set.
-			if (t.dueDate) {
+			// The rule gates creation only. With no plan the intent is simply held:
+			// the badge stays in its outline state and the create happens the moment
+			// a day is chosen.
+			if (t.plannedDate) {
 				plan.createInGoogle.push({
 					taskId: t.id,
 					title: t.title,
 					notes: t.notes,
-					dueDate: t.dueDate,
+					plannedDate: t.plannedDate,
 					done: t.done
 				});
 			}
@@ -267,7 +272,7 @@ export function planGoogleTaskSync(input: {
 					googleTaskId: t.googleTaskId,
 					title: t.title,
 					notes: t.notes,
-					dueDate: t.dueDate,
+					plannedDate: t.plannedDate,
 					done: t.done
 				});
 			}
