@@ -23,3 +23,8 @@ jobs:
       - run: npm run lint
       - run: npm run check
       - run: npm test
+
+      # svelte-check and vitest do not exercise `vite build`. Without this the
+      # Windows runner is the first thing to discover a broken build, mid-deploy,
+      # with the service already stopped.
+      - run: npm run build
