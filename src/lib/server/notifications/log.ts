@@ -5,7 +5,7 @@ import { notifications } from '../db/schema';
 
 export async function logNotification(input: {
 	userId: string;
-	type: 'morning_digest' | 'due_alert';
+	type: 'due_alert';
 	content: { text: string; taskIds: string[] };
 }) {
 	await db.insert(notifications).values({

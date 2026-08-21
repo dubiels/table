@@ -23,6 +23,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	const parsed = rows.map((r) => ({
 		...r,
+		// Widened from the schema's narrowed 'due_alert' literal: the column is
+		// plain text, so rows written back when 'morning_digest' was still a
+		// valid type are still sitting in the database and still need to render.
+		type: r.type as string,
 		content: JSON.parse(r.content) as NotificationContent
 	}));
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { invalidate, invalidateAll } from '$app/navigation';
+	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import { browser } from '$app/environment';
@@ -16,7 +16,6 @@
 	}: { user: { email: string } | null; unreadCount: number; gtasksConfigured?: boolean } = $props();
 	let menuOpen = $state(false);
 	let syncing = $state(false);
-	let digesting = $state(false);
 	let gtasksSyncing = $state(false);
 	let legendOpen = $state(false);
 	let avatarEl = $state<HTMLButtonElement | null>(null);
@@ -138,31 +137,6 @@
 			toast('Google Tasks sync failed', 'error');
 		} finally {
 			gtasksSyncing = false;
-		}
-	}
-
-	async function sendDigest() {
-		closeMenu();
-		digesting = true;
-		toast('Sending digest…');
-		try {
-			const res = await fetch('/api/digest/run', { method: 'POST' });
-			const body = await readJson(res);
-			if (!res.ok) {
-				toast(body?.error ?? `Digest failed (HTTP ${res.status})`, 'error');
-			} else if (!body?.ok) {
-				toast('Digest failed — unexpected response', 'error');
-			} else {
-				toast('Digest sent — check the inbox', 'success');
-				// The layout load depends on this key and nothing else invalidates
-				// it, so without this the unread badge ignores the digest we just
-				// wrote until the next full page load.
-				await invalidate('app:notifications');
-			}
-		} catch {
-			toast('Digest failed', 'error');
-		} finally {
-			digesting = false;
 		}
 	}
 
@@ -305,9 +279,6 @@
 								</ul>
 							{/if}
 						{/if}
-						<button type="button" class="item" disabled={digesting} onclick={sendDigest}>
-							Send digest now
-						</button>
 						<button type="button" class="item" onclick={enableNotifications}>
 							Enable notifications
 						</button>

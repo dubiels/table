@@ -2,7 +2,6 @@ import cron from 'node-cron';
 import { env } from '$env/dynamic/private';
 import { db } from '../db';
 import { listActiveTasks } from '../tasks/service';
-import { buildMorningDigestContent } from '../notifications/digest';
 import { buildDueSoonContent, findTasksNeedingDueAlert } from '../notifications/due-alerts';
 import { sendPushToUser } from '../notifications/push';
 import { logNotification } from '../notifications/log';
@@ -17,16 +16,12 @@ export function startScheduler() {
 
 	// node-cron schedules run in the process/container's local timezone, not necessarily the
 	// user's timezone — Fly machines default to UTC unless TZ is set in fly.toml, so
-	// "0 8 * * *" means 8am UTC there, not 8am wherever the user actually is.
-	const digestCron = env.DIGEST_CRON ?? '0 8 * * *';
+	// "0 * * * *" fires on the container's clock, not on whatever clock the user is reading.
 	const dueCheckCron = env.DUE_CHECK_CRON ?? '0 * * * *';
 	const lmsSyncCron = env.LMS_SYNC_CRON ?? env.CANVAS_SYNC_CRON ?? '0 */6 * * *';
 	const gtasksSyncCron = env.GTASKS_SYNC_CRON ?? '*/5 * * * *';
 	const leadHours = Number(env.DUE_ALERT_LEAD_HOURS ?? '24');
 
-	cron.schedule(digestCron, () =>
-		runMorningDigest().catch((err) => console.error('Digest job failed', err))
-	);
 	cron.schedule(dueCheckCron, () =>
 		runDueAlertCheck(leadHours).catch((err) => console.error('Due-alert job failed', err))
 	);
@@ -39,34 +34,6 @@ export function startScheduler() {
 	cron.schedule(gtasksSyncCron, () =>
 		syncGoogleTasks().catch((err) => console.error('Google Tasks sync job failed', err))
 	);
-}
-
-export async function runMorningDigest() {
-	const allUsers = await db.query.users.findMany();
-	const tasks = await listActiveTasks();
-	const digest = buildMorningDigestContent(tasks, new Date());
-
-	for (const user of allUsers) {
-		// Push is the optional half of a digest and the inbox is the durable one:
-		// no VAPID keys, a dead subscription endpoint, a push service having a bad
-		// morning — none of that is a reason for the user to find no digest waiting
-		// in the app. Send first, log regardless.
-		try {
-			// The summary keeps the push short; the full task list lives in the inbox.
-			await sendPushToUser(user.id, {
-				title: 'Table — morning digest',
-				body: digest.summary,
-				url: '/'
-			});
-		} catch (err) {
-			console.warn('Digest push failed; logging to the inbox anyway', err);
-		}
-		await logNotification({
-			userId: user.id,
-			type: 'morning_digest',
-			content: { text: digest.text, taskIds: digest.taskIds }
-		});
-	}
 }
 
 export async function runDueAlertCheck(leadHours: number) {

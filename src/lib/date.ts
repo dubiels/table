@@ -17,3 +17,18 @@ export function localDateString(date = new Date()): string {
 	const day = String(date.getDate()).padStart(2, '0');
 	return `${date.getFullYear()}-${month}-${day}`;
 }
+
+/**
+ * A local `YYYY-MM-DD` as "Mar 4".
+ *
+ * Parsing the parts rather than handing the whole string to `new Date()` keeps
+ * the day from shifting: `new Date('2026-03-04')` is UTC midnight, which is the
+ * previous evening anywhere west of Greenwich.
+ */
+export function formatDueDate(date: string): string {
+	const [year, month, day] = date.split('-').map(Number);
+	return new Date(year, month - 1, day).toLocaleDateString('en-US', {
+		month: 'short',
+		day: 'numeric'
+	});
+}

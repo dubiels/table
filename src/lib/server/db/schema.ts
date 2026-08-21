@@ -145,7 +145,7 @@ export const notifications = sqliteTable('notifications', {
 	userId: text('user_id')
 		.notNull()
 		.references(() => users.id),
-	type: text('type', { enum: ['morning_digest', 'due_alert'] }).notNull(),
+	type: text('type', { enum: ['due_alert'] }).notNull(),
 	content: text('content').notNull(),
 	sentAt: text('sent_at').notNull(),
 	readAt: text('read_at')

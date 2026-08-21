@@ -1,5 +1,11 @@
-import { localDateString } from '$lib/listView';
-import { formatDueDate, type NotificationContent } from './digest';
+import { localDateString, formatDueDate } from '$lib/date';
+
+/** The shape both the push body and the durable inbox entry are built from. */
+export interface NotificationContent {
+	text: string;
+	summary: string;
+	taskIds: string[];
+}
 
 export interface DueAlertTask {
 	id: string;
