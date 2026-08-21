@@ -11,7 +11,7 @@ import { ZONE_COLOR_KEYS, type ZoneColor } from '$lib/zones';
 import { getAgenda } from '$lib/server/gcal/service';
 import { syncGoogleTasks, isGoogleTasksEnabled, readSyncState } from '$lib/server/gtasks/sync';
 import { pushTaskNow, pushDeletionNow } from '$lib/server/gtasks/push';
-import { canSendToGoogle, NEEDS_DUE_DATE_MESSAGE } from '$lib/googleSync';
+import { canSendToGoogle, NEEDS_PLANNED_DATE_MESSAGE } from '$lib/googleSync';
 
 /** Long enough that a reload is not a sync, short enough to catch the walk back from the bus. */
 const STALE_MS = 60_000;
@@ -107,10 +107,11 @@ export const actions: Actions = {
 		const task = await tasksService.createTask({
 			title: parsed.data.title,
 			dueDate: parsed.data.dueDate || undefined,
+			plannedDate: parsed.data.plannedDate || undefined,
 			priority: parsed.data.priority,
-			// Honoured only with a due date: an undated Google task never reaches
+			// Honoured only with a planned day: an undated Google task never reaches
 			// the calendar grid, which is the whole point of pushing it.
-			googleSync: parsed.data.googleSync === true && Boolean(parsed.data.dueDate),
+			googleSync: parsed.data.googleSync === true && Boolean(parsed.data.plannedDate),
 			x: parsed.data.x,
 			y: parsed.data.y
 		});
@@ -123,16 +124,15 @@ export const actions: Actions = {
 		const existing = await tasksService.getTask(id);
 
 		// The service marks a task dirty on key *presence* — `field in patch` —
-		// which is correct: `dueDate: null` is a real edit Google must hear about,
-		// and only presence can tell that apart from a field this Save never
+		// which is correct: `plannedDate: null` is a real edit Google must hear
+		// about, and only presence can tell that apart from a field this Save never
 		// mentioned. It does mean the keys sent from here are the dirty flag. The
-		// modal posts title, notes and dueDate on every Save, so passing them
-		// through unconditionally bumps `updatedAt` for a priority-only edit, or
-		// for a Save that changed nothing at all — firing a pointless push and
-		// arming that task to win a both-dirty conflict against a real edit made
-		// on the phone, which is the exact scenario the narrow bump rule exists to
-		// prevent. So a key goes in only when it was submitted *and* differs from
-		// what the row already holds.
+		// modal posts title, notes, dueDate and plannedDate on every Save, so
+		// passing them through unconditionally would bump `updatedAt` for a
+		// priority-only edit, or for a Save that changed nothing at all — firing a
+		// pointless push and arming that task to win a both-dirty conflict against
+		// a real edit made on the phone. So a key goes in only when it was
+		// submitted *and* differs from what the row already holds.
 		const patch: Parameters<typeof tasksService.updateTask>[1] = {};
 		// An empty title is the browser's `required` being bypassed, not a request
 		// to erase the title, so it is dropped rather than written.
@@ -144,6 +144,10 @@ export const actions: Actions = {
 		if ('dueDate' in data) {
 			const dueDate = data.dueDate ? String(data.dueDate) : null;
 			if (dueDate !== existing.dueDate) patch.dueDate = dueDate;
+		}
+		if ('plannedDate' in data) {
+			const plannedDate = data.plannedDate ? String(data.plannedDate) : null;
+			if (plannedDate !== existing.plannedDate) patch.plannedDate = plannedDate;
 		}
 		if ('priority' in data) {
 			const priority = (data.priority as 'low' | 'med' | 'high') || null;
@@ -158,14 +162,12 @@ export const actions: Actions = {
 		// silently clear an opt-in that nothing on screen was showing.
 		if (isGoogleTasksEnabled()) {
 			if (data.googleSync === 'on') {
-				// The date this Save leaves behind, not the one the row held when it
+				// The day this Save leaves behind, not the one the row held when it
 				// opened — checking the old value would refuse an opt-in made in the
-				// same Save that supplied the date it was waiting for. Honoured rather
-				// than rejected, exactly as `createTask` treats the same rule: the
-				// panel already refuses this inline, so reaching here means a crafted
-				// post, and there is no error surface on this action to report it to.
-				const dueDate = 'dueDate' in data ? String(data.dueDate || '') : (existing.dueDate ?? '');
-				if (canSendToGoogle({ dueDate, googleTaskId: existing.googleTaskId })) {
+				// same Save that supplied the day it was waiting for.
+				const plannedDate =
+					'plannedDate' in data ? String(data.plannedDate || '') : (existing.plannedDate ?? '');
+				if (canSendToGoogle({ plannedDate, googleTaskId: existing.googleTaskId })) {
 					await tasksService.enableGoogleSync(id);
 				}
 			} else {
@@ -209,7 +211,7 @@ export const actions: Actions = {
 		// The card refuses this before posting; this is the rule itself rather than
 		// its message, so a stale card cannot opt a task in that Google would then
 		// silently drop into a permanent "waiting to send".
-		if (!canSendToGoogle(existing)) return fail(400, { error: NEEDS_DUE_DATE_MESSAGE });
+		if (!canSendToGoogle(existing)) return fail(400, { error: NEEDS_PLANNED_DATE_MESSAGE });
 
 		await tasksService.enableGoogleSync(id);
 		await pushTaskNow(id);

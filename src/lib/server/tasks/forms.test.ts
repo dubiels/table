@@ -49,3 +49,33 @@ describe('newTaskSchema', () => {
 		).toBe(false);
 	});
 });
+
+describe('newTaskSchema plannedDate', () => {
+	it('reads a planned date off the form', () => {
+		const parsed = newTaskSchema.safeParse({
+			title: 'Ship it',
+			dueDate: '2026-09-01',
+			plannedDate: '2026-08-20'
+		});
+
+		expect(parsed.success && parsed.data.plannedDate).toBe('2026-08-20');
+	});
+
+	it('treats a blank planned date as not set', () => {
+		const parsed = newTaskSchema.safeParse({ title: 'Ship it', plannedDate: '' });
+
+		expect(parsed.success && parsed.data.plannedDate).toBeUndefined();
+	});
+
+	it('accepts a plan later than its deadline', () => {
+		// A plan that misses the deadline is a state the board marks, never a
+		// state the server refuses.
+		const parsed = newTaskSchema.safeParse({
+			title: 'Ship it',
+			dueDate: '2026-08-20',
+			plannedDate: '2026-09-01'
+		});
+
+		expect(parsed.success).toBe(true);
+	});
+});
