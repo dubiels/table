@@ -16,6 +16,7 @@ export interface AgentTask {
 	title: string;
 	notes: string | null;
 	dueDate: string | null;
+	plannedDate: string | null;
 	priority: string | null;
 	done: boolean;
 	completedAt: string | null;
@@ -87,6 +88,7 @@ export function serializeTask(task: Task, zones: Zone[]): AgentTask {
 		title: task.title,
 		notes: task.notes,
 		dueDate: task.dueDate,
+		plannedDate: task.plannedDate,
 		priority: task.priority,
 		done: task.done,
 		completedAt: task.completedAt,

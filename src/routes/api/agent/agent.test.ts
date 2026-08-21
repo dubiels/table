@@ -149,6 +149,41 @@ describe('tasks round trip', () => {
 		expect(second.body.task.done).toBe(true);
 	});
 
+	it('opts a task into Google sync only alongside a planned date', async () => {
+		// A due date alone is the last-possible day and never reaches Google, so
+		// asking to sync without a plan is honoured as a no-op rather than an error.
+		const dueOnly = await write(tasksRoute.POST, {
+			title: 'Deadline only',
+			dueDate: '2026-09-01',
+			googleSync: true
+		});
+		expect(dueOnly.body.task.google.sync).toBe(false);
+
+		const planned = await write(tasksRoute.POST, {
+			title: 'Planned',
+			dueDate: '2026-09-01',
+			plannedDate: '2026-08-25',
+			googleSync: true
+		});
+		expect(planned.body.task.google.sync).toBe(true);
+		expect(planned.body.task.plannedDate).toBe('2026-08-25');
+		expect(planned.body.task.dueDate).toBe('2026-09-01');
+	});
+
+	it('updates the planned date through PATCH', async () => {
+		const task = await tasksService.createTask({ title: 'Reschedule me' });
+
+		const patched = await write(
+			taskRoute.PATCH,
+			{ plannedDate: '2026-08-22' },
+			{ params: { id: task.id } }
+		);
+
+		expect(patched.status).toBe(200);
+		expect(patched.body.task.plannedDate).toBe('2026-08-22');
+		expect((await tasksService.getTask(task.id)).plannedDate).toBe('2026-08-22');
+	});
+
 	it('replays a repeated idempotency key instead of creating a second task', async () => {
 		const headers = { 'idempotency-key': 'agent-retry-1' };
 		const first = await write(tasksRoute.POST, { title: 'Only once' }, {}, headers);

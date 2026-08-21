@@ -36,11 +36,12 @@ export const POST: RequestHandler = ({ request }) =>
 			title: input.title,
 			notes: input.notes ?? undefined,
 			dueDate: input.dueDate ?? undefined,
+			plannedDate: input.plannedDate ?? undefined,
 			priority: input.priority ?? undefined,
 			personId: input.personId ?? undefined,
 			// The composer's rule, not a new one: an undated Google task never
 			// reaches the calendar grid, which is the whole point of pushing it.
-			googleSync: input.googleSync === true && Boolean(input.dueDate),
+			googleSync: input.googleSync === true && Boolean(input.plannedDate),
 			x: placement ? Math.round(placement.x) : undefined,
 			y: placement ? Math.round(placement.y) : undefined
 		});

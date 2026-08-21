@@ -26,6 +26,9 @@ export const PATCH: RequestHandler = ({ request, params }) =>
 		if (input.dueDate !== undefined && input.dueDate !== existing.dueDate) {
 			patch.dueDate = input.dueDate;
 		}
+		if (input.plannedDate !== undefined && input.plannedDate !== existing.plannedDate) {
+			patch.plannedDate = input.plannedDate;
+		}
 		if (input.priority !== undefined && input.priority !== existing.priority) {
 			patch.priority = input.priority;
 		}

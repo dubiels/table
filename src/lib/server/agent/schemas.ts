@@ -29,12 +29,15 @@ export const createTaskSchema = z.object({
 	title,
 	notes: optionalText.optional(),
 	dueDate: isoDate.nullable().optional(),
+	// The day Google sees — sending a task to Google is choosing which day to
+	// put it on. `dueDate` is the last-possible day and never leaves Table.
+	plannedDate: isoDate.nullable().optional(),
 	priority: z.enum(['low', 'med', 'high']).nullable().optional(),
 	personId: z.string().nullable().optional(),
 	zoneId: z.string().nullable().optional(),
-	// Honoured only alongside a due date, exactly as the composer's checkbox is:
-	// an undated Google task never reaches the calendar grid, which is the whole
-	// point of pushing it. The route applies that rule, not this schema.
+	// Honoured only alongside a planned date, exactly as the composer's checkbox
+	// is: an undated Google task never reaches the calendar grid, which is the
+	// whole point of pushing it. The route applies that rule, not this schema.
 	googleSync: z.boolean().optional()
 });
 
@@ -43,6 +46,8 @@ export const updateTaskSchema = z
 		title: title.optional(),
 		notes: optionalText.optional(),
 		dueDate: isoDate.nullable().optional(),
+		// The day Google sees — see `createTaskSchema` above.
+		plannedDate: isoDate.nullable().optional(),
 		priority: z.enum(['low', 'med', 'high']).nullable().optional(),
 		personId: z.string().nullable().optional(),
 		zoneId: z.string().nullable().optional()

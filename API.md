@@ -36,9 +36,10 @@ off without touching how anyone signs in.
 - `PATCH` is a true patch: an **absent key is left alone**, and an explicit
   `null` **clears** the field. This is the one thing to get right — sending
   `{"notes": null}` erases the notes, sending `{}` does nothing.
-- Dates the user picked (`dueDate`, `metOn`, `occurredOn`, `lastSpokeAt`) are
-  `YYYY-MM-DD` local calendar dates, with no time and no zone. Timestamps
-  (`createdAt`, `updatedAt`, `archivedAt`) are ISO 8601 instants.
+- Dates the user picked (`dueDate`, `plannedDate`, `metOn`, `occurredOn`,
+  `lastSpokeAt`) are `YYYY-MM-DD` local calendar dates, with no time and no
+  zone. Timestamps (`createdAt`, `updatedAt`, `archivedAt`) are ISO 8601
+  instants.
 - Reads send `Cache-Control: no-store`.
 
 ## Idempotency
@@ -136,7 +137,8 @@ Every task, with every field.
 			"id": "0f4c…",
 			"title": "Draft the Q3 memo",
 			"notes": "for Tuesday",
-			"dueDate": "2026-09-01",
+			"dueDate": "2026-09-15",
+			"plannedDate": "2026-09-01",
 			"priority": "high",
 			"done": false,
 			"completedAt": null,
@@ -163,9 +165,9 @@ Every task, with every field.
 Sorted newest activity first. `source` is `manual`, `canvas` or `google`.
 
 > **`since` is a bandwidth hint, not a change feed.**
-> `updatedAt` moves only for fields Google can see — title, notes, due date and
-> done. Priority, position, category and the person link deliberately leave it
-> alone, because dirtiness against Google is defined as
+> `updatedAt` moves only for fields Google can see — title, notes, planned date
+> and done. Priority, position, category, the person link and the due date
+> deliberately leave it alone, because dirtiness against Google is defined as
 > `updatedAt !== googleSyncedAt`, and a drag that bumped it would fire pointless
 > API calls and let that drag win a conflict against a real edit made on a
 > phone. `since` therefore also considers `createdAt` and `completedAt`, but it
@@ -252,30 +254,33 @@ a task — send `zoneId` and the server picks the slot.
 
 ## `POST /api/agent/tasks` → `201`
 
-| Field        | Type                             | Notes                               |
-| ------------ | -------------------------------- | ----------------------------------- |
-| `title`      | string                           | Required, non-empty                 |
-| `notes`      | string \| null                   |                                     |
-| `dueDate`    | `YYYY-MM-DD` \| null             |                                     |
-| `priority`   | `low` \| `med` \| `high` \| null |                                     |
-| `personId`   | string \| null                   | Must exist                          |
-| `zoneId`     | string \| null                   | See _Categories are positions_      |
-| `googleSync` | boolean                          | Honoured only alongside a `dueDate` |
+| Field         | Type                             | Notes                                      |
+| ------------- | -------------------------------- | ------------------------------------------ |
+| `title`       | string                           | Required, non-empty                        |
+| `notes`       | string \| null                   |                                            |
+| `dueDate`     | `YYYY-MM-DD` \| null             | Table's own deadline. Never sent to Google |
+| `plannedDate` | `YYYY-MM-DD` \| null             | The day Google sees                        |
+| `priority`    | `low` \| `med` \| `high` \| null |                                            |
+| `personId`    | string \| null                   | Must exist                                 |
+| `zoneId`      | string \| null                   | See _Categories are positions_             |
+| `googleSync`  | boolean                          | Honoured only alongside a `plannedDate`    |
 
 ```json
-{ "title": "Draft the Q3 memo", "dueDate": "2026-09-01", "zoneId": "9ab1…" }
+{ "title": "Draft the Q3 memo", "plannedDate": "2026-09-01", "zoneId": "9ab1…" }
 ```
 
 Returns `{ "task": { … } }`.
 
-`googleSync` without a due date is ignored rather than rejected: an undated
+`googleSync` without a planned date is ignored rather than rejected: an undated
 Google task never reaches the calendar grid, which is the whole point of pushing
-it. This matches the board's composer.
+it. This matches the board's composer. Sending a task to Google is choosing
+which day to put it on, so it is `plannedDate` — the shiftable day you plan to
+do the work — that gates syncing, not `dueDate`, the last-possible day.
 
 ## `PATCH /api/agent/tasks/{id}` → `200`
 
-Accepts `title`, `notes`, `dueDate`, `priority`, `personId`, `zoneId`. At least
-one key is required; an empty patch is a `400`.
+Accepts `title`, `notes`, `dueDate`, `plannedDate`, `priority`, `personId`,
+`zoneId`. At least one key is required; an empty patch is a `400`.
 
 ```json
 { "priority": "low", "notes": null, "personId": "7c2e…" }
