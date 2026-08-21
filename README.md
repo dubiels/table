@@ -1,6 +1,6 @@
 # Table
 
-Table is a personal command center: a task board in two views — a filterable, sortable list and a bento grid of drag-between categories — plus email magic-link login, Canvas LMS assignment sync, a read-only Google Calendar agenda, morning digest emails, due-date push notifications, an in-app notification inbox, and a read-only dashboard API for external displays (e.g. a Raspberry Pi wall panel). It's built with SvelteKit and Drizzle/SQLite, designed to be self-hosted as a single always-on instance on Fly.io.
+Table is a personal command center: a task board in two views — a filterable, sortable list and a bento grid of drag-between categories — plus email magic-link login, Canvas LMS assignment sync, a read-only Google Calendar agenda, morning digest emails, due-date push notifications, an in-app notification inbox, and a read-only dashboard API for external displays (e.g. a Raspberry Pi wall panel). It's built with SvelteKit and Drizzle/SQLite, designed to be self-hosted as a single always-on instance.
 
 ## Views and categories
 
@@ -242,33 +242,35 @@ resolves to Dinner Table, via the `reroute` hook in `src/hooks.ts`. Only the roo
 is remapped, so login, the API routes and the service worker keep working on that
 host too.
 
-## Deploying to Fly.io
+## Deployment
 
-1. Install [`flyctl`](https://fly.io/docs/flyctl/install/) and log in with `flyctl auth login`.
-2. From the repo root, run `flyctl launch --no-deploy`. When it offers to overwrite `fly.toml`, keep the one already in this repo (it configures the persistent volume, single-instance settings, and internal port needed by the app).
-3. Create the persistent volume for the SQLite database:
-   ```sh
-   flyctl volumes create table_data --size 1
-   ```
-4. Set the app's secrets (these are read from the environment at runtime, not from `.env`):
-   ```sh
-   flyctl secrets set \
-     ALLOWED_EMAILS=you@example.com \
-     RESEND_API_KEY=re_your_key \
-     EMAIL_FROM="Table <table@yourdomain.com>" \
-     PUBLIC_APP_URL=https://your-app.fly.dev \
-     VAPID_PUBLIC_KEY=your_public_key \
-     VAPID_PRIVATE_KEY=your_private_key \
-     PUBLIC_VAPID_PUBLIC_KEY=your_public_key \
-     VAPID_SUBJECT=mailto:you@example.com
-   ```
-   These cover core functionality. If you're using the optional integrations above, also set `LMS_ICAL_URL`, `GCAL_CLIENT_ID`, `GCAL_CLIENT_SECRET`, `GCAL_REFRESH_TOKEN`, `GCAL_CALENDAR_IDS`, `GTASKS_ENABLED`, and/or `DASHBOARD_TOKEN` as needed.
-5. Deploy:
-   ```sh
-   flyctl deploy
-   ```
+Table runs on a dedicated always-on Windows machine, published by Cloudflare
+Tunnel and deployed by pushing to `main`. `fly.toml` and the `Dockerfile` are
+kept as a record of the previous Fly.io deployment and are not used.
 
-On boot, the container runs the Drizzle migrations against the database on the mounted volume, then starts the SvelteKit server.
+The machine keeps four things outside the git checkout, because the deploy
+wipes gitignored files:
+
+| Path                         | Holds                                         |
+| ---------------------------- | --------------------------------------------- |
+| `C:\table\env\.env`          | Secrets and config; no workflow ever reads it |
+| `C:\table\data\table.sqlite` | The database                                  |
+| `C:\table\personal\`         | `static/logos/` and `logo-overrides.local.ts` |
+| `C:\table\snapshots\`        | Pre-migration `VACUUM INTO` snapshots         |
+
+Two Windows Services run the system — `Table` (the app, via NSSM) and
+`cloudflared` (the tunnel) — plus a GitHub Actions self-hosted runner service
+that performs deploys. Pushing to `main` runs the test suite on GitHub-hosted
+Linux; if it passes, the runner rebuilds, migrates and restarts the service,
+then polls `/api/health` and rolls back to the previous build if it does not
+answer.
+
+**Migrations are forward-only.** The deploy takes a `VACUUM INTO` snapshot
+before migrating; a rollback restores the previous _build_, not the previous
+_schema_. Recovering from a bad migration means restoring that snapshot by hand.
+
+**Backups are deliberately out of scope** for the current deployment. The
+snapshots above exist for rollback, not for disaster recovery.
 
 ## Installing on iPhone
 
