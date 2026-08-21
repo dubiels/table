@@ -35,6 +35,7 @@ export async function createTask(input: {
 		title: input.title,
 		notes: input.notes ?? null,
 		dueDate: input.dueDate ?? null,
+		plannedDate: null,
 		priority: input.priority ?? null,
 		done: false,
 		completedAt: null,

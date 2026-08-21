@@ -38,7 +38,20 @@ export const tasks = sqliteTable(
 		id: text('id').primaryKey(),
 		title: text('title').notNull(),
 		notes: text('notes'),
+		/**
+		 * The last possible day, and Table's alone. Google never sees it, so it is
+		 * absent from GOOGLE_VISIBLE_FIELDS in tasks/service.ts and editing it
+		 * never marks the task dirty — there is nothing to push.
+		 */
 		dueDate: text('due_date'),
+		/**
+		 * The day you plan to do it, and the only date Google receives. It moves
+		 * whenever you reschedule on either side, and a shift arriving from Google
+		 * lands here rather than on `dueDate` — which is the entire point of the
+		 * split. Null means unplanned, which is also what "never synced" looks
+		 * like: picking the day is the act of syncing.
+		 */
+		plannedDate: text('planned_date'),
 		priority: text('priority', { enum: ['low', 'med', 'high'] }),
 		done: integer('done', { mode: 'boolean' }).notNull().default(false),
 		completedAt: text('completed_at'),
