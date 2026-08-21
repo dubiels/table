@@ -163,7 +163,7 @@ name stay in Table — Google Tasks has no field for either.
 
 - Set `DASHBOARD_TOKEN` to a long random string; requests must send `Authorization: Bearer <DASHBOARD_TOKEN>`. Leaving it unset disables the route (404) instead of leaving it open.
 - The payload ships zone **color token names** (e.g. `"sage"`), never hex values — the consumer owns its own palette and rendering.
-- `fly.toml` sets `TZ = "America/New_York"` so both the payload's `timezone` field and the cron schedules above reflect your local time instead of Fly's default UTC. Change it if you're elsewhere.
+- The service sets `TZ=America/New_York` so both the payload's `timezone` field and the cron schedules above reflect your local time rather than UTC. Change it if you're elsewhere.
 
 ## Dinner Table
 
@@ -237,10 +237,10 @@ nothing to sync.
 
 ### Serving it from a subdomain
 
-Point `dinner.<your-domain>` at the same Fly app and the root of that host
-resolves to Dinner Table, via the `reroute` hook in `src/hooks.ts`. Only the root
-is remapped, so login, the API routes and the service worker keep working on that
-host too.
+Point `dinner.<your-domain>` at the same server — the tunnel carries a second
+ingress rule for that hostname — and the root of that host resolves to Dinner
+Table, via the `reroute` hook in `src/hooks.ts`. Only the root is remapped, so
+login, the API routes and the service worker keep working on that host too.
 
 ## Deployment
 
@@ -285,7 +285,7 @@ Push notifications require iOS 16.4 or later, and will not work if Table is open
 
 Table's scheduler (morning digest, due-date checks, and LMS sync) runs in-process, on a cron schedule, inside the same server process that serves HTTP requests. There is no separate worker process or external queue.
 
-Because of this, the app must run as exactly one always-on machine. `fly.toml` sets `min_machines_running = 1` and `auto_stop_machines = false` for this reason — do not enable Fly's autoscaling to multiple machines, since each machine would run its own copy of the scheduler and could send duplicate notifications.
+Because of this, the app must run as exactly one always-on process. Never run a second instance against the same database — each one would run its own copy of the scheduler, sending duplicate digests and racing the Google Tasks sync.
 
 ## Extending Table
 
