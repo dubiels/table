@@ -54,4 +54,23 @@ describe('taskMarks', () => {
 			unachievable: false
 		});
 	});
+
+	it('does not call a task due today overdue', () =>
+		expect(taskMarks({ dueDate: TODAY, plannedDate: null, done: false }, TODAY)).toEqual({
+			overdue: false,
+			slipped: false,
+			unachievable: false
+		}));
+
+	it('does not call a task planned for today slipped', () =>
+		expect(taskMarks({ dueDate: '2026-08-30', plannedDate: TODAY, done: false }, TODAY)).toEqual({
+			overdue: false,
+			slipped: false,
+			unachievable: false
+		}));
+
+	it('a plan landing exactly on its deadline is achievable', () =>
+		expect(
+			taskMarks({ dueDate: '2026-08-25', plannedDate: '2026-08-25', done: false }, TODAY)
+		).toEqual({ overdue: false, slipped: false, unachievable: false }));
 });

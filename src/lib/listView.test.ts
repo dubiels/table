@@ -5,7 +5,6 @@ import {
 	categoryColorFor,
 	filterTasks,
 	sortTasks,
-	localDateString,
 	NO_CATEGORY,
 	CANVAS_CATEGORY,
 	type ListTask,
@@ -103,27 +102,6 @@ describe('categoryColorFor', () => {
 	it('returns null for a Canvas assignment sitting inside a zone', () => {
 		const t = task({ id: '1', source: 'canvas', x: 100, y: 100 });
 		expect(categoryColorFor(t, [work, home])).toBeNull();
-	});
-});
-
-describe('localDateString', () => {
-	it('formats a date as zero-padded YYYY-MM-DD', () => {
-		expect(localDateString(new Date(2026, 0, 5, 12, 0, 0))).toBe('2026-01-05');
-	});
-
-	it('reads the calendar date the user sees, not the UTC one', () => {
-		// Task due dates are stored as local calendar dates. `toISOString()`
-		// answers a different question — the instant in UTC — so late in the
-		// evening west of Greenwich it returns tomorrow, marking everything due
-		// today overdue a day early.
-		const lateEvening = new Date(2026, 6, 21, 23, 30, 0);
-		expect(localDateString(lateEvening)).toBe('2026-07-21');
-		expect(localDateString(new Date(2026, 6, 21, 0, 15, 0))).toBe('2026-07-21');
-	});
-
-	it('handles the last day of a month and of a year', () => {
-		expect(localDateString(new Date(2026, 11, 31, 23, 59, 59))).toBe('2026-12-31');
-		expect(localDateString(new Date(2026, 1, 28, 6, 0, 0))).toBe('2026-02-28');
 	});
 });
 

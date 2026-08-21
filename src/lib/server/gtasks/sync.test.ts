@@ -44,6 +44,9 @@ const taskRow = {
 };
 
 let cursor: { key: string; value: string } | undefined;
+/** What `getTask` (and so `pushTask`) sees. Reset to the clean fixture in
+ * `beforeEach`; individual tests reassign it to exercise a dirty row. */
+let findFirstTask: typeof taskRow;
 
 const updateSetMock = vi.fn();
 const insertValuesMock = vi.fn();
@@ -54,7 +57,7 @@ vi.mock('../db', () => ({
 			syncState: { findFirst: () => Promise.resolve(cursor) },
 			tasks: {
 				findMany: () => Promise.resolve([{ ...taskRow }]),
-				findFirst: () => Promise.resolve({ ...taskRow })
+				findFirst: () => Promise.resolve(findFirstTask)
 			},
 			googleTaskTombstones: { findMany: () => Promise.resolve([]) }
 		},
@@ -98,6 +101,7 @@ describe('sync round serialization', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		cursor = { key: 'gtasks:lastSyncAt', value: '2026-08-11T12:00:00.000Z' };
+		findFirstTask = { ...taskRow };
 		patchTaskMock.mockResolvedValue({ id: 'g1', updated: '2026-08-11T13:00:00.000Z' });
 	});
 
@@ -194,6 +198,11 @@ describe('sync round serialization', () => {
 		// Both touch the same rows: a push racing a round can send the same task
 		// twice, and the second markPushed overwrites the googleTaskId of the
 		// first, orphaning a live Google task.
+		//
+		// Dirtied so the push actually reaches Google: a clean row (the shared
+		// fixture's default) is now a no-op under the dirty-task guard, which
+		// would make the ordering this test checks unobservable.
+		findFirstTask = { ...taskRow, updatedAt: '2026-08-11T12:30:00.000Z' };
 		const first = deferred<[]>();
 		listTasksMock.mockReturnValueOnce(first.promise).mockResolvedValue([]);
 
@@ -213,6 +222,25 @@ describe('sync round serialization', () => {
 			'g1',
 			expect.objectContaining({ due: '2026-08-13T00:00:00.000Z' })
 		);
+	});
+
+	it('does not push a clean linked task', async () => {
+		// taskRow is already clean: updatedAt === googleSyncedAt. Nothing Google
+		// can see has changed since the last sync, so pushing anyway would only
+		// patch Table's snapshot over an inbound edit not yet pulled.
+		await pushTaskNow('t1');
+
+		expect(patchTaskMock).not.toHaveBeenCalled();
+		expect(insertTaskMock).not.toHaveBeenCalled();
+		expect(updateSetMock).not.toHaveBeenCalled();
+	});
+
+	it('still pushes a dirty linked task', async () => {
+		findFirstTask = { ...taskRow, updatedAt: '2026-08-11T12:30:00.000Z' };
+
+		await pushTaskNow('t1');
+
+		expect(patchTaskMock).toHaveBeenCalledTimes(1);
 	});
 
 	it('withGoogleTasksLockWithin gives up on a slow lock and never runs the abandoned work', async () => {
