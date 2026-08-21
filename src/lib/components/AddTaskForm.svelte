@@ -22,7 +22,6 @@
 	const STORAGE_KEY = 'table:gtasks-default';
 	const POPOVER_WIDTH = 264;
 
-	let dueDate = $state('');
 	let plannedDate = $state('');
 	// Sticky, because pushing everything should cost one click ever rather than
 	// one per task.
@@ -181,7 +180,7 @@
 		<div class="fields">
 			<label>
 				<span>Due by</span>
-				<input type="date" name="dueDate" bind:value={dueDate} />
+				<input type="date" name="dueDate" />
 			</label>
 			<label>
 				<span>Do it on</span>

@@ -89,6 +89,7 @@ export const GOOGLE_SYNC_STATES: {
 	}
 ];
 
+/** A task needs a planned day to be created in Google; an existing link is kept without one. */
 export function canSendToGoogle(task: GoogleSyncFields & { plannedDate?: string | null }): boolean {
 	return Boolean(task.plannedDate) || Boolean(task.googleTaskId);
 }

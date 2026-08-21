@@ -167,6 +167,9 @@ export const actions: Actions = {
 				// same Save that supplied the day it was waiting for.
 				const plannedDate =
 					'plannedDate' in data ? String(data.plannedDate || '') : (existing.plannedDate ?? '');
+				// Honoured rather than rejected when it fails: the panel already
+				// refuses this inline, so reaching here means a crafted post, and
+				// there is no error surface on this action to report it to.
 				if (canSendToGoogle({ plannedDate, googleTaskId: existing.googleTaskId })) {
 					await tasksService.enableGoogleSync(id);
 				}

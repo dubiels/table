@@ -22,13 +22,12 @@
 		onclose: () => void;
 	} = $props();
 
-	// Mirrors the date input rather than the saved value, so the toggle enables
-	// the moment a date is typed instead of after a save-and-reopen. Read once,
-	// untracked: the modal is remounted fresh for each task it opens (there is
-	// no in-place "next task" navigation), so re-syncing to `task` here is
-	// neither needed nor wanted — it would fight the user's own edits to a
-	// field that already carries the initial value.
-	let dueDate = $state(untrack(() => task.dueDate ?? ''));
+	// Mirrors the planned-date input rather than the saved value, so the toggle
+	// enables the moment a date is typed instead of after a save-and-reopen.
+	// Read once, untracked: the modal is remounted fresh for each task it opens
+	// (there is no in-place "next task" navigation), so re-syncing to `task`
+	// here is neither needed nor wanted — it would fight the user's own edits to
+	// a field that already carries the initial value.
 	let plannedDate = $state(untrack(() => task.plannedDate ?? ''));
 	let googleSync = $state(untrack(() => task.googleSync ?? false));
 	// From the layout load, so this component does not have to be handed the flag
@@ -52,8 +51,14 @@
 	let willRemoveFromGoogle = $derived(Boolean(task.googleSync && task.googleTaskId) && !googleSync);
 
 	function onSyncToggle(e: Event & { currentTarget: HTMLInputElement }) {
-		if (!e.currentTarget.checked || canSync) {
+		if (!e.currentTarget.checked) {
 			attemptedWithoutDate = false;
+			googleSync = false;
+			return;
+		}
+		if (canSync) {
+			attemptedWithoutDate = false;
+			googleSync = true;
 			return;
 		}
 		// Refused rather than held: an opt-in that cannot be acted on would sit as
@@ -102,7 +107,7 @@
 
 			<label>
 				<span>Due by</span>
-				<input type="date" name="dueDate" bind:value={dueDate} />
+				<input type="date" name="dueDate" value={task.dueDate ?? ''} />
 			</label>
 
 			<label>
@@ -122,10 +127,14 @@
 
 			{#if gtasksConfigured}
 				<label class="check">
+					<!-- Shown ticked only when it can actually be honoured, so clearing
+					     the planned date out from under a standing opt-in unticks this
+					     itself rather than leaving a refused opt-in standing until the
+					     next click. Typing a date ticks it back by itself. -->
 					<input
 						type="checkbox"
 						name="googleSync"
-						bind:checked={googleSync}
+						checked={googleSync && canSync}
 						onchange={onSyncToggle}
 					/>
 					<span>Send to Google Tasks</span>

@@ -282,6 +282,11 @@ do the work — that gates syncing, not `dueDate`, the last-possible day.
 Accepts `title`, `notes`, `dueDate`, `plannedDate`, `priority`, `personId`,
 `zoneId`. At least one key is required; an empty patch is a `400`.
 
+There is no `googleSync` field here: opting in is create-only. A task made
+without a planned date, or with `googleSync` omitted, has no way to reach
+Google through this endpoint afterward — the web form covers that case with
+the detail panel and the badge, which this API does not yet have.
+
 ```json
 { "priority": "low", "notes": null, "personId": "7c2e…" }
 ```
