@@ -30,7 +30,7 @@ const taskRow = {
 	title: 'Linked',
 	notes: null,
 	dueDate: '2026-08-12',
-	plannedDate: '2026-08-12',
+	plannedDate: '2026-08-13',
 	done: false,
 	completedAt: null,
 	updatedAt: '2026-08-11T12:00:00.000Z',
@@ -121,10 +121,12 @@ describe('sync round serialization', () => {
 		expect(updateSetMock).toHaveBeenCalledWith(
 			expect.objectContaining({ plannedDate: '2026-08-27' })
 		);
-		// The absence is the fix: no write from a Google round may name dueDate.
-		expect(updateSetMock).not.toHaveBeenCalledWith(
-			expect.objectContaining({ dueDate: expect.anything() })
-		);
+		// Key presence, not value: `expect.anything()` does not match `null`, so an
+		// objectContaining assertion waves `dueDate: null` straight through — and that
+		// is the write that erases the deadline.
+		for (const [values] of updateSetMock.mock.calls) {
+			expect(values).not.toHaveProperty('dueDate');
+		}
 	});
 
 	it('imports a task born in Google with a plan and no deadline', async () => {
@@ -204,6 +206,13 @@ describe('sync round serialization', () => {
 		await round;
 		await push;
 		expect(patchTaskMock).toHaveBeenCalledTimes(1);
+		// push.ts must read the shiftable plannedDate, not the frozen dueDate —
+		// the fixture sets them to different days precisely so this can tell.
+		expect(patchTaskMock).toHaveBeenCalledWith(
+			'access-token',
+			'g1',
+			expect.objectContaining({ due: '2026-08-13T00:00:00.000Z' })
+		);
 	});
 
 	it('withGoogleTasksLockWithin gives up on a slow lock and never runs the abandoned work', async () => {

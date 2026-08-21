@@ -68,7 +68,7 @@ export const tasks = sqliteTable(
 		x: integer('x').notNull().default(0),
 		y: integer('y').notNull().default(0),
 		sortOrder: integer('sort_order').notNull().default(0),
-		// Bumped only by a field Google can see: title, notes, dueDate, done.
+		// Bumped only by a field Google can see: title, notes, plannedDate, done.
 		// Position, category and priority deliberately leave it alone — dirtiness
 		// is `updatedAt !== googleSyncedAt`, so a drag that bumped it would fire
 		// pointless API calls and let that drag win a conflict against a real edit

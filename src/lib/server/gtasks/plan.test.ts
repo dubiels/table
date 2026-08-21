@@ -68,7 +68,7 @@ describe('inbound capture', () => {
 		expect(result.createInTable).toEqual([]);
 	});
 
-	it('imports an undated google task, since the due-date rule is outbound only', () => {
+	it('imports an undated google task, since the planned-date rule is outbound only', () => {
 		const result = plan({ googleTasks: [googleTask({ id: 'new', plannedDate: null })] });
 		expect(result.createInTable[0].plannedDate).toBeNull();
 	});
@@ -277,7 +277,7 @@ describe('outbound retry for a task the fetch could not show', () => {
 });
 
 describe('outbound creation', () => {
-	it('creates in google once intent is set and a due date exists', () => {
+	it('creates in google once intent is set and a planned date exists', () => {
 		const result = plan({
 			tableTasks: [tableTask({ googleTaskId: null, googleSyncedAt: null, googleUpdatedAt: null })]
 		});
@@ -304,7 +304,7 @@ describe('outbound creation', () => {
 		expect(result.createInGoogle[0].done).toBe(true);
 	});
 
-	it('holds the intent, creating nothing, while there is no due date', () => {
+	it('holds the intent, creating nothing, while there is no planned date', () => {
 		const result = plan({
 			tableTasks: [
 				tableTask({
@@ -320,7 +320,7 @@ describe('outbound creation', () => {
 		expect(result.unlinkInTable).toEqual([]);
 	});
 
-	it('patches a linked task that lost its due date instead of deleting it', () => {
+	it('patches a linked task that lost its planned date instead of deleting it', () => {
 		const result = plan({
 			tableTasks: [tableTask({ plannedDate: null, updatedAt: '2026-08-11T13:00:00.000Z' })],
 			googleTasks: [googleTask()]
@@ -375,7 +375,10 @@ describe('the deadline never crosses the seam', () => {
 		});
 
 		expect(result.patchInGoogle).toHaveLength(1);
-		expect(result.patchInGoogle[0]).toMatchObject({ googleTaskId: 'g1', plannedDate: '2026-08-25' });
+		expect(result.patchInGoogle[0]).toMatchObject({
+			googleTaskId: 'g1',
+			plannedDate: '2026-08-25'
+		});
 	});
 
 	it('gates the create on a plan rather than on a deadline', () => {
@@ -399,7 +402,10 @@ describe('the deadline never crosses the seam', () => {
 		});
 
 		expect(result.createInTable).toHaveLength(1);
-		expect(result.createInTable[0]).toMatchObject({ googleTaskId: 'new', plannedDate: '2026-08-22' });
+		expect(result.createInTable[0]).toMatchObject({
+			googleTaskId: 'new',
+			plannedDate: '2026-08-22'
+		});
 		// A task arriving from the phone carries a plan, not a known deadline.
 		expect(result.createInTable[0]).not.toHaveProperty('dueDate');
 	});

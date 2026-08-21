@@ -289,14 +289,41 @@ describe('tasks service', () => {
 });
 
 describe('what Google can see', () => {
+	beforeEach(() => {
+		rows = [];
+		tombstones = [];
+	});
+
 	it('does not mark a task dirty when only the deadline changes', async () => {
-		const task = await createTask({ title: 'Ship it', plannedDate: '2026-08-20' });
-		const before = task.updatedAt;
+		vi.useFakeTimers();
+		try {
+			const task = await createTask({ title: 'Ship it', plannedDate: '2026-08-20' });
+			const before = task.updatedAt;
+			vi.advanceTimersByTime(1000);
 
-		const after = await updateTask(task.id, { dueDate: '2026-09-01' });
+			const after = await updateTask(task.id, { dueDate: '2026-09-01' });
 
-		expect(after.dueDate).toBe('2026-09-01');
-		expect(after.updatedAt).toBe(before);
+			expect(after.dueDate).toBe('2026-09-01');
+			expect(after.updatedAt).toBe(before);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('bumps updatedAt when a planned date is cleared', async () => {
+		vi.useFakeTimers();
+		try {
+			const task = await createTask({ title: 'Ship it', plannedDate: '2026-08-20' });
+			const before = task.updatedAt;
+			vi.advanceTimersByTime(1000);
+
+			const after = await updateTask(task.id, { plannedDate: null });
+
+			expect(after.plannedDate).toBeNull();
+			expect(Date.parse(after.updatedAt)).toBeGreaterThan(Date.parse(before));
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('marks a task dirty when the plan changes', async () => {
