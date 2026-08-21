@@ -8,7 +8,7 @@
 		googleSyncLabel,
 		googleSyncActionLabel,
 		canSendToGoogle,
-		NEEDS_DUE_DATE_MESSAGE
+		NEEDS_PLANNED_DATE_MESSAGE
 	} from '$lib/googleSync';
 	import GoogleSyncGlyph from './GoogleSyncGlyph.svelte';
 	import ConfirmBubble from './ConfirmBubble.svelte';
@@ -21,6 +21,7 @@
 			id: string;
 			title: string;
 			dueDate?: string | null;
+			plannedDate?: string | null;
 			googleSync?: boolean;
 			googleTaskId?: string | null;
 			googleError?: string | null;
@@ -71,7 +72,7 @@
 		// Refused before posting, so the answer is a message rather than a dead
 		// click. The server enforces the same rule; this exists to explain it.
 		if (!canSendToGoogle(task)) {
-			toast(NEEDS_DUE_DATE_MESSAGE, 'error');
+			toast(NEEDS_PLANNED_DATE_MESSAGE, 'error');
 			return;
 		}
 		submit(true);

@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
 	import { anchoredPosition } from '$lib/anchoredPosition';
-	import { canSendToGoogle, NEEDS_DUE_DATE_MESSAGE } from '$lib/googleSync';
+	import { canSendToGoogle, NEEDS_PLANNED_DATE_MESSAGE } from '$lib/googleSync';
 
 	let {
 		x = 60,
@@ -23,18 +23,19 @@
 	const POPOVER_WIDTH = 264;
 
 	let dueDate = $state('');
+	let plannedDate = $state('');
 	// Sticky, because pushing everything should cost one click ever rather than
 	// one per task.
 	let googleSync = $state(false);
 	let gtasksConfigured = $derived(page.data.gtasksConfigured === true);
-	// No task exists yet, so this is only ever the due-date rule — but it is read
-	// from the shared helper so the board and the detail panel cannot come to
-	// disagree about when Google will accept something.
-	let canSync = $derived(canSendToGoogle({ dueDate }));
+	// No task exists yet, so this is only ever the planned-day rule — but it is
+	// read from the shared helper so the board and the detail panel cannot come
+	// to disagree about when Google will accept something.
+	let canSync = $derived(canSendToGoogle({ plannedDate }));
 
 	let el = $state<HTMLDivElement | undefined>();
 	let titleEl = $state<HTMLInputElement | undefined>();
-	let dueDateEl = $state<HTMLInputElement | undefined>();
+	let plannedDateEl = $state<HTMLInputElement | undefined>();
 
 	// Set by a refused tick, never on open — the rule is stated in answer to an
 	// attempt rather than sitting there from the moment the popover opens, which
@@ -98,12 +99,12 @@
 			return;
 		}
 		// Refused rather than accepted-and-dropped: the server honours the opt-in
-		// only alongside a due date, so a tick left standing here would promise a
-		// push that never happens. The held preference is deliberately not
+		// only alongside a planned day, so a tick left standing here would promise
+		// a push that never happens. The held preference is deliberately not
 		// touched — this is a missing date, not a change of mind.
 		e.currentTarget.checked = false;
 		attemptedWithoutDate = true;
-		dueDateEl?.focus();
+		plannedDateEl?.focus();
 	}
 
 	function onWindowPointerdown(e: PointerEvent) {
@@ -179,8 +180,12 @@
 
 		<div class="fields">
 			<label>
-				<span>Due</span>
-				<input type="date" name="dueDate" bind:value={dueDate} bind:this={dueDateEl} />
+				<span>Due by</span>
+				<input type="date" name="dueDate" bind:value={dueDate} />
+			</label>
+			<label>
+				<span>Do it on</span>
+				<input type="date" name="plannedDate" bind:value={plannedDate} bind:this={plannedDateEl} />
 			</label>
 			<label>
 				<span>Priority</span>
@@ -207,7 +212,7 @@
 				<span>Also add to Google Tasks</span>
 			</label>
 			{#if attemptedWithoutDate && !canSync}
-				<p class="hint hint-error" role="alert">{NEEDS_DUE_DATE_MESSAGE}</p>
+				<p class="hint hint-error" role="alert">{NEEDS_PLANNED_DATE_MESSAGE}</p>
 			{/if}
 		{/if}
 

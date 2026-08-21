@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
-	import { canSendToGoogle, NEEDS_DUE_DATE_MESSAGE } from '$lib/googleSync';
+	import { canSendToGoogle, NEEDS_PLANNED_DATE_MESSAGE } from '$lib/googleSync';
 
 	let {
 		task,
@@ -13,6 +13,7 @@
 			title: string;
 			notes?: string | null;
 			dueDate?: string | null;
+			plannedDate?: string | null;
 			priority?: string | null;
 			googleSync?: boolean;
 			googleTaskId?: string | null;
@@ -28,15 +29,16 @@
 	// neither needed nor wanted — it would fight the user's own edits to a
 	// field that already carries the initial value.
 	let dueDate = $state(untrack(() => task.dueDate ?? ''));
+	let plannedDate = $state(untrack(() => task.plannedDate ?? ''));
 	let googleSync = $state(untrack(() => task.googleSync ?? false));
 	// From the layout load, so this component does not have to be handed the flag
 	// through the two views that render it.
 	let gtasksConfigured = $derived(page.data.gtasksConfigured === true);
-	// Creation needs a date; an existing link does not, and is maintained with a
-	// null due date rather than severed.
-	let canSync = $derived(canSendToGoogle({ dueDate, googleTaskId: task.googleTaskId }));
+	// Creation needs a planned day; an existing link does not, and is maintained
+	// with a null due date rather than severed.
+	let canSync = $derived(canSendToGoogle({ plannedDate, googleTaskId: task.googleTaskId }));
 
-	let dueDateEl = $state<HTMLInputElement | undefined>();
+	let plannedDateEl = $state<HTMLInputElement | undefined>();
 	// Set by a refused tick, never on open. The checkbox is live now, so the rule
 	// is stated in answer to an attempt rather than sitting there greyed out from
 	// the moment the panel opens — which is the same as not being read at all.
@@ -59,7 +61,7 @@
 		e.currentTarget.checked = false;
 		googleSync = false;
 		attemptedWithoutDate = true;
-		dueDateEl?.focus();
+		plannedDateEl?.focus();
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -99,8 +101,13 @@
 			</label>
 
 			<label>
-				<span>Due date</span>
-				<input type="date" name="dueDate" bind:value={dueDate} bind:this={dueDateEl} />
+				<span>Due by</span>
+				<input type="date" name="dueDate" bind:value={dueDate} />
+			</label>
+
+			<label>
+				<span>Do it on</span>
+				<input type="date" name="plannedDate" bind:value={plannedDate} bind:this={plannedDateEl} />
 			</label>
 
 			<label>
@@ -124,7 +131,7 @@
 					<span>Send to Google Tasks</span>
 				</label>
 				{#if attemptedWithoutDate && !canSync}
-					<p class="hint hint-error" role="alert">{NEEDS_DUE_DATE_MESSAGE}</p>
+					<p class="hint hint-error" role="alert">{NEEDS_PLANNED_DATE_MESSAGE}</p>
 				{/if}
 				{#if willRemoveFromGoogle}
 					<p class="hint">Saving removes it from Google Tasks. The task stays on the board.</p>
