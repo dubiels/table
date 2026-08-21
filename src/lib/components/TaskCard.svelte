@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { localDateString } from '$lib/listView';
+	import { taskMarks } from '$lib/taskMarks';
 	import GoogleSyncBadge from './GoogleSyncBadge.svelte';
 
 	let {
@@ -14,6 +15,7 @@
 			done: boolean;
 			priority: string | null;
 			dueDate: string | null;
+			plannedDate: string | null;
 			googleSync?: boolean;
 			googleTaskId?: string | null;
 			googleError?: string | null;
@@ -25,7 +27,7 @@
 	} = $props();
 
 	let today = localDateString();
-	let overdue = $derived(!!task.dueDate && task.dueDate < today && !task.done);
+	let marks = $derived(taskMarks(task, today));
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (!onclick) return;
@@ -83,7 +85,7 @@
 		<span class="title">{task.title}</span>
 		{#if task.personName}<span class="person">{task.personName}</span>{/if}
 
-		{#if task.priority || task.dueDate}
+		{#if task.priority || task.dueDate || task.plannedDate}
 			<div class="row-meta">
 				{#if task.priority}
 					<span class="pill pill-{task.priority}">
@@ -91,7 +93,17 @@
 					</span>
 				{/if}
 				{#if task.dueDate}
-					<span class="chip-due" class:overdue>{task.dueDate}</span>
+					<span class="chip-due" class:overdue={marks.overdue}>{task.dueDate}</span>
+				{/if}
+				{#if task.plannedDate}
+					<span
+						class="chip-plan"
+						class:slipped={marks.slipped}
+						class:unachievable={marks.unachievable}
+						title={marks.unachievable ? 'Planned after the last possible day' : undefined}
+					>
+						{task.plannedDate}
+					</span>
 				{/if}
 			</div>
 		{/if}

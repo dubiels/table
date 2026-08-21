@@ -10,6 +10,7 @@ const toBentoTask = (task: Task): BentoTask => ({
 	done: task.done,
 	priority: task.priority,
 	dueDate: task.dueDate,
+	plannedDate: task.plannedDate,
 	notes: task.notes,
 	x: task.x,
 	y: task.y
@@ -60,7 +61,16 @@ export function placementFor(
 
 	const subject: BentoTask = task
 		? toBentoTask(task)
-		: { id: '', title: '', done: false, priority: null, dueDate: null, notes: null, ...OFF_BOARD };
+		: {
+				id: '',
+				title: '',
+				done: false,
+				priority: null,
+				dueDate: null,
+				plannedDate: null,
+				notes: null,
+				...OFF_BOARD
+			};
 
 	return dropPointFor(
 		zoneId ?? UNCATEGORIZED_ID,

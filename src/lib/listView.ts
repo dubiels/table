@@ -6,6 +6,7 @@ export type ListTask = {
 	done: boolean;
 	priority: string | null;
 	dueDate: string | null;
+	plannedDate: string | null;
 	notes: string | null;
 	source: string;
 	x: number;

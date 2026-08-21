@@ -17,6 +17,7 @@ export type BentoTask = {
 	done: boolean;
 	priority: string | null;
 	dueDate: string | null;
+	plannedDate: string | null;
 	notes: string | null;
 	x: number;
 	y: number;

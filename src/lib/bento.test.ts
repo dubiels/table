@@ -29,6 +29,7 @@ function task(overrides: Partial<BentoTask> & { id: string }): BentoTask {
 		done: false,
 		priority: null,
 		dueDate: null,
+		plannedDate: null,
 		notes: null,
 		x: -1000,
 		y: -1000,

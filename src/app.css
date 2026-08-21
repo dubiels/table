@@ -310,3 +310,26 @@ summary:focus-visible {
 	color: var(--danger);
 	font-weight: 600;
 }
+
+.chip-plan {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	font-size: 0.78rem;
+	color: var(--muted);
+	opacity: 0.85;
+}
+
+/* The day you meant to do it has passed. Quieter than overdue on purpose:
+   shifting a plan is a normal move, not a failure. */
+.chip-plan.slipped {
+	font-style: italic;
+}
+
+/* The one loud mark here. A plan that falls after the last possible day is
+   the only state on this card that is provably broken, so it borrows ember —
+   the palette's one non-receding key. */
+.chip-plan.unachievable {
+	color: var(--zone-ember-border);
+	font-weight: 600;
+}

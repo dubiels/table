@@ -37,6 +37,7 @@ function task(overrides: Partial<ListTask> & { id: string }): ListTask {
 		done: false,
 		priority: null,
 		dueDate: null,
+		plannedDate: null,
 		notes: null,
 		source: 'manual',
 		x: -1000,

@@ -20,6 +20,7 @@
 		type PriorityFilter
 	} from '$lib/listView';
 	import { zoneColorVars } from '$lib/zones';
+	import { taskMarks } from '$lib/taskMarks';
 
 	function dotColor(color: string): string {
 		return zoneColorVars(color).border;
@@ -165,7 +166,7 @@
 			</thead>
 			<tbody>
 				{#each sorted as task (task.id)}
-					{@const overdue = !!task.dueDate && task.dueDate < today}
+					{@const marks = taskMarks(task, today)}
 					{@const categoryColor = categoryColorFor(task, zones)}
 					<tr
 						class:done={task.done}
@@ -201,7 +202,7 @@
 							{/if}
 							{categoryNameFor(task, zones)}
 						</td>
-						<td class="due-cell" class:overdue>{task.dueDate ?? ''}</td>
+						<td class="due-cell" class:overdue={marks.overdue}>{task.dueDate ?? ''}</td>
 						<td>
 							{#if task.priority}
 								<span class="pill pill-{task.priority}">{priorityLabel(task.priority)}</span>
