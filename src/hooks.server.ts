@@ -4,10 +4,9 @@ import { env } from '$env/dynamic/private';
 import { getSessionUser } from '$lib/server/auth/session';
 import { startScheduler } from '$lib/server/scheduler';
 import { decideDashboardAuth } from '$lib/server/dashboard/auth';
+import { isPublicPath } from '$lib/server/auth/public-paths';
 
 startScheduler();
-
-const PUBLIC_PATHS = ['/login', '/login/verify', '/manifest.json', '/service-worker.js'];
 
 export const handle: Handle = async ({ event, resolve }) => {
 	const sessionId = event.cookies.get('table_session');
@@ -25,8 +24,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 		return resolve(event);
 	}
 
-	const isPublic = PUBLIC_PATHS.some((p) => event.url.pathname.startsWith(p));
-	if (!user && !isPublic) {
+	if (!user && !isPublicPath(event.url.pathname)) {
 		throw redirect(303, '/login');
 	}
 
