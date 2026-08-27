@@ -3,6 +3,8 @@
 	import Mascot from './Mascot.svelte';
 	import RefreshButton from './RefreshButton.svelte';
 	import { localDateString, CANVAS_SOURCE } from '$lib/listView';
+	import { courseColor } from '$lib/courseColor';
+	import { zoneColorVars } from '$lib/zones';
 	import { toast } from '$lib/toast.svelte';
 
 	type PanelTask = {
@@ -26,40 +28,35 @@
 
 	const OTHER = 'Other';
 
-	type CourseGroup = { course: string; tasks: PanelTask[] };
+	type Assignment = PanelTask & { course: string; fill: string; border: string };
 
-	// Grouped with a plain array rather than a Map: nothing here is reactive
-	// state, and prefer-svelte-reactivity is right that a bare Map in a component
-	// is usually a mistake. Courses keep first-seen order, "Other" always last.
-	let groups = $derived.by(() => {
-		const out: CourseGroup[] = [];
+	// One list ordered by when the work is due, not by which class set it.
+	// Course headings answered "what does BIO want?", but the question this
+	// panel is open to answer is "what is next" — and a heading per class
+	// buried Friday's deadline under an unrelated Monday one. The class
+	// survives as the colored chip on each row.
+	let assignments = $derived.by(() => {
+		const out: Assignment[] = [];
 		for (const task of tasks) {
 			if (task.source !== CANVAS_SOURCE) continue;
 			const course = task.courseName?.trim() || OTHER;
-			let group = out.find((g) => g.course === course);
-			if (!group) {
-				group = { course, tasks: [] };
-				out.push(group);
-			}
-			group.tasks.push(task);
+			out.push({ ...task, course, ...zoneColorVars(courseColor(course)) });
 		}
-		for (const group of out) {
-			// Soonest first; undated assignments sink to the bottom of their course.
-			group.tasks.sort((a, b) => {
-				if (a.dueDate === b.dueDate) return a.title.localeCompare(b.title);
+		// Soonest first; undated assignments sink to the bottom. Ties break on
+		// course then title so two things due the same day hold a stable order
+		// instead of following whatever sequence the feed happened to hand us.
+		return out.sort((a, b) => {
+			if (a.dueDate !== b.dueDate) {
 				if (!a.dueDate) return 1;
 				if (!b.dueDate) return -1;
 				return a.dueDate < b.dueDate ? -1 : 1;
-			});
-		}
-		return out.sort((a, b) => {
-			if (a.course === OTHER) return 1;
-			if (b.course === OTHER) return -1;
-			return a.course.localeCompare(b.course);
+			}
+			if (a.course !== b.course) return a.course.localeCompare(b.course);
+			return a.title.localeCompare(b.title);
 		});
 	});
 
-	let assignmentCount = $derived(groups.reduce((n, g) => n + g.tasks.length, 0));
+	let assignmentCount = $derived(assignments.length);
 
 	let syncing = $state(false);
 
@@ -137,25 +134,25 @@
 			<p>No assignments synced yet.</p>
 		</div>
 	{:else}
-		{#each groups as group (group.course)}
-			<div class="course">
-				<h3>{group.course}</h3>
-				<ul>
-					{#each group.tasks as task (task.id)}
-						<li class="row" class:done={task.done}>
-							<span class="row-title">{task.title}</span>
-							{#if task.dueDate}
-								<span class="row-due" class:overdue={!task.done && task.dueDate < today}>
-									Due {formatDue(task.dueDate)}
-								</span>
-							{:else}
-								<span class="row-due">No due date</span>
-							{/if}
-						</li>
-					{/each}
-				</ul>
-			</div>
-		{/each}
+		<ul>
+			{#each assignments as task (task.id)}
+				<li class="row" class:done={task.done}>
+					<span class="row-title">{task.title}</span>
+					<span class="row-meta">
+						<span class="chip" style="background:{task.fill}; border-color:{task.border};"
+							>{task.course}</span
+						>
+						{#if task.dueDate}
+							<span class="row-due" class:overdue={!task.done && task.dueDate < today}>
+								Due {formatDue(task.dueDate)}
+							</span>
+						{:else}
+							<span class="row-due">No due date</span>
+						{/if}
+					</span>
+				</li>
+			{/each}
+		</ul>
 	{/if}
 {:else}
 	<ol class="setup">
@@ -177,7 +174,7 @@
 		display: flex;
 		justify-content: flex-end;
 		/* The panel body's 1rem gap is sized for blocks of content; against a
-		   28px icon it opens a hole above the first course heading. */
+		   28px icon it opens a hole above the first assignment. */
 		margin-bottom: -0.5rem;
 	}
 
@@ -195,13 +192,27 @@
 		font-size: 0.88rem;
 	}
 
-	.course h3 {
-		margin: 0 0 0.4rem;
-		font-size: 0.78rem;
-		font-weight: 700;
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
-		color: var(--muted);
+	.row-meta {
+		display: flex;
+		align-items: baseline;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+
+	/* A filled chip rather than a bare dot: past seven classes two of them share
+	   a color, so the name is what identifies the class and the color only
+	   groups it at a glance. Fill and border come from the zone palette's CSS
+	   vars, so the chip follows the active theme without re-rendering. */
+	.chip {
+		flex: none;
+		padding: 0.05rem 0.4rem;
+		border: 1px solid;
+		border-radius: var(--radius-s);
+		font-size: 0.7rem;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		color: var(--ink);
+		overflow-wrap: anywhere;
 	}
 
 	ul,
@@ -237,6 +248,12 @@
 	.row.done .row-title {
 		color: var(--muted);
 		text-decoration: line-through;
+	}
+
+	/* Struck-through rows keep their chip so the class is still readable, but
+	   dimmed — a finished assignment should not pull the eye like a live one. */
+	.row.done .chip {
+		opacity: 0.55;
 	}
 
 	.setup {

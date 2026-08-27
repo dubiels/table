@@ -59,7 +59,7 @@ Table can pull assignments from Canvas's calendar feed in as tasks.
 
 Each sync imports assignments due from today through 14 days out: a reading list of what's actually coming up, not an archive of the semester.
 
-Assignments live in the side panel's **Canvas** section, grouped by course, and in the list view, where they carry the category **Canvas** and can be filtered like any other category. They deliberately don't appear in the bento grid — a fortnight of deadlines would bury the handful of things you arranged there by hand. `LMS_ZONE_ID` is a leftover from when they did, and is no longer needed.
+Assignments live in the side panel's **Canvas** section, in one list ordered by due date with a color-coded chip naming the class, and in the list view, where they carry the category **Canvas** and can be filtered like any other category. They deliberately don't appear in the bento grid — a fortnight of deadlines would bury the handful of things you arranged there by hand. `LMS_ZONE_ID` is a leftover from when they did, and is no longer needed.
 
 Before `LMS_ICAL_URL` is set, the Canvas section shows the setup guide instead.
 
