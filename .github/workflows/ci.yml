@@ -28,3 +28,57 @@ jobs:
       # Windows runner is the first thing to discover a broken build, mid-deploy,
       # with the service already stopped.
       - run: npm run build
+
+  # Runs on the Windows box itself, only for a push to main, and only once the
+  # Linux checks above have passed. Splitting it this way means a broken commit
+  # never reaches the machine that serves the app.
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: [self-hosted, windows, table]
+    # Never two deploys at once: they would fight over the service, the database
+    # and the release directory. Queued rather than cancelled, so the newest
+    # commit still lands rather than being dropped mid-queue.
+    concurrency:
+      group: deploy-table
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # Before the build, not after. `static/logos/` is baked into the client
+      # bundle, and logo-overrides.local.ts is pulled in by an `import.meta.glob`
+      # that is evaluated at build time — so a build without them produces an app
+      # that has silently lost every custom company mark. Both are gitignored
+      # (whose logos you keep says who you know), so they live on the machine and
+      # are copied in here.
+      - name: Restore personal files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $overrides = 'C:\table\personal\logo-overrides.local.ts'
+          if (Test-Path $overrides) {
+            Copy-Item $overrides 'src\lib\server\people\' -Force
+          } else {
+            Write-Host "::warning::No logo-overrides.local.ts on this machine; custom marks will be missing."
+          }
+          if (Test-Path 'C:\table\personal\logos') {
+            New-Item -ItemType Directory -Force -Path 'static\logos' | Out-Null
+            Copy-Item 'C:\table\personal\logos\*' 'static\logos\' -Force
+          }
+
+      - run: npm ci
+
+      - run: npm run build
+
+      # Snapshot, migrate, seed, swap, health-check, and roll back on failure.
+      # All of it lives in the script rather than here so it can be run by hand
+      # when something has gone wrong and Actions is not the tool you want.
+      - name: Deploy
+        shell: pwsh
+        run: .\scripts\deploy.ps1
