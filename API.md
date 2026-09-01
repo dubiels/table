@@ -66,6 +66,11 @@ again, with `Idempotency-Replayed: true` on the response.
 | Same key, a different route                 | `409 idempotency_key_reused`                                 |
 | The first attempt failed (non-2xx or threw) | The key is released, so a corrected retry is a fresh attempt |
 
+A key names one intended write. Reusing it for a different request is refused
+rather than replayed — replaying would report success while silently dropping
+the second write, which is the failure a generated key is most likely to cause.
+Derive keys from the intent, not at random.
+
 Failures are deliberately not stored. A cached `400` would be permanent: you
 would fix the payload, retry under the key you already used, and be handed the
 old rejection forever.
@@ -171,7 +176,14 @@ Sorted newest activity first. `source` is `manual`, `canvas` or `google`.
 > `updatedAt !== googleSyncedAt`, and a drag that bumped it would fire pointless
 > API calls and let that drag win a conflict against a real edit made on a
 > phone. `since` therefore also considers `createdAt` and `completedAt`, but it
-> can still miss a priority or category change. **Do a full read periodically.**
+> can still miss a priority or category change.
+>
+> It also cannot tell you about **deletions** — a task removed by you or swept
+> by the Canvas sync simply stops appearing, and an incremental reader never
+> learns it is gone. **Do a full read periodically.**
+
+Timestamps are compared as instants, not as text, so `2026-09-01T00:00:00Z`,
+`…T00:00:00.000Z` and `2026-09-01T02:00:00+02:00` all mean the same moment.
 
 ## `GET /api/agent/people`
 
@@ -279,10 +291,13 @@ do the work — that gates syncing, not `dueDate`, the last-possible day.
 
 ## `PATCH /api/agent/tasks/{id}` → `200`
 
-Accepts `title`, `notes`, `dueDate`, `plannedDate`, `priority`, `personId`,
+Accepts `title`, `notes`, `dueDate`, `plannedDate`, `priority`, `googleSync`, `personId`,
 `zoneId`. At least one key is required; an empty patch is a `400`.
 
-There is no `googleSync` field here: opting in is create-only. A task made
+`googleSync` opts a task in or out after creation. It is also applied
+implicitly: clearing `plannedDate` on a task that was syncing takes it back out
+of Google, because a task with no planned day has no day for Google to file it
+under and would otherwise sit "waiting to send" forever. A task made
 without a planned date, or with `googleSync` omitted, has no way to reach
 Google through this endpoint afterward — the web form covers that case with
 the detail panel and the badge, which this API does not yet have.

@@ -42,10 +42,14 @@ understanding on it.
 Fetch `/meta` before any write that names a category or flag — you need ids, and
 Karolina renames things.
 
-`?since=` exists but **is not a change feed.** It can miss priority, category
-and person-link edits, because those deliberately do not touch `updatedAt`. Use
-it to save bandwidth on a frequent poll, but do a full read periodically or you
-will drift.
+`?since=` exists but **is not a change feed.** It misses priority, category,
+due-date and person-link edits, because those deliberately do not touch
+`updatedAt` — and it cannot tell you about deletions at all, so a task that was
+removed just stops appearing. Use it to save bandwidth on a frequent poll, but
+do a full read periodically or you will drift.
+
+It must be a real ISO 8601 timestamp. `?since=yesterday` is a `400`, not an
+empty board — but resolve relative dates yourself before sending them.
 
 ## Writing — the one rule that matters
 
@@ -62,7 +66,28 @@ creates a second task. With one, the retry returns the original result and
 Derive the key from _what you meant to do_, not from a random value — a random
 key regenerated on retry defeats the whole mechanism. Something like
 `followup-devon-2026-08-21` or a hash of the intent. Reuse the same key for the
-same intended write, and never reuse it for a different one.
+same intended write, and never reuse it for a different one: a key sent with a
+different body is refused with `409 idempotency_key_reused` rather than
+replaying the first result, so a lazily reused key costs you the write.
+
+## Tasks carry two different dates
+
+This is the thing to get right, because the names do not tell you which is
+which.
+
+| Field         | Means                                        | Reaches Google Tasks                        |
+| ------------- | -------------------------------------------- | ------------------------------------------- |
+| `dueDate`     | The deadline. When the thing is actually due | **No.** Table-only                          |
+| `plannedDate` | The day she plans to _do_ it. Shiftable      | **Yes — this is the only date Google sees** |
+
+A task can have either, both, or neither. An assignment due Friday that she
+plans to start Wednesday has `dueDate: "…-09-05"` and
+`plannedDate: "…-09-03"`.
+
+When she says "remind me to do X on Thursday", that is `plannedDate`. When she
+says "this is due Thursday", that is `dueDate`. When it is genuinely both, set
+both. If you can only infer one, prefer `plannedDate` — it is the one that
+reaches her phone and drives her day.
 
 ## Writing — the second rule that matters
 
@@ -87,17 +112,22 @@ and the server files it correctly for every view she uses.
 ## Recipes
 
 ```jsonc
-// Add a task, filed and dated
+// Add a task: due Friday, planned for Wednesday, filed under a category
 POST /tasks
-{ "title": "Draft the Q3 memo", "dueDate": "2026-09-01", "zoneId": "<zone id>" }
+{ "title": "Draft the Q3 memo", "dueDate": "2026-09-05",
+  "plannedDate": "2026-09-03", "zoneId": "<zone id>" }
 
 // Tick something off. Safe to repeat — it states the target, it does not toggle.
 PUT /tasks/{id}/done
 { "done": true }
 
-// Reschedule and drop the priority
+// Move it to another day. The deadline has not changed, so dueDate is absent.
 PATCH /tasks/{id}
-{ "dueDate": "2026-09-08", "priority": "low" }
+{ "plannedDate": "2026-09-08", "priority": "low" }
+
+// Unschedule it without deleting it: clear the planned day, keep the deadline.
+PATCH /tasks/{id}
+{ "plannedDate": null }
 
 // Record that she spoke to someone
 POST /people/{id}/touchpoints
@@ -105,7 +135,7 @@ POST /people/{id}/touchpoints
 
 // Raise a task about a person
 POST /tasks
-{ "title": "Send Devon the deck", "personId": "<person id>", "dueDate": "2026-08-25" }
+{ "title": "Send Devon the deck", "personId": "<person id>", "plannedDate": "2026-08-25" }
 
 // Tag someone
 POST /flags               { "name": "SF" }          // reuses an existing flag
@@ -139,9 +169,12 @@ Retrying a 4xx unchanged will never succeed.
   unrecoverable, so there is no delete at all.
 - **Tasks can be deleted, and it is permanent.** Prefer completing over
   deleting unless she asked for a deletion.
-- **`googleSync: true` is ignored without a `dueDate`** — an undated Google task
-  never reaches her calendar, so the flag is silently dropped rather than
-  half-applied.
+- **`googleSync: true` is ignored without a `plannedDate`** — not without a
+  `dueDate`. Google Tasks needs a day to put the task on, and that is the
+  planned day, so the flag is silently dropped rather than half-applied.
+  Clearing `plannedDate` on a synced task also takes it **out** of Google
+  automatically — a task with no planned day has no day to be filed under. Send
+  `googleSync` on a PATCH to opt in or out deliberately.
 - **A `metOn` in the future or a `to_meet` person** is a wishlist entry, not
   someone she has spoken to. `status: "to_meet"` people have no meeting date and
   no last-spoke date; do not treat them as having gone quiet.
