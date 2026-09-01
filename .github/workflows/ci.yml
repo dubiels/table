@@ -69,7 +69,10 @@ jobs:
           }
           if (Test-Path 'C:\table\personal\logos') {
             New-Item -ItemType Directory -Force -Path 'static\logos' | Out-Null
-            Copy-Item 'C:\table\personal\logos\*' 'static\logos\' -Force
+            # -ErrorAction: the directory is created by the setup steps and may
+            # legitimately be empty, and a wildcard matching nothing is a
+            # terminating error under $ErrorActionPreference = 'Stop'.
+            Copy-Item 'C:\table\personal\logos\*' 'static\logos\' -Force -Recurse -ErrorAction SilentlyContinue
           }
 
       - run: npm ci

@@ -75,6 +75,10 @@ Then install the two service wrappers:
 ```powershell
 winget install NSSM.NSSM
 winget install Cloudflare.cloudflared
+# PowerShell 7. Windows ships 5.1 as `powershell`; `pwsh` is a separate install,
+# and the deploy workflow runs its steps under `pwsh`. Without this the very
+# first deploy fails with "Unable to locate executable file: pwsh".
+winget install Microsoft.PowerShell
 ```
 
 ### 1.2 Create the directories
@@ -85,6 +89,12 @@ mkdir C:\table\env, C:\table\data, C:\table\personal\logos, `
 ```
 
 ### 1.3 Move the data across
+
+> **Do this step LAST, immediately before the first push in Part 2 — not now.**
+> Everything from here to §1.7 is hours of setup, and the moment you copy the
+> database you are asked to stop using the Mac copy. Do the transfer now and
+> every task and note you add in the meantime lands on a database nothing will
+> ever read again. Read this section, then skip to §1.4 and come back.
 
 **On the Mac**, take a consistent copy. Do not copy `table.sqlite` on its own —
 the app runs in WAL mode, so an arbitrary amount of committed data lives in the
@@ -135,19 +145,19 @@ Create `C:\table\env\.env`. Start from your local `.env`, then change the
 following. **The first three are not optional.**
 
 ```ini
-# Where the database actually is on this machine.
+# Where the database actually is on this machine. Get this WRONG and nothing
+# complains: the app CREATES a missing database rather than failing, so the
+# service comes up "healthy" on an empty board while your real data sits
+# untouched beside it. The deploy script checks the row count for this reason.
 DATABASE_PATH=C:\table\data\table.sqlite
 
-# SvelteKit's adapter-node refuses cross-site form posts. Behind a tunnel it
-# cannot work out its own public origin, so without this EVERY form action —
-# adding a task, adding a person, logging in — fails with 403 while the pages
-# themselves render perfectly. This is the single most confusing way to get
-# this deployment wrong.
-ORIGIN=https://table.example.com
-
-# Magic-link emails are built from this. Wrong value emails you a link to
-# localhost, which is an auth outage you only notice when you are logged out.
+# Magic-link emails are built from this. A wrong value emails you a link to
+# localhost, which is an auth outage you only notice once you are logged out.
 PUBLIC_APP_URL=https://table.example.com
+
+# Session cookies are only marked Secure when this is set. Nothing else sets it
+# at runtime — `vite build` sets it at build time only.
+NODE_ENV=production
 
 PORT=3000
 TZ=America/New_York
@@ -162,15 +172,66 @@ DASHBOARD_TOKEN=
 AGENT_TOKEN=
 ```
 
-Carry across unchanged: `ALLOWED_EMAILS`, `RESEND_API_KEY`, `EMAIL_FROM`, the
-three `VAPID_*` keys, `VAPID_SUBJECT`, `LMS_ICAL_URL`, the `GCAL_*` keys, and
-`GTASKS_ENABLED`.
+> **Do not set `ORIGIN`.** It is the obvious thing to reach for behind a proxy,
+> and on this app it breaks Dinner Table. `adapter-node` uses `ORIGIN` as the
+> base for _every_ request URL regardless of the `Host` that arrived
+> (`handler.js:101`), and `src/hooks.ts` decides whether to serve Dinner Table by
+> testing `url.hostname.startsWith('dinner.')`. Pin the origin and that test can
+> never be true: `dinner.example.com` renders the task board, and because
+> SvelteKit's CSRF check compares the request origin against the same pinned
+> URL, every form on that subdomain also returns 403.
+>
+> Left unset, `adapter-node` derives the origin from the `Host` header — which
+> Cloudflare Tunnel passes through — and defaults the protocol to `https`, so
+> both hostnames work and CSRF is correct on each. Only if you ever front this
+> with something that terminates TLS and does _not_ set a sane `Host` should you
+> reach for `PROTOCOL_HEADER=x-forwarded-proto` instead.
+
+Carry across unchanged: `ALLOWED_EMAILS`, `RESEND_API_KEY`, `EMAIL_FROM`,
+`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, **`PUBLIC_VAPID_PUBLIC_KEY`**,
+`VAPID_SUBJECT`, `LMS_ICAL_URL`, the `GCAL_*` keys, and `GTASKS_ENABLED`.
+
+`PUBLIC_VAPID_PUBLIC_KEY` is easy to miss because it does not start with
+`VAPID_`. It is read in the browser, and without it push notifications fail
+silently with nothing in any log.
+
+Any `*_CRON` variable, `DUE_ALERT_LEAD_HOURS`, `LMS_ZONE_ID` and
+`GCAL_CALENDAR_IDS` all have working defaults — carry them over only if you have
+customised them locally.
 
 Lock the file down — it holds every secret the app has:
 
 ```powershell
 icacls C:\table\env\.env /inheritance:r /grant:r "$env:USERNAME:(R,W)" /grant:r "SYSTEM:(F)"
 ```
+
+### 1.4b Prove email actually sends, before you need it
+
+Magic links are the only way into Table. If Resend rejects the send you are
+locked out of your own deployment, and the failure is quiet: the login page
+still says "check your email".
+
+You have almost certainly never exercised this path — `DEV_LOG_TOKENS=true`
+locally means the code returns before it ever calls Resend. So test it from the
+Mac **now**, with the same key and the same From address the server will use:
+
+```sh
+curl -s -X POST https://api.resend.com/emails \
+  -H "Authorization: Bearer $RESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"from":"Table <you@yourdomain.com>","to":"you@yourdomain.com",
+       "subject":"Table send test","html":"<p>works</p>"}'
+```
+
+A `403` with `The <domain> domain is not verified` is the usual answer: Resend
+will not send from a domain until you have added it under **Domains** and
+published its DKIM and SPF records. Fix that before deploying, not after.
+
+If you do get locked out, the way back in is the log rather than a rebuild: set
+`DEV_LOG_TOKENS=true` in `C:\table\env\.env`, `Restart-Service Table`, request
+a link, and read it out of `C:\table\logs\table.log`. **Set it back to `false`
+and restart** the moment you are in — left on, no login email is ever sent to
+anyone.
 
 ### 1.5 Install the Table service
 
@@ -266,6 +327,10 @@ account with local administrator rights:
 ---
 
 ## Part 2 — First deploy
+
+**First, do §1.3 now** if you skipped it — take the snapshot, copy it to
+`C:\table\data\table.sqlite`, and copy the personal files. This is the moment
+the Mac copy stops being the live one.
 
 Your local `main` is ahead of the remote. Push it:
 
@@ -389,7 +454,9 @@ When Actions is down or you want to watch it happen:
 cd C:\actions-runner\_work\table\table   # or any checkout
 git pull
 Copy-Item C:\table\personal\logo-overrides.local.ts src\lib\server\people\ -Force
-Copy-Item C:\table\personal\logos\* static\logos\ -Force
+# checkout wipes gitignored paths, so the directory has to be recreated
+New-Item -ItemType Directory -Force -Path static\logos | Out-Null
+Copy-Item C:\table\personal\logos\* static\logos\ -Force -ErrorAction SilentlyContinue
 npm ci
 npm run build
 .\scripts\deploy.ps1
@@ -405,13 +472,22 @@ Your handwritten notes about people cannot be reconstructed from anywhere. A
 scheduled task copying a snapshot somewhere off the machine costs nothing:
 
 ```powershell
-$stamp = Get-Date -Format 'yyyyMMdd'
-npx tsx C:\table\app\scripts\snapshot-db.ts `
-  C:\table\data\table.sqlite "$env:USERPROFILE\OneDrive\table-backups\table-$stamp.sqlite"
+# Save as C:\table\backup.ps1
+Set-Location C:\table\app          # so `npx` finds the local tsx and better-sqlite3
+$dest = 'D:\backups\table'         # an absolute path, NOT $env:USERPROFILE
+New-Item -ItemType Directory -Force -Path $dest | Out-Null
+$stamp = Get-Date -Format 'yyyyMMdd-HHmm'   # minutes, so a same-day re-run does not collide
+npx tsx scripts\snapshot-db.ts C:\table\data\table.sqlite "$dest\table-$stamp.sqlite"
+Get-ChildItem $dest -File | Sort-Object Name -Descending | Select-Object -Skip 30 | Remove-Item
 ```
 
-Register it with Task Scheduler to run daily. `VACUUM INTO` is safe against the
-live database, so the service does not need to stop.
+Register it with Task Scheduler to run daily. Three things that make the
+obvious version of this fail: Task Scheduler starts in `C:\Windows\System32`
+where `npx` cannot find `tsx`; a task registered as `SYSTEM` resolves
+`$env:USERPROFILE` to a system profile no sync client ever looks at; and
+`snapshot-db.ts` refuses to overwrite, so a date-only stamp fails on the second
+run of the day. `VACUUM INTO` is safe against the live database, so the service
+does not need to stop.
 
 ---
 
