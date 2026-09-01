@@ -2,7 +2,7 @@ import type { RequestHandler } from './$types';
 import * as tasksService from '$lib/server/tasks/service';
 import * as zonesService from '$lib/server/zones/service';
 import { pushTaskNow } from '$lib/server/gtasks/push';
-import { runRead, runWrite, parse, boolParam } from '$lib/server/agent/respond';
+import { runRead, runWrite, parse, boolParam, timestampParam } from '$lib/server/agent/respond';
 import { createTaskSchema } from '$lib/server/agent/schemas';
 import { selectTasks, serializeTask } from '$lib/server/agent/serialize';
 import { placementFor } from '$lib/server/agent/placement';
@@ -15,7 +15,7 @@ export const GET: RequestHandler = ({ url }) =>
 		const [tasks, zones] = await Promise.all([tasksService.listTasks(), zonesService.listZones()]);
 		const selected = selectTasks(tasks, {
 			includeCompleted: boolParam(url, 'includeCompleted'),
-			since: url.searchParams.get('since') ?? undefined
+			since: timestampParam(url, 'since')
 		});
 		return { tasks: selected.map((task) => serializeTask(task, zones)) };
 	});
@@ -47,8 +47,10 @@ export const POST: RequestHandler = ({ request }) =>
 		});
 
 		await pushTaskNow(task.id);
-		return {
-			status: 201,
-			body: { task: serializeTask(await tasksService.getTask(task.id), zones) }
-		};
+		// Re-read to pick up whatever the push wrote back, but never let that
+		// failing lose the write: the row is already committed, and throwing here
+		// would release the idempotency claim so the agent's retry created a
+		// SECOND task. The in-memory row is a truthful, slightly staler answer.
+		const created = await tasksService.getTask(task.id).catch(() => task);
+		return { status: 201, body: { task: serializeTask(created, zones) } };
 	});

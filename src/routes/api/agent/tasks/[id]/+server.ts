@@ -2,6 +2,8 @@ import type { RequestHandler } from './$types';
 import * as tasksService from '$lib/server/tasks/service';
 import * as zonesService from '$lib/server/zones/service';
 import { pushTaskNow, pushDeletionNow } from '$lib/server/gtasks/push';
+import { isGoogleTasksEnabled } from '$lib/server/gtasks/sync';
+import { canSendToGoogle } from '$lib/googleSync';
 import { runWrite, parse } from '$lib/server/agent/respond';
 import { updateTaskSchema } from '$lib/server/agent/schemas';
 import { serializeTask } from '$lib/server/agent/serialize';
@@ -47,6 +49,29 @@ export const PATCH: RequestHandler = ({ request, params }) =>
 			const point = placementFor(input.zoneId, existing, zones, tasks);
 			if (point) {
 				await tasksService.updateTaskPosition(params.id, Math.round(point.x), Math.round(point.y));
+			}
+		}
+
+		// The counterpart of the detail modal's Google checkbox, and it has to
+		// exist here for the same reason it exists there: clearing the planned day
+		// leaves a task that opted in with no day to be filed under, which the
+		// push skips and the reconciler skips, so it sits on the amber "waiting to
+		// reach Google" badge forever with nothing that could ever clear it. The
+		// modal handles this by unticking the box, which routes into
+		// `unlinkFromGoogle`. Without this branch an agent could strand a task
+		// there with a single `{"plannedDate": null}`.
+		if (isGoogleTasksEnabled()) {
+			const patched = await tasksService.getTask(params.id);
+			const wantsSync = input.googleSync ?? patched.googleSync;
+
+			if (wantsSync && canSendToGoogle(patched)) {
+				if (!patched.googleSync) await tasksService.enableGoogleSync(params.id);
+			} else if (patched.googleSync) {
+				// Covers both an explicit opt-out and the implicit one above: an
+				// opted-in task that can no longer reach Google is taken back out
+				// rather than left stranded.
+				const removed = await tasksService.unlinkFromGoogle(params.id);
+				if (removed) await pushDeletionNow(removed);
 			}
 		}
 

@@ -117,6 +117,26 @@ export const googleTaskTombstones = sqliteTable('google_task_tombstones', {
  */
 export const agentIdempotency = sqliteTable('agent_idempotency', {
 	key: text('key').primaryKey(),
+	/**
+	 * Who currently owns this claim.
+	 *
+	 * Rewritten whenever a claim is taken over from an attempt that abandoned it.
+	 * Every later write — storing the result, releasing on failure — is
+	 * conditioned on it, so an attempt that stalled past the takeover window and
+	 * then woke up cannot delete or overwrite the result of the attempt that
+	 * replaced it. Without this fence, "who wrote last" decides, and a slow
+	 * request can erase a completed one.
+	 */
+	claim: text('claim'),
+	/**
+	 * A hash of the request body the key was first used with.
+	 *
+	 * A key identifies one intended write. Reusing it with a different body is a
+	 * client bug, and replaying the first result would silently drop the second
+	 * write while reporting success — the failure an LLM-generated key is most
+	 * likely to cause. Comparing fingerprints turns that into a 409 it can see.
+	 */
+	fingerprint: text('fingerprint'),
 	// A key is scoped to the route that claimed it. The same key arriving at a
 	// different route is an agent bug — two unrelated writes collapsing into one
 	// — and is refused rather than silently replaying the wrong resource.

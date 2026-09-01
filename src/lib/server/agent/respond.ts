@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { withIdempotency, type WriteResult } from './idempotency';
+import { withIdempotency, fingerprintOf, type WriteResult } from './idempotency';
 
 export type ErrorCode =
 	| 'invalid_body'
@@ -97,9 +97,37 @@ async function readJsonBody(request: Request): Promise<Record<string, unknown>> 
 export function boolParam(url: URL, key: string): boolean | undefined {
 	const raw = url.searchParams.get(key);
 	if (raw === null) return undefined;
-	if (['true', '1', 'yes', ''].includes(raw)) return true;
-	if (['false', '0', 'no'].includes(raw)) return false;
+	// Case-folded: `True` and `TRUE` are unambiguous, and a client that sends one
+	// should not have its whole read rejected over the spelling. Genuinely
+	// ambiguous values still fail rather than being guessed at.
+	const value = raw.trim().toLowerCase();
+	if (['true', '1', 'yes', 'on', ''].includes(value)) return true;
+	if (['false', '0', 'no', 'off'].includes(value)) return false;
 	throw new ApiError(400, 'invalid_query', `${key} must be true or false`);
+}
+
+/**
+ * An instant from a query parameter, as epoch milliseconds.
+ *
+ * Validated rather than passed through, because the filter that consumes it
+ * used to compare strings: `?since=yesterday` sorts below every ISO stamp, so
+ * it silently matched nothing and returned `200 {"tasks":[]}` — an empty board,
+ * indistinguishable from a real one, to a client with no way to tell. The same
+ * went for any well-formed cursor whose spelling differed from the stored one
+ * (no milliseconds, or a `+02:00` offset instead of `Z`).
+ */
+export function timestampParam(url: URL, key: string): number | undefined {
+	const raw = url.searchParams.get(key);
+	if (raw === null || raw.trim() === '') return undefined;
+	const parsed = Date.parse(raw);
+	if (Number.isNaN(parsed)) {
+		throw new ApiError(
+			400,
+			'invalid_query',
+			`${key} must be an ISO 8601 timestamp, e.g. 2026-09-01T00:00:00.000Z`
+		);
+	}
+	return parsed;
 }
 
 export async function runRead(build: () => Promise<unknown>): Promise<Response> {
@@ -127,12 +155,22 @@ export async function runWrite(
 		const body = await readJsonBody(request);
 		const headerKey = request.headers.get('idempotency-key');
 		const bodyKey = typeof body.idempotencyKey === 'string' ? body.idempotencyKey : null;
-		const outcome = await withIdempotency(headerKey ?? bodyKey, route, () => run(body));
+		// The key is part of the envelope, not the intent, so it is excluded — a
+		// client that sends the same key by header one time and in the body the
+		// next must not read as having changed its request.
+		const intent = { ...body };
+		delete intent.idempotencyKey;
+		const outcome = await withIdempotency(
+			headerKey ?? bodyKey,
+			route,
+			() => run(body),
+			fingerprintOf(intent)
+		);
 
 		if (outcome.kind === 'conflict') {
 			const message =
 				outcome.code === 'idempotency_key_reused'
-					? 'This idempotency key was already used for a different operation'
+					? 'This idempotency key was already used for a different operation or a different request body'
 					: 'A request with this idempotency key is still in flight';
 			return jsonResponse(409, errorBody(outcome.code, message));
 		}

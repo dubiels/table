@@ -87,7 +87,9 @@ describe('selectTasks', () => {
 			createdAt: '2026-07-01T00:00:00.000Z'
 		});
 
-		const since = selectTasks([completed, stale], { since: '2026-08-01T00:00:00.000Z' });
+		const since = selectTasks([completed, stale], {
+			since: Date.parse('2026-08-01T00:00:00.000Z')
+		});
 
 		expect(since.map((t) => t.id)).toEqual(['completed']);
 	});
@@ -95,7 +97,25 @@ describe('selectTasks', () => {
 	it('tolerates the empty updatedAt on rows predating the column', () => {
 		const legacy = task({ id: 'legacy', updatedAt: '', createdAt: '2026-08-20T00:00:00.000Z' });
 
-		expect(selectTasks([legacy], { since: '2026-08-01T00:00:00.000Z' })).toHaveLength(1);
+		expect(selectTasks([legacy], { since: Date.parse('2026-08-01T00:00:00.000Z') })).toHaveLength(
+			1
+		);
+	});
+
+	it('compares instants, not strings, so cursor spelling cannot drop records', () => {
+		// The old implementation compared ISO text. A cursor without milliseconds
+		// sorts above the stored stamp ('.' < 'Z'), and an offset cursor is not
+		// comparable to a Z-form stamp at all — both silently returned nothing.
+		const task1 = task({ id: 'a', updatedAt: '2026-09-01T08:30:00.000Z' });
+
+		expect(selectTasks([task1], { since: Date.parse('2026-09-01T00:00:00Z') })).toHaveLength(1);
+		expect(selectTasks([task1], { since: Date.parse('2026-09-01T10:00:00+02:00') })).toHaveLength(
+			1
+		);
+		// Genuinely after it, in any spelling, still excludes.
+		expect(selectTasks([task1], { since: Date.parse('2026-09-02T00:00:00+02:00') })).toHaveLength(
+			0
+		);
 	});
 
 	it('drops completed tasks only when asked', () => {

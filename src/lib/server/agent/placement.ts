@@ -1,4 +1,11 @@
-import { dropPointFor, UNCATEGORIZED_ID, type BentoTask, type BentoZone } from '$lib/bento';
+import {
+	dropPointFor,
+	findUncategorizedPoint,
+	groupIdForTask,
+	UNCATEGORIZED_ID,
+	type BentoTask,
+	type BentoZone
+} from '$lib/bento';
 import type { Point } from '$lib/zones';
 import type { Task } from '../tasks/service';
 import type { Zone } from '../zones/service';
@@ -59,6 +66,22 @@ export function placementFor(
 		throw new ApiError(404, 'not_found', `Zone ${zoneId} not found`);
 	}
 
+	const bentoZones = zones.map(toBentoZone);
+	const bentoTasks = tasks.map(toBentoTask);
+
+	// A task being created has no position, so `dropPointFor`'s "already in that
+	// group, nothing to move" answer is wrong for it: standing off-board it is
+	// already uncategorized, so a requested `zoneId: null` would come back null
+	// and the task would fall to the default anchor instead — which sits inside
+	// a default-placed zone, filing an explicitly uncategorized task into a
+	// group. Creation asks a different question, so it gets a direct answer.
+	if (task === null && zoneId === null) {
+		const loose = bentoTasks
+			.filter((t) => groupIdForTask(t, bentoZones) === UNCATEGORIZED_ID)
+			.map((t) => ({ x: t.x, y: t.y }));
+		return findUncategorizedPoint(bentoZones, loose);
+	}
+
 	const subject: BentoTask = task
 		? toBentoTask(task)
 		: {
@@ -72,10 +95,5 @@ export function placementFor(
 				...OFF_BOARD
 			};
 
-	return dropPointFor(
-		zoneId ?? UNCATEGORIZED_ID,
-		subject,
-		tasks.map(toBentoTask),
-		zones.map(toBentoZone)
-	);
+	return dropPointFor(zoneId ?? UNCATEGORIZED_ID, subject, bentoTasks, bentoZones);
 }

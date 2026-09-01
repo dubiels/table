@@ -15,6 +15,14 @@ const { pushTaskNow, pushDeletionNow } = vi.hoisted(() => ({
 	pushDeletionNow: vi.fn().mockResolvedValue(undefined)
 }));
 vi.mock('$lib/server/gtasks/push', () => ({ pushTaskNow, pushDeletionNow }));
+// Forced on rather than read from the developer's .env: the opt-in/opt-out
+// branch only runs when the integration is configured, and CI has no .env at
+// all — so without this the coverage of that branch silently disappears exactly
+// where it is checked.
+vi.mock('$lib/server/gtasks/sync', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/server/gtasks/sync')>()),
+	isGoogleTasksEnabled: () => true
+}));
 
 const { resetTestDb } = await import('$lib/server/agent/test-db');
 const zonesService = await import('$lib/server/zones/service');
@@ -216,6 +224,68 @@ describe('tasks round trip', () => {
 		expect(await tasksService.listTasks()).toHaveLength(1);
 		expect(second.body.task.id).toBe(first.body.task.id);
 		expect(second.response.headers.get('idempotency-replayed')).toBe('true');
+	});
+
+	it('rejects a malformed since cursor instead of reporting an empty board', async () => {
+		await tasksService.createTask({ title: 'Real work' });
+
+		const bad = await read(tasksRoute.GET, '?since=yesterday');
+
+		// The old behaviour was a 200 with zero tasks — indistinguishable, to the
+		// agent, from a board with nothing on it.
+		expect(bad.status).toBe(400);
+		expect(bad.body.error.code).toBe('invalid_query');
+		expect((await read(tasksRoute.GET, '?since=2026-01-01T00:00:00Z')).body.tasks).toHaveLength(1);
+	});
+
+	it('accepts boolean filters whatever their casing', async () => {
+		await tasksService.createTask({ title: 'Open' });
+
+		expect((await read(tasksRoute.GET, '?includeCompleted=True')).status).toBe(200);
+		expect((await read(tasksRoute.GET, '?includeCompleted=FALSE')).status).toBe(200);
+	});
+
+	it('files an explicitly uncategorised task clear of every zone', async () => {
+		// A zone created with defaults sits at the same anchor a task defaults to,
+		// so "no placement" used to file the task into it.
+		await zonesService.createZone({ name: 'Work' });
+
+		const created = await write(tasksRoute.POST, { title: 'Loose', zoneId: null });
+
+		expect(created.body.task.zone).toBeNull();
+	});
+
+	it('does not strand a synced task when its planned date is cleared', async () => {
+		// Clearing the planned day leaves an opted-in task with no day to be filed
+		// under: the push skips it and the reconciler skips it, so it would sit on
+		// the amber badge forever. The UI unticks the box; the API must too.
+		const task = await tasksService.createTask({
+			title: 'Sync me',
+			plannedDate: '2026-09-01',
+			googleSync: true
+		});
+
+		const cleared = await write(
+			taskRoute.PATCH,
+			{ plannedDate: null },
+			{ params: { id: task.id } }
+		);
+
+		expect(cleared.status).toBe(200);
+		expect(cleared.body.task.google.sync).toBe(false);
+	});
+
+	it('refuses an idempotency key reused for a different request', async () => {
+		const headers = { 'idempotency-key': 'reused' };
+		await write(tasksRoute.POST, { title: 'Buy milk' }, {}, headers);
+
+		const second = await write(tasksRoute.POST, { title: 'Call mum' }, {}, headers);
+
+		expect(second.status).toBe(409);
+		expect(second.body.error.code).toBe('idempotency_key_reused');
+		expect((await tasksService.listTasks()).map((t: { title: string }) => t.title)).toEqual([
+			'Buy milk'
+		]);
 	});
 
 	it('rejects an unknown task, an unknown zone and an empty patch', async () => {

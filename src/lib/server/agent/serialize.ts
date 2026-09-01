@@ -115,20 +115,33 @@ export function serializeTask(task: Task, zones: Zone[]): AgentTask {
 /**
  * The most recent stamp a task carries.
  *
- * `updatedAt` alone is the wrong clock for `?since=`: it deliberately does not
- * move for priority, position or person-link edits, because dirtiness against
- * Google is defined as `updatedAt !== googleSyncedAt` and a drag must not win a
- * conflict against a real edit made on the phone. Taking the max with the other
- * two stamps recovers creation and completion at least, and `updatedAt` defaults
- * to the empty string on rows predating it, which sorts below every real date.
+ * `updatedAt` alone is the wrong clock for `?since=`. It moves only for the
+ * fields Google can see — title, notes, plannedDate — plus `done`, because
+ * dirtiness against Google is defined as `updatedAt !== googleSyncedAt` and a
+ * drag must not win a conflict against a real edit made on the phone.
+ *
+ * So `?since=` cannot see a change to `dueDate` (including the Canvas sync's own
+ * deadline writes), `priority`, position and therefore category, the person
+ * link, or a Google opt-in. Taking the max with `createdAt` and `completedAt`
+ * recovers creation and completion; the rest is why the contract calls this a
+ * bandwidth hint and not a change feed. Deletions are invisible to it entirely —
+ * a removed row simply stops appearing.
  */
-function latestStamp(task: Task): string {
-	return [task.updatedAt, task.createdAt, task.completedAt ?? ''].reduce((a, b) => (a > b ? a : b));
+function latestStamp(task: Task): number {
+	// Parsed, not compared as text. `updatedAt` defaults to the empty string on
+	// rows predating the column and Date.parse gives NaN for it, so each
+	// candidate falls back to 0 and a real stamp always wins.
+	const at = (value: string | null) => {
+		const ms = value ? Date.parse(value) : NaN;
+		return Number.isNaN(ms) ? 0 : ms;
+	};
+	return Math.max(at(task.updatedAt), at(task.createdAt), at(task.completedAt));
 }
 
 export interface TaskQuery {
 	includeCompleted?: boolean;
-	since?: string;
+	/** Epoch milliseconds. Validated by `timestampParam` before it reaches here. */
+	since?: number;
 }
 
 /**
@@ -140,9 +153,16 @@ export interface TaskQuery {
  */
 export function selectTasks(tasks: Task[], query: TaskQuery = {}): Task[] {
 	const includeCompleted = query.includeCompleted ?? true;
-	return tasks
-		.filter((t) => (includeCompleted || !t.done) && (!query.since || latestStamp(t) >= query.since))
-		.sort((a, b) => (latestStamp(a) < latestStamp(b) ? 1 : -1));
+	const since = query.since;
+	return (
+		tasks
+			.filter(
+				(t) => (includeCompleted || !t.done) && (since === undefined || latestStamp(t) >= since)
+			)
+			// Descending by activity, with a real 0 for ties so the comparator is
+			// consistent — returning -1 for equal values is not a valid ordering.
+			.sort((a, b) => latestStamp(b) - latestStamp(a))
+	);
 }
 
 export function serializePerson(

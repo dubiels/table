@@ -99,6 +99,13 @@
       "when": 1787342345205,
       "tag": "0013_simple_dragon_lord",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1788294691397,
+      "tag": "0014_fancy_juggernaut",
+      "breakpoints": true
     }
   ]
 }

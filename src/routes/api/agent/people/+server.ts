@@ -51,14 +51,31 @@ export const POST: RequestHandler = ({ request }) =>
 
 		// Flags can only be attached once the person exists, so this happens here
 		// rather than inside createPerson — as the form action does it too.
-		for (const flagId of input.flagIds ?? []) await flagsService.attachFlag(person.id, flagId);
+		//
+		// A failure attaching one is deliberately not fatal. The person row is
+		// already committed, and throwing would release the idempotency claim, so
+		// the agent's retry under the same key would create a SECOND person rather
+		// than finishing the first one's tags. Reporting the flags that actually
+		// landed lets the caller re-attach the rest against the person it now
+		// knows exists, which is recoverable where a duplicate contact is not.
+		const attached: string[] = [];
+		for (const flagId of input.flagIds ?? []) {
+			try {
+				await flagsService.attachFlag(person.id, flagId);
+				attached.push(flagId);
+			} catch (err) {
+				console.error(`agent api: attaching flag ${flagId} to ${person.id} failed`, err);
+			}
+		}
 
 		const flags = await flagsService.listFlags();
 		return {
 			status: 201,
 			body: {
+				// The flags that are really on the row, not the ones that were asked
+				// for — otherwise a partial failure reads as a complete success.
 				person: serializePerson(
-					{ ...person, flagIds: input.flagIds ?? [] },
+					{ ...person, flagIds: attached },
 					new Map(flags.map((f) => [f.id, f])),
 					[]
 				)

@@ -10,11 +10,16 @@ export function tokensMatch(a: string, b: string): boolean {
 /**
  * The credential out of an `Authorization: Bearer <token>` header, or null.
  *
- * Deliberately strict about the scheme: a header carrying the bare token with
- * no `Bearer ` prefix is a malformed request, not a near-miss to be salvaged.
+ * The scheme is matched case-insensitively and surrounding whitespace is
+ * trimmed, because RFC 7235 defines the scheme as case-insensitive and clients
+ * and proxies do normalise it — a client sending `bearer <token>` would
+ * otherwise get a permanent 401 indistinguishable from a wrong token.
+ *
+ * Still strict about the scheme being present: a header carrying the bare token
+ * is a malformed request, not a near-miss to be salvaged.
  */
 export function bearerToken(authorizationHeader: string | null): string | null {
-	return authorizationHeader?.match(/^Bearer (.+)$/)?.[1] ?? null;
+	return authorizationHeader?.trim().match(/^Bearer[ \t]+(.+?)$/i)?.[1] ?? null;
 }
 
 /**
