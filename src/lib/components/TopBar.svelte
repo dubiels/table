@@ -11,9 +11,8 @@
 
 	let {
 		user,
-		unreadCount,
 		gtasksConfigured = false
-	}: { user: { email: string } | null; unreadCount: number; gtasksConfigured?: boolean } = $props();
+	}: { user: { email: string } | null; gtasksConfigured?: boolean } = $props();
 	let menuOpen = $state(false);
 	let syncing = $state(false);
 	let gtasksSyncing = $state(false);
@@ -168,10 +167,6 @@
 		<a class="nav-link" class:current={page.url.pathname === '/dinner'} href={resolve('/dinner')}>
 			Dinner
 		</a>
-		<a class="nav-link" class:current={page.url.pathname === '/inbox'} href={resolve('/inbox')}>
-			Inbox
-			{#if unreadCount > 0}<span class="badge">{unreadCount}</span>{/if}
-		</a>
 		<a class="nav-link" class:current={page.url.pathname === '/history'} href={resolve('/history')}>
 			History
 		</a>
@@ -298,7 +293,7 @@
 	.topbar {
 		flex-shrink: 0;
 		/* Sticky so the shell stays reachable on the pages that scroll the body
-		   (history, inbox). This z-index also opens a stacking context, so it is
+		   (history). This z-index also opens a stacking context, so it is
 		   the ceiling for everything inside — including the popover — and 999
 		   keeps all of it under the task modal's 1000. */
 		position: sticky;
@@ -343,21 +338,6 @@
 	.nav-link:hover,
 	.nav-link.current {
 		color: var(--ink);
-	}
-
-	.badge {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		min-width: 1.1rem;
-		height: 1.1rem;
-		padding: 0 0.3rem;
-		border-radius: 999px;
-		background: var(--accent);
-		color: var(--accent-ink);
-		font-size: 0.68rem;
-		font-weight: 700;
-		line-height: 1;
 	}
 
 	.theme-toggle {

@@ -1,6 +1,6 @@
 import { localDateString, formatDueDate } from '$lib/date';
 
-/** The shape both the push body and the durable inbox entry are built from. */
+/** The shape both the push body and the durable log entry are built from. */
 export interface NotificationContent {
 	text: string;
 	summary: string;

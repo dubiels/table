@@ -1,6 +1,6 @@
 # Table
 
-Table is a personal command center: a task board in two views — a filterable, sortable list and a bento grid of drag-between categories — plus email magic-link login, Canvas LMS assignment sync, a read-only Google Calendar agenda, due-date push notifications, an in-app notification inbox, and a read-only dashboard API for external displays (e.g. a Raspberry Pi wall panel). It's built with SvelteKit and Drizzle/SQLite, designed to be self-hosted as a single always-on instance.
+Table is a personal command center: a task board in two views — a filterable, sortable list and a bento grid of drag-between categories — plus email magic-link login, Canvas LMS assignment sync, a read-only Google Calendar agenda, due-date push notifications, and a read-only dashboard API for external displays (e.g. a Raspberry Pi wall panel). It's built with SvelteKit and Drizzle/SQLite, designed to be self-hosted as a single always-on instance.
 
 ## Views and categories
 
