@@ -69,6 +69,7 @@
 		created?: number;
 		updated?: number;
 		/** Still worth surfacing: it means LMS_ZONE_ID named no zone this run. */
+		deleted?: number;
 		placedLoose?: boolean;
 		imported?: number;
 		updatedLocally?: number;
@@ -100,7 +101,7 @@
 				toast('Sync failed — unexpected response', 'error');
 			} else {
 				toast(
-					`Synced — ${body.created} new, ${body.updated} updated${body.placedLoose ? ' (placed loose)' : ''}`,
+					`Synced — ${body.created} new, ${body.updated} updated, ${body.deleted ?? 0} cleared${body.placedLoose ? ' (placed loose)' : ''}`,
 					'success'
 				);
 				await invalidateAll();

@@ -18,7 +18,20 @@ const existingLmsTask = {
 	dueDate: '2026-08-20'
 };
 
+// Still in the table, no longer in the feed: a past-due assignment, or one of
+// the course calendar events stored before the uid filter existed.
+const staleLmsTask = {
+	id: 't-stale',
+	externalId: 'event-calendar-event-5188899',
+	dueDate: '2026-08-27'
+};
+
 const updateSetMock = vi.fn();
+const deleteTaskMock = vi.fn<(id: string) => Promise<void>>(() => Promise.resolve());
+
+vi.mock('../tasks/service', () => ({
+	deleteTask: (id: string) => deleteTaskMock(id)
+}));
 
 // Referenced lazily from inside the closures below (never eagerly, at
 // factory-definition time) so it survives vi.mock's hoisting above the
@@ -35,9 +48,9 @@ vi.mock('../db', () => ({
 					// First call: activeTasks (open tasks, for placement). Empty is fine —
 					// this test drives an update, not a create.
 					if (findManyCall === 1) return Promise.resolve([]);
-					// Second call: existingLms (source: 'canvas'), the row the planner
-					// matches the feed event against by externalId.
-					return Promise.resolve([{ ...existingLmsTask }]);
+					// Second call: existingLms (source: 'canvas'), the rows the planner
+					// matches the feed events against by externalId.
+					return Promise.resolve([{ ...existingLmsTask }, { ...staleLmsTask }]);
 				}
 			}
 		},
@@ -56,6 +69,7 @@ import { syncLmsAssignments } from './sync';
 describe('syncLmsAssignments', () => {
 	beforeEach(() => {
 		updateSetMock.mockClear();
+		deleteTaskMock.mockClear();
 		findManyCall = 0;
 		vi.stubGlobal(
 			'fetch',
@@ -78,5 +92,22 @@ describe('syncLmsAssignments', () => {
 		expect(updateSetMock).not.toHaveBeenCalledWith(
 			expect.objectContaining({ updatedAt: expect.anything() })
 		);
+	});
+
+	it('sweeps a task the feed has dropped, and spares the one it still lists', () => {
+		// Routed through deleteTask rather than a bare db.delete because that is
+		// the only path that writes a tombstone: a canvas task the user had opted
+		// into Google sync would otherwise be deleted here and live on in Google
+		// with nothing left recording which task to remove.
+		return syncLmsAssignments().then(() => {
+			expect(deleteTaskMock).toHaveBeenCalledWith('t-stale');
+			expect(deleteTaskMock).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	it('reports the sweep in its result', () => {
+		return syncLmsAssignments().then((result) => {
+			expect(result.deleted).toBe(1);
+		});
 	});
 });

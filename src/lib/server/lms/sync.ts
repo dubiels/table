@@ -4,11 +4,13 @@ import { tasks, zones } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { parseLmsIcal } from './ical-parser';
 import { planLmsSync, zoneInnerBounds, looseBounds } from './plan';
+import { deleteTask } from '../tasks/service';
 import { randomUUID } from 'node:crypto';
 
 export interface LmsSyncResult {
 	created: number;
 	updated: number;
+	deleted: number;
 	placedLoose: boolean;
 }
 
@@ -16,7 +18,7 @@ export async function syncLmsAssignments(): Promise<LmsSyncResult> {
 	const url = env.LMS_ICAL_URL ?? env.CANVAS_ICAL_URL;
 	if (!url) {
 		console.warn('LMS sync: LMS_ICAL_URL not set, skipping');
-		return { created: 0, updated: 0, placedLoose: false };
+		return { created: 0, updated: 0, deleted: 0, placedLoose: false };
 	}
 
 	const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
@@ -72,13 +74,22 @@ export async function syncLmsAssignments(): Promise<LmsSyncResult> {
 		await db.update(tasks).set({ dueDate: update.dueDate }).where(eq(tasks.id, update.id));
 	}
 
+	// Through deleteTask rather than a bare db.delete: it is the only path that
+	// writes the Google tombstone, and a canvas assignment the user had opted
+	// into Google sync would otherwise vanish here and survive in Google with
+	// nothing left recording which task to remove.
+	for (const id of plan.deletes) {
+		await deleteTask(id);
+	}
+
 	const result = {
 		created: plan.creates.length,
 		updated: plan.dueDateUpdates.length,
+		deleted: plan.deletes.length,
 		placedLoose: !zone && plan.creates.length > 0
 	};
 	console.log(
-		`LMS sync complete: ${result.created} created, ${result.updated} updated, placedLoose=${result.placedLoose}`
+		`LMS sync complete: ${result.created} created, ${result.updated} updated, ${result.deleted} deleted, placedLoose=${result.placedLoose}`
 	);
 	return result;
 }

@@ -29,6 +29,20 @@ function toLocalDateString(date: Date): string {
 // Canvas summaries look like "Assignment Title [Course Name]".
 const TRAILING_BRACKET = /\s*\[([^[\]]+)\]\s*$/;
 
+/**
+ * The UID shape Canvas gives graded work: assignments, quizzes and graded
+ * discussions all arrive as `event-assignment-<id>`, and a section-specific
+ * due date as `event-assignment-override-<id>`, which this prefix also takes.
+ *
+ * The same feed carries `event-calendar-event-<id>` for the course calendar —
+ * class meetings, "No Class", exam-room bookings. Those are not work anyone
+ * hands in, and they crowded out the deadlines the panel exists to show.
+ * (Announcements never reach the feed at all; Canvas does not put them on the
+ * calendar.) Allow-listed rather than deny-listed because "only assignments"
+ * has to keep holding when Canvas adds a kind we have never seen.
+ */
+const ASSIGNMENT_UID = /^event-assignment-/;
+
 export function parseLmsIcal(icsText: string, now: Date = new Date()): LmsEvent[] {
 	const cal = ical.parseICS(icsText);
 	const events: LmsEvent[] = [];
@@ -46,6 +60,7 @@ export function parseLmsIcal(icsText: string, now: Date = new Date()): LmsEvent[
 
 		// No stable id ⇒ no way to dedupe; skipping beats duplicating every sync.
 		if (!comp.uid) continue;
+		if (!ASSIGNMENT_UID.test(comp.uid)) continue;
 
 		const start = comp.start;
 		if (!start || isNaN(start.getTime())) continue;

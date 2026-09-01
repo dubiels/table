@@ -81,6 +81,7 @@
 		error?: string;
 		created?: number;
 		updated?: number;
+		deleted?: number;
 		placedLoose?: boolean;
 	};
 
@@ -107,7 +108,7 @@
 				toast('Sync failed — unexpected response', 'error');
 			} else {
 				toast(
-					`Synced — ${body.created} new, ${body.updated} updated${body.placedLoose ? ' (placed loose)' : ''}`,
+					`Synced — ${body.created} new, ${body.updated} updated, ${body.deleted ?? 0} cleared${body.placedLoose ? ' (placed loose)' : ''}`,
 					'success'
 				);
 				await invalidateAll();

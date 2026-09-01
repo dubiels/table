@@ -41,6 +41,51 @@ describe('parseLmsIcal', () => {
 		expect(result[0].dueDate).toBe(localDateString(dt));
 	});
 
+	it('skips course calendar events, keeping only assignments', () => {
+		const text = ics([
+			vevent({
+				uid: 'event-calendar-event-5188889',
+				dtstart: 'DTSTART:20260815T140000Z',
+				summary: 'In-Person Class: Logic [CS-3790-A]'
+			}),
+			vevent({
+				uid: 'event-assignment-2575676',
+				dtstart: 'DTSTART:20260815T235900Z',
+				summary: 'Quiz 1 - Representations [CS-3790-A]'
+			})
+		]);
+
+		const result = parseLmsIcal(text, NOW);
+
+		expect(result.map((e) => e.title)).toEqual(['Quiz 1 - Representations']);
+	});
+
+	it('keeps a section-specific due date, which Canvas uids as an override', () => {
+		const text = ics([
+			vevent({
+				uid: 'event-assignment-override-99',
+				dtstart: 'DTSTART:20260815T235900Z',
+				summary: 'Problem Set 3 [CS 4641]'
+			})
+		]);
+
+		const result = parseLmsIcal(text, NOW);
+
+		expect(result).toHaveLength(1);
+	});
+
+	it('skips planner notes, which are to-dos rather than graded work', () => {
+		const text = ics([
+			vevent({
+				uid: 'event-planner-note-42',
+				dtstart: 'DTSTART:20260815T235900Z',
+				summary: 'Read chapter 4 [CS 4641]'
+			})
+		]);
+
+		expect(parseLmsIcal(text, NOW)).toEqual([]);
+	});
+
 	it('parses an all-day event without a UTC shift', () => {
 		const text = ics([
 			vevent({
@@ -96,18 +141,20 @@ describe('parseLmsIcal', () => {
 	});
 
 	it('falls back to Untitled when the summary is missing', () => {
-		const text = ics([vevent({ uid: 'no-summary', dtstart: 'DTSTART:20260815T235900Z' })]);
+		const text = ics([
+			vevent({ uid: 'event-assignment-no-summary', dtstart: 'DTSTART:20260815T235900Z' })
+		]);
 
 		const result = parseLmsIcal(text, NOW);
 
 		expect(result[0].title).toBe('Untitled');
-		expect(result[0].eventId).toBe('no-summary');
+		expect(result[0].eventId).toBe('event-assignment-no-summary');
 	});
 
 	it('excludes an event 90 days in the future', () => {
 		const text = ics([
 			vevent({
-				uid: 'far-future',
+				uid: 'event-assignment-far-future',
 				dtstart: 'DTSTART:20261107T235900Z', // ~90 days after NOW
 				summary: 'Far Future [CS 4641]'
 			})
@@ -121,7 +168,7 @@ describe('parseLmsIcal', () => {
 	it('excludes an event 30 days in the past', () => {
 		const text = ics([
 			vevent({
-				uid: 'old-past',
+				uid: 'event-assignment-old-past',
 				dtstart: 'DTSTART:20260710T235900Z', // 30 days before NOW
 				summary: 'Old Past [CS 4641]'
 			})
@@ -135,7 +182,7 @@ describe('parseLmsIcal', () => {
 	it('excludes an event due yesterday', () => {
 		const text = ics([
 			vevent({
-				uid: 'yesterday',
+				uid: 'event-assignment-yesterday',
 				dtstart: 'DTSTART:20260808T235900Z', // the evening before NOW's local day
 				summary: 'Yesterday [CS 4641]'
 			})
@@ -167,7 +214,7 @@ describe('parseLmsIcal', () => {
 	it('excludes an event due late yesterday local time, though it is today in UTC', () => {
 		const text = ics([
 			vevent({
-				uid: 'late-yesterday',
+				uid: 'event-assignment-late-yesterday',
 				dtstart: 'DTSTART:20260809T020000Z', // 10pm on the 8th, local
 				summary: 'Late Yesterday [CS 4641]'
 			})
@@ -181,7 +228,7 @@ describe('parseLmsIcal', () => {
 	it('includes an event due late on the 14th day, though it is day 15 in UTC', () => {
 		const text = ics([
 			vevent({
-				uid: 'late-upper-boundary',
+				uid: 'event-assignment-late-upper-boundary',
 				dtstart: 'DTSTART:20260824T020000Z', // 10pm on the 23rd, local
 				summary: 'Late Upper Boundary [CS 4641]'
 			})
@@ -195,7 +242,7 @@ describe('parseLmsIcal', () => {
 	it('includes an event due earlier today (window starts at local midnight, not now)', () => {
 		const text = ics([
 			vevent({
-				uid: 'early-today',
+				uid: 'event-assignment-early-today',
 				dtstart: 'DTSTART:20260809T060000Z', // 2am local on NOW's own day
 				summary: 'Early Today [CS 4641]'
 			})
@@ -209,7 +256,7 @@ describe('parseLmsIcal', () => {
 	it('includes an event 14 days ahead (window upper boundary)', () => {
 		const text = ics([
 			vevent({
-				uid: 'upper-boundary',
+				uid: 'event-assignment-upper-boundary',
 				dtstart: 'DTSTART:20260823T235900Z', // late on the 14th day ahead
 				summary: 'Upper Boundary [CS 4641]'
 			})
@@ -223,7 +270,7 @@ describe('parseLmsIcal', () => {
 	it('excludes an event 15 days ahead (just past the upper boundary)', () => {
 		const text = ics([
 			vevent({
-				uid: 'above-upper-boundary',
+				uid: 'event-assignment-above-upper-boundary',
 				dtstart: 'DTSTART:20260824T120000Z', // morning of the 15th day ahead
 				summary: 'Above Upper Boundary [CS 4641]'
 			})

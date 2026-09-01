@@ -41,11 +41,47 @@ describe('planLmsSync', () => {
 		// structurally: the plan has no way to express title/notes/position updates
 	});
 
-	it('never deletes: events absent from the feed produce no actions', () => {
+	it('deletes a task whose event has dropped out of the feed', () => {
+		// The feed carries no submission state, so "gone from the window" is the
+		// only evidence of doneness there is: the parser emits today onward, so a
+		// task that no longer matches is past its due date and taken as turned in.
+		const existing = [{ id: 't-old', externalId: 'ev-gone', dueDate: '2026-01-01' }];
+		const plan = planLmsSync([event()], existing, bounds, []);
+		expect(plan.creates).toHaveLength(1);
+		expect(plan.deletes).toEqual(['t-old']);
+	});
+
+	it('deletes a course calendar event left over from before the uid filter', () => {
+		const existing = [
+			{ id: 't-class', externalId: 'event-calendar-event-5188899', dueDate: '2026-08-27' }
+		];
+		const plan = planLmsSync([event()], existing, bounds, []);
+		expect(plan.deletes).toEqual(['t-class']);
+	});
+
+	it('keeps a task still present in the feed', () => {
+		const existing = [{ id: 't1', externalId: 'ev-1', dueDate: '2026-08-20' }];
+		const plan = planLmsSync([event()], existing, bounds, []);
+		expect(plan.deletes).toHaveLength(0);
+	});
+
+	it('deletes nothing when the feed comes back empty', () => {
+		// An empty feed is far likelier to be a Canvas outage or a truncated
+		// response than a semester with no work left in it, and deleting on that
+		// evidence would wipe every assignment with no way to get them back —
+		// the next sync could only re-create what the window still covers.
 		const existing = [{ id: 't-old', externalId: 'ev-gone', dueDate: '2026-01-01' }];
 		const plan = planLmsSync([], existing, bounds, []);
+		expect(plan.deletes).toHaveLength(0);
 		expect(plan.creates).toHaveLength(0);
-		expect(plan.dueDateUpdates).toHaveLength(0);
+	});
+
+	it('never deletes a canvas task that has no externalId', () => {
+		// Nothing links it to the feed, so sync could never re-create it; a row
+		// like this is unreachable by the matching rule rather than stale.
+		const existing = [{ id: 't-orphan', externalId: null, dueDate: '2026-01-01' }];
+		const plan = planLmsSync([event()], existing, bounds, []);
+		expect(plan.deletes).toHaveLength(0);
 	});
 
 	it('spreads multiple new tasks across distinct non-overlapping slots', () => {

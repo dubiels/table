@@ -57,13 +57,17 @@ Table can pull assignments from Canvas's calendar feed in as tasks.
 2. Set `LMS_ICAL_URL` to that URL.
 3. `LMS_SYNC_CRON` controls how often sync runs automatically (default every 6 hours). You can also trigger a sync on demand any time — from the side panel's **Canvas** section, or from the user menu ("Sync assignments").
 
-Each sync imports assignments due from today through 14 days out: a reading list of what's actually coming up, not an archive of the semester.
+Each sync imports assignments due from today through 14 days out: a reading list of what's actually coming up, not an archive of the semester. Only graded work is imported — the same feed carries the course calendar (class meetings, "No Class", exam bookings), and those are filtered out by UID. Announcements never appear at all; Canvas doesn't put them on the calendar.
 
 Assignments live in the side panel's **Canvas** section, in one list ordered by due date with a color-coded chip naming the class, and in the list view, where they carry the category **Canvas** and can be filtered like any other category. They deliberately don't appear in the bento grid — a fortnight of deadlines would bury the handful of things you arranged there by hand. `LMS_ZONE_ID` is a leftover from when they did, and is no longer needed.
 
 Before `LMS_ICAL_URL` is set, the Canvas section shows the setup guide instead.
 
-A sync only ever creates new tasks or refreshes the `dueDate` on ones it created before — it never touches a task's title, notes, priority, position, or completion state, and it never deletes anything. Running sync again against the same feed creates nothing new for assignments it's already imported.
+A sync creates new tasks, refreshes the `dueDate` on ones it created before, and removes ones the feed no longer lists. It never touches a task's title, notes, priority, position, or completion state, and it only ever removes tasks it imported itself — a task you made by hand is never in scope. Running sync again against the same feed creates nothing new for assignments it's already imported.
+
+**Past due means turned in.** The `.ics` feed carries no submission state — its events hold only a summary, a due date, a UID and a link — so Table cannot tell a handed-in assignment from a neglected one, and reading it out would need a Canvas API token. Since the import window starts at today, an assignment that falls off the back of it is taken as done and swept. The practical effect is that the panel shows what's still ahead of you and nothing else. The cost is that work you genuinely blew past disappears the same way; Canvas itself remains the place to check for that.
+
+One sync never sweeps: if the feed comes back empty, nothing is deleted. An empty feed is far likelier to be a Canvas outage than a semester with no work left, and the next sync could only restore what the 14-day window still reaches.
 
 ## Google Calendar agenda
 
