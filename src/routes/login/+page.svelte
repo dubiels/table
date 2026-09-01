@@ -13,9 +13,11 @@
 
 <div class="page">
 	<div class="card">
-		<Mascot mood="wave" />
-		<h1>Table</h1>
-		<p class="tagline">Everything on the table.</p>
+		<header class="brand">
+			<Mascot mood="wave" />
+			<h1>Table</h1>
+			<p class="tagline">Everything on the table.</p>
+		</header>
 
 		{#if form?.sent}
 			<p class="status">Check {form.email} for a login link and a 6-digit code.</p>
@@ -73,13 +75,27 @@
 		width: min(380px, calc(100vw - 2rem));
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
+		/* One gap between the card's sections: the wordmark block, a status line,
+		   the form, an error. Nesting the three levels 0.4 / 0.85 / 1.35 is what
+		   makes the grouping legible without any of them being measured. */
+		gap: 1.35rem;
 	}
 
-	/* The card is a 1rem-gap column; the robot belongs to the wordmark, not to
-	   the form below it, so it sits closer than the default gap allows. */
-	.card :global(.mascot) {
-		margin-bottom: -0.6rem;
+	/* Flex containers do not collapse margins, so a paragraph's default `1em`
+	   would be ADDED to the gap above and below it — which is what put a 2rem
+	   chasm between the tagline and the form while every other gap was under
+	   0.75rem, and what the negative margins here used to be fighting. */
+	.card p {
+		margin: 0;
+	}
+
+	/* The robot, the wordmark and the tagline are one thing, so they sit at the
+	   tightest step of the scale and the card's gap separates them from the form
+	   rather than from each other. */
+	.brand {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
 	}
 
 	.card h1 {
@@ -90,7 +106,6 @@
 
 	.tagline {
 		color: var(--muted);
-		margin-top: -0.5rem;
 	}
 
 	.status {
@@ -100,13 +115,13 @@
 	form {
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
+		gap: 0.85rem;
 	}
 
 	label {
 		display: flex;
 		flex-direction: column;
-		gap: 0.3rem;
+		gap: 0.4rem;
 	}
 
 	label span {

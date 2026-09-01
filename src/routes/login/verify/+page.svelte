@@ -6,8 +6,10 @@
 
 <div class="page">
 	<div class="card">
-		<h1>Table</h1>
-		<p class="tagline">Link problem</p>
+		<header class="brand">
+			<h1>Table</h1>
+			<p class="tagline">Link problem</p>
+		</header>
 		{#if data.error === 'expired'}
 			<p class="status-error" role="alert">That login link has expired. Request a new one.</p>
 		{:else if data.error === 'used'}
@@ -38,7 +40,20 @@
 		width: min(380px, calc(100vw - 2rem));
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
+		/* Matches the login card, and for the same reason — see the note there. */
+		gap: 1.35rem;
+	}
+
+	/* Flex does not collapse margins, so a paragraph's default `1em` is added to
+	   the gap on both sides of it. */
+	.card p {
+		margin: 0;
+	}
+
+	.brand {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
 	}
 
 	.card h1 {
@@ -49,7 +64,6 @@
 
 	.tagline {
 		color: var(--muted);
-		margin-top: -0.5rem;
 	}
 
 	.status-error {
