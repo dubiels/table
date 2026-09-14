@@ -1,0 +1,31 @@
+# Table on ai2. Two containers: the app, and a cloudflared that dials out to
+# Cloudflare so nothing here listens on a public port. The app publishes only
+# to 127.0.0.1:3100 for local health checks; the tunnel reaches it by name on
+# the compose network as http://table:3000.
+services:
+  table:
+    build: ./app
+    restart: unless-stopped
+    env_file: ./env/.env
+    volumes:
+      - ./data:/data
+    ports:
+      - '127.0.0.1:3100:3000'
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "fetch(process.env.HC||''http://127.0.0.1:3000/api/health'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"'
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    env_file: ./env/tunnel.env
+    depends_on:
+      - table

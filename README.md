@@ -274,30 +274,31 @@ login, the API routes and the service worker keep working on that host too.
 
 ## Deployment
 
-Table runs on a dedicated always-on Windows machine, published by Cloudflare
-Tunnel and deployed by pushing to `main`. `fly.toml` and the `Dockerfile` are
-kept as a record of the previous Fly.io deployment and are not used.
+Table runs as a Docker Compose stack on a Linux box, published by Cloudflare
+Tunnel, and deployed by running `~/table/deploy.sh` on that machine. The full
+guide is [DEPLOYMENT.md](DEPLOYMENT.md); the compose file and deploy script
+are versioned under [`deploy/`](deploy/). `fly.toml` is a record of the earlier
+Fly.io deployment and is not used.
 
-The machine keeps four things outside the git checkout, because the deploy
-wipes gitignored files:
+Everything lives under one directory on the server, outside the git checkout,
+so a deploy can never wipe it:
 
-| Path                         | Holds                                         |
-| ---------------------------- | --------------------------------------------- |
-| `C:\table\env\.env`          | Secrets and config; no workflow ever reads it |
-| `C:\table\data\table.sqlite` | The database                                  |
-| `C:\table\personal\`         | `static/logos/` and `logo-overrides.local.ts` |
-| `C:\table\snapshots\`        | Pre-migration `VACUUM INTO` snapshots         |
+| Path                        | Holds                                                    |
+| --------------------------- | -------------------------------------------------------- |
+| `~/table/env/.env`          | Secrets and config, read by the container at start       |
+| `~/table/env/tunnel.env`    | The Cloudflare Tunnel token                              |
+| `~/table/data/table.sqlite` | The database, bind-mounted into the container at `/data` |
+| `~/table/snapshots/`        | Pre-deploy `VACUUM INTO` snapshots                       |
+| `~/table/app/`              | The git checkout, plus the gitignored personal files     |
 
-Two Windows Services run the system — `Table` (the app, via NSSM) and
-`cloudflared` (the tunnel) — plus a GitHub Actions self-hosted runner service
-that performs deploys. Pushing to `main` runs the test suite on GitHub-hosted
-Linux; if it passes, the runner rebuilds, migrates and restarts the service,
-then polls `/api/health` and rolls back to the previous build if it does not
-answer.
+Two containers run: `table` (the app; migrations and the city seed run on
+start) and `cloudflared` (the tunnel). Pushing to `main` runs lint, check,
+tests and a build on GitHub-hosted Linux, and nothing else. Deploys are pulled,
+not pushed: the script snapshots the database, rebuilds the image, restarts the
+stack and polls `/api/health`.
 
-**Migrations are forward-only.** The deploy takes a `VACUUM INTO` snapshot
-before migrating; a rollback restores the previous _build_, not the previous
-_schema_. Recovering from a bad migration means restoring that snapshot by hand.
+**Migrations are forward-only.** Recovering from a bad migration means
+restoring the pre-deploy snapshot by hand.
 
 **Backups are deliberately out of scope** for the current deployment. The
 snapshots above exist for rollback, not for disaster recovery.

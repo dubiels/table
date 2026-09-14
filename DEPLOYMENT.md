@@ -1,8 +1,8 @@
 # Deploying Table
 
-Table runs on one always-on Windows machine, published by Cloudflare Tunnel,
-and deployed by pushing to `main`. This is the guide for setting that up from
-scratch and for living with it afterwards.
+Table runs as a Docker Compose stack on one always-on Linux machine, published
+by Cloudflare Tunnel, and deployed by running one script on that machine. This
+is the guide for setting that up from scratch and for living with it afterwards.
 
 - [What you are building](#what-you-are-building)
 - [Part 1 — One-time setup](#part-1--one-time-setup)
@@ -16,44 +16,49 @@ scratch and for living with it afterwards.
 ```
 your phone / the Pi / your agent
             |
-            |  https://table.example.com
+            |  https://table.example.com   https://dinner.example.com
             v
      Cloudflare edge          <- TLS, no open inbound port
             |
             |  outbound-only tunnel
             v
-     cloudflared  (Windows service)
+   cloudflared  (container)
             |
-            |  http://localhost:3000
+            |  http://table:3000  (compose network)
             v
-        Table  (Windows service, via NSSM)
+     Table  (container)  ----  127.0.0.1:3100 on the host, for health checks
             |
             v
-   C:\table\data\table.sqlite
+   ~/table/data/table.sqlite  (bind mount)
 ```
 
-Deploys arrive the other way: `git push` → GitHub-hosted Linux runs lint, check,
-tests and a build → if that passes, a self-hosted runner on the Windows box
-rebuilds, snapshots, migrates, swaps and health-checks, rolling back if the new
-build does not answer.
+Deploys are pulled, not pushed. `git push` runs lint, check, tests and a build
+on GitHub-hosted Linux. Getting the result onto the server is
+`~/table/deploy.sh` there: pull, snapshot the database, rebuild the image,
+restart, health-check.
 
-Nothing listens on an inbound port. The tunnel dials out, so the machine needs
-no firewall rule, no port forward and no static IP.
+Nothing listens on a public port. The tunnel dials out, so the machine needs no
+firewall rule, no port forward and no static IP. The app binds only to
+localhost, and only so the deploy script can poll it.
 
 ### Layout on disk
 
-Four things live outside the git checkout, because a deploy replaces the
-checkout and would wipe anything gitignored inside it.
+Everything lives under one directory. The checkout is inside it, and the things
+a deploy must never touch are beside the checkout rather than in it.
 
-| Path                         | Holds                                                                            |
-| ---------------------------- | -------------------------------------------------------------------------------- |
-| `C:\table\env\.env`          | Secrets and config. Read by the service, never by a workflow                     |
-| `C:\table\data\table.sqlite` | The database                                                                     |
-| `C:\table\personal\`         | `logos\` and `logo-overrides.local.ts` — gitignored, copied in before each build |
-| `C:\table\snapshots\`        | Pre-migration `VACUUM INTO` copies                                               |
-| `C:\table\app\`              | The running release. Written by the deploy, never edited by hand                 |
-| `C:\table\releases\`         | The previous few builds, for rollback                                            |
-| `C:\table\logs\`             | Service stdout and stderr                                                        |
+| Path                        | Holds                                                                               |
+| --------------------------- | ----------------------------------------------------------------------------------- |
+| `~/table/compose.yaml`      | The stack. A copy of `deploy/compose.yaml`; `deploy.sh` refreshes it                |
+| `~/table/deploy.sh`         | The deploy. A copy of `deploy/deploy.sh`                                            |
+| `~/table/env/.env`          | Secrets and config. Read by the container at start, never by a workflow             |
+| `~/table/env/tunnel.env`    | `TUNNEL_TOKEN=...` for cloudflared                                                  |
+| `~/table/data/table.sqlite` | The database, mounted into the container at `/data`                                 |
+| `~/table/snapshots/`        | Pre-deploy `VACUUM INTO` copies, last ten kept                                      |
+| `~/table/app/`              | The git checkout, plus the gitignored `static/logos/` and `logo-overrides.local.ts` |
+
+The personal files sit inside the checkout because the image is built from it
+and both are pulled in at build time. They are gitignored, so `git pull` leaves
+them alone.
 
 ---
 
@@ -61,40 +66,43 @@ checkout and would wipe anything gitignored inside it.
 
 ### 1.1 Check what is already installed
 
-```powershell
-node --version    # must be 24.x — matches .nvmrc and package.json engines
-git --version
+```sh
+docker --version; docker compose version; git --version
+id -nG | grep -qw docker && echo "docker group ok"
 ```
 
-If Node is missing or the wrong major, install Node 24 LTS. The build and the
-native `better-sqlite3` binding are both compiled against it, so a mismatch
-fails at `npm ci` rather than silently.
+Docker Engine with the Compose plugin and git are all the machine needs. Node
+is not required: the image carries its own, pinned to the major in `.nvmrc`.
 
-Then install the two service wrappers:
+If `docker group ok` did not print, you need it or every step needs sudo:
 
-```powershell
-winget install NSSM.NSSM
-winget install Cloudflare.cloudflared
-# PowerShell 7. Windows ships 5.1 as `powershell`; `pwsh` is a separate install,
-# and the deploy workflow runs its steps under `pwsh`. Without this the very
-# first deploy fails with "Unable to locate executable file: pwsh".
-winget install Microsoft.PowerShell
+```sh
+sudo usermod -aG docker "$USER"
+# then log out and back in
 ```
 
-### 1.2 Create the directories
+Check the port. The app is published on `127.0.0.1:3100`; if something already
+owns that, pick another in `compose.yaml` and `deploy.sh`.
 
-```powershell
-mkdir C:\table\env, C:\table\data, C:\table\personal\logos, `
-      C:\table\snapshots, C:\table\app, C:\table\releases, C:\table\logs
+```sh
+ss -ltn | grep ':3100 ' || echo "3100 free"
+```
+
+### 1.2 Create the layout and clone
+
+```sh
+mkdir -p ~/table/{data,env,snapshots}
+git clone https://github.com/dubiels/table.git ~/table/app
+cp ~/table/app/deploy/compose.yaml ~/table/app/deploy/deploy.sh ~/table/
+chmod +x ~/table/deploy.sh
 ```
 
 ### 1.3 Move the data across
 
-> **Do this step LAST, immediately before the first push in Part 2 — not now.**
-> Everything from here to §1.7 is hours of setup, and the moment you copy the
-> database you are asked to stop using the Mac copy. Do the transfer now and
-> every task and note you add in the meantime lands on a database nothing will
-> ever read again. Read this section, then skip to §1.4 and come back.
+> **Do this step LAST, immediately before the first deploy in Part 2 — not
+> now.** The moment you copy the database you must stop using the Mac copy, and
+> every task added in between lands on a database nothing will ever read again.
+> Read this section, then skip to §1.4 and come back.
 
 **On the Mac**, take a consistent copy. Do not copy `table.sqlite` on its own —
 the app runs in WAL mode, so an arbitrary amount of committed data lives in the
@@ -103,11 +111,6 @@ the app runs in WAL mode, so an arbitrary amount of committed data lives in the
 ```sh
 cd ~/table
 npx tsx scripts/snapshot-db.ts data/table.sqlite ~/table-transfer.sqlite
-```
-
-Verify what you are about to move, and write the numbers down:
-
-```sh
 sqlite3 ~/table-transfer.sqlite "PRAGMA integrity_check;"
 sqlite3 ~/table-transfer.sqlite \
   "SELECT 'tasks',count(*) FROM tasks UNION ALL \
@@ -118,45 +121,39 @@ sqlite3 ~/table-transfer.sqlite \
    SELECT 'users',count(*) FROM users;"
 ```
 
-Copy three things to the Windows box:
+Write the numbers down, then copy three things:
 
-| From (Mac)                                      | To (Windows)                 |
-| ----------------------------------------------- | ---------------------------- |
-| `~/table-transfer.sqlite`                       | `C:\table\data\table.sqlite` |
-| `static/logos/*`                                | `C:\table\personal\logos\`   |
-| `src/lib/server/people/logo-overrides.local.ts` | `C:\table\personal\`         |
+```sh
+scp ~/table-transfer.sqlite            SERVER:~/table/data/table.sqlite
+scp static/logos/*                     SERVER:~/table/app/static/logos/
+scp src/lib/server/people/logo-overrides.local.ts SERVER:~/table/app/src/lib/server/people/
+```
 
-**On the Windows box**, confirm the counts match what you wrote down. If you do
-not have the `sqlite3` CLI there, the first deploy will tell you soon enough —
-but checking now is cheaper than discovering it later.
+(`mkdir -p ~/table/app/static/logos` on the server first; the directory is
+gitignored so the clone does not create it.)
 
 > **After this point, stop writing to the Mac copy.** Two live databases with no
-> sync between them is a split brain, and merging them by hand later means
-> reconciling tasks and contacts one row at a time. Once the server is up, use
-> the deployed app. Keep `data/table.sqlite` on the Mac as a cold backup and let
-> it go stale on purpose.
-
-Local development keeps its own separate database, which is fine and expected —
-just never treat it as the real one again.
+> sync between them is a split brain. Keep `data/table.sqlite` on the Mac as a
+> cold backup and let it go stale on purpose. Local development keeps its own
+> database, which is fine — just never treat it as the real one again.
 
 ### 1.4 Write the environment file
 
-Create `C:\table\env\.env`. Start from your local `.env`, then change the
+Create `~/table/env/.env`. Start from your local `.env`, then change the
 following. **The first three are not optional.**
 
 ```ini
-# Where the database actually is on this machine. Get this WRONG and nothing
-# complains: the app CREATES a missing database rather than failing, so the
-# service comes up "healthy" on an empty board while your real data sits
-# untouched beside it. The deploy script checks the row count for this reason.
-DATABASE_PATH=C:\table\data\table.sqlite
+# The path INSIDE the container. compose.yaml mounts ~/table/data there. Get
+# this wrong and nothing complains: the app CREATES a missing database, so the
+# service comes up "healthy" on an empty board. deploy.sh checks the row count
+# for this reason.
+DATABASE_PATH=/data/table.sqlite
 
 # Magic-link emails are built from this. A wrong value emails you a link to
 # localhost, which is an auth outage you only notice once you are logged out.
 PUBLIC_APP_URL=https://table.example.com
 
-# Session cookies are only marked Secure when this is set. Nothing else sets it
-# at runtime — `vite build` sets it at build time only.
+# Session cookies are only marked Secure when this is set.
 NODE_ENV=production
 
 PORT=3000
@@ -172,20 +169,12 @@ DASHBOARD_TOKEN=
 AGENT_TOKEN=
 ```
 
-> **Do not set `ORIGIN`.** It is the obvious thing to reach for behind a proxy,
-> and on this app it breaks Dinner Table. `adapter-node` uses `ORIGIN` as the
-> base for _every_ request URL regardless of the `Host` that arrived
-> (`handler.js:101`), and `src/hooks.ts` decides whether to serve Dinner Table by
-> testing `url.hostname.startsWith('dinner.')`. Pin the origin and that test can
-> never be true: `dinner.example.com` renders the task board, and because
-> SvelteKit's CSRF check compares the request origin against the same pinned
-> URL, every form on that subdomain also returns 403.
->
-> Left unset, `adapter-node` derives the origin from the `Host` header — which
-> Cloudflare Tunnel passes through — and defaults the protocol to `https`, so
-> both hostnames work and CSRF is correct on each. Only if you ever front this
-> with something that terminates TLS and does _not_ set a sane `Host` should you
-> reach for `PROTOCOL_HEADER=x-forwarded-proto` instead.
+> **Do not set `ORIGIN`.** `adapter-node` uses it as the base for _every_
+> request URL regardless of the `Host` that arrived, and `src/hooks.ts` decides
+> whether to serve Dinner Table by testing `url.hostname.startsWith('dinner.')`.
+> Pin the origin and `dinner.example.com` renders the task board, and every form
+> on it returns 403. Left unset, the origin is derived from the `Host` header,
+> which the tunnel passes through, with the protocol defaulting to `https`.
 
 Carry across unchanged: `ALLOWED_EMAILS`, `RESEND_API_KEY`, `EMAIL_FROM`,
 `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, **`PUBLIC_VAPID_PUBLIC_KEY`**,
@@ -195,25 +184,17 @@ Carry across unchanged: `ALLOWED_EMAILS`, `RESEND_API_KEY`, `EMAIL_FROM`,
 `VAPID_`. It is read in the browser, and without it push notifications fail
 silently with nothing in any log.
 
-Any `*_CRON` variable, `DUE_ALERT_LEAD_HOURS`, `LMS_ZONE_ID` and
-`GCAL_CALENDAR_IDS` all have working defaults — carry them over only if you have
-customised them locally.
+Lock the file down:
 
-Lock the file down — it holds every secret the app has:
-
-```powershell
-icacls C:\table\env\.env /inheritance:r /grant:r "$env:USERNAME:(R,W)" /grant:r "SYSTEM:(F)"
+```sh
+chmod 600 ~/table/env/.env
 ```
 
 ### 1.4b Prove email actually sends, before you need it
 
 Magic links are the only way into Table. If Resend rejects the send you are
-locked out of your own deployment, and the failure is quiet: the login page
-still says "check your email".
-
-You have almost certainly never exercised this path — `DEV_LOG_TOKENS=true`
-locally means the code returns before it ever calls Resend. So test it from the
-Mac **now**, with the same key and the same From address the server will use:
+locked out, and the failure is quiet: the login page still says "check your
+email". Test from the Mac with the same key and From address the server uses:
 
 ```sh
 curl -s -X POST https://api.resend.com/emails \
@@ -223,136 +204,69 @@ curl -s -X POST https://api.resend.com/emails \
        "subject":"Table send test","html":"<p>works</p>"}'
 ```
 
-A `403` with `The <domain> domain is not verified` is the usual answer: Resend
-will not send from a domain until you have added it under **Domains** and
-published its DKIM and SPF records. Fix that before deploying, not after.
+A `403` mentioning an unverified domain means Resend needs the domain added
+under **Domains** with its DKIM and SPF records published. Fix that first.
 
-If you do get locked out, the way back in is the log rather than a rebuild: set
-`DEV_LOG_TOKENS=true` in `C:\table\env\.env`, `Restart-Service Table`, request
-a link, and read it out of `C:\table\logs\table.log`. **Set it back to `false`
-and restart** the moment you are in — left on, no login email is ever sent to
-anyone.
+If you do get locked out later, the way back in is the log: set
+`DEV_LOG_TOKENS=true`, `docker compose up -d`, request a link, read it out of
+`docker compose logs table`. **Set it back to `false` and restart** the moment
+you are in.
 
-### 1.5 Install the Table service
+### 1.5 Create the tunnel
 
-The service runs Node directly against the built app, loading the environment
-file itself — this is why nothing else needs to know where the secrets live.
+Your domain must already be on Cloudflare. This is a remotely managed tunnel:
+its hostnames are configured in the dashboard, and the server only needs the
+token.
 
-```powershell
-$node = (Get-Command node).Source
+1. Cloudflare dashboard → **Zero Trust** → **Networks → Tunnels → Create a
+   tunnel** → **Cloudflared** → name it `table` → save.
+2. The install page shows commands ending in `--token eyJ...`. Do not run them.
+   Copy just the token and write it on the server:
 
-nssm install Table $node
-nssm set Table AppParameters "--env-file=C:\table\env\.env C:\table\app\build\index.js"
-nssm set Table AppDirectory  "C:\table\app"
-nssm set Table AppStdout     "C:\table\logs\table.log"
-nssm set Table AppStderr     "C:\table\logs\table.err.log"
-nssm set Table AppRotateFiles 1
-nssm set Table AppRotateBytes 10485760
-nssm set Table Start SERVICE_AUTO_START
-nssm set Table AppExit Default Restart
+   ```sh
+   echo 'TUNNEL_TOKEN=eyJ...' > ~/table/env/tunnel.env
+   chmod 600 ~/table/env/tunnel.env
+   ```
+
+3. On the tunnel's **Published application routes** tab (older UI: **Public
+   Hostname**), add two routes. Both use type **HTTP** and URL `table:3000` —
+   that name resolves on the compose network to the app container.
+
+   | Subdomain | Domain        |
+   | --------- | ------------- |
+   | `table`   | `example.com` |
+   | `dinner`  | `example.com` |
+
+   Cloudflare creates the DNS records. Both hostnames are one label below the
+   zone, which is what the free universal certificate covers; a second level
+   (`table.you.example.com`) would not be.
+
+   If the form asks about IP ranges or device profiles, you are on the
+   **Private Network** tab. That is the wrong one.
+
+Start only the connector to confirm the tunnel registers:
+
+```sh
+cd ~/table && docker compose up -d --no-deps cloudflared
+docker compose logs cloudflared | grep -c "Registered tunnel connection"   # 4
 ```
-
-Do not start it yet — there is no build in `C:\table\app` until the first
-deploy.
-
-### 1.6 Publish it with Cloudflare Tunnel
-
-Your domain must already be on Cloudflare (its nameservers pointing there).
-
-```powershell
-cloudflared tunnel login          # opens a browser, pick the zone
-cloudflared tunnel create table   # note the UUID it prints
-```
-
-Write `C:\Users\<you>\.cloudflared\config.yml`:
-
-```yaml
-tunnel: <the-uuid>
-credentials-file: C:\Users\<you>\.cloudflared\<the-uuid>.json
-
-ingress:
-  - hostname: table.example.com
-    service: http://localhost:3000
-  # Dinner Table is served from its own subdomain by the `reroute` hook in
-  # src/hooks.ts. Same app, same port — only the root path is remapped.
-  - hostname: dinner.example.com
-    service: http://localhost:3000
-  - service: http_status:404
-```
-
-Point DNS at the tunnel and install it as a service:
-
-```powershell
-cloudflared tunnel route dns table table.example.com
-cloudflared tunnel route dns table dinner.example.com
-cloudflared service install
-Start-Service cloudflared
-```
-
-### 1.7 Install the GitHub Actions runner
-
-On GitHub: **Settings → Actions → Runners → New self-hosted runner → Windows
-x64**, then follow the download and `config.cmd` steps it gives you.
-
-When it asks for labels, add these three. The workflow's `runs-on` matches on
-them, so a typo here means deploys queue forever with no error:
-
-```
-self-hosted, windows, table
-```
-
-Install it as a service so it survives reboots:
-
-```powershell
-.\svc.cmd install
-.\svc.cmd start
-```
-
-**The runner needs permission to stop and start the `Table` service.** By
-default it runs as `NT AUTHORITY\NETWORK SERVICE`, which cannot, and the deploy
-will fail at the swap step. The simplest fix is to run the runner service as an
-account with local administrator rights:
-
-```powershell
-.\svc.cmd uninstall
-.\svc.cmd install <domain-or-machine>\<admin-user>
-.\svc.cmd start
-```
-
-> A self-hosted runner executes whatever is pushed to `main`. Anyone who can
-> push to this repository can run code on the machine holding your contacts and
-> your secrets. Keep the repository private, and never enable workflows for pull
-> requests from forks.
 
 ---
 
 ## Part 2 — First deploy
 
-**First, do §1.3 now** if you skipped it — take the snapshot, copy it to
-`C:\table\data\table.sqlite`, and copy the personal files. This is the moment
-the Mac copy stops being the live one.
-
-Your local `main` is ahead of the remote. Push it:
+**First, do §1.3 now** if you skipped it. This is the moment the Mac copy stops
+being the live one.
 
 ```sh
-cd ~/table
-git status                    # confirm nothing unexpected is staged
-git push origin main
+~/table/deploy.sh
 ```
 
-Watch it: **Actions** tab on GitHub, or `gh run watch`.
-
-The `test` job runs on GitHub's Linux runners. Only if it passes does `deploy`
-start on your machine, where it will:
-
-1. copy your personal logo files into the checkout — _before_ the build, because
-   `static/logos/` is baked into the client bundle and `logo-overrides.local.ts`
-   is pulled in by a build-time `import.meta.glob`;
-2. `npm ci` and `npm run build`;
-3. snapshot the database to `C:\table\snapshots\`;
-4. run migrations, then the (idempotent) city seed;
-5. stop the service, swap in the new build, start it again;
-6. poll `/api/health` for 90s, rolling back the build if it never answers.
+The script pulls, skips the snapshot (no database yet is fine; a copied one gets
+snapshotted), builds the image, starts both containers, and polls
+`/api/health` for 90 seconds. On start the container applies migrations and
+the idempotent city seed before listening. The last line prints the task+person
+row count — it should match what you wrote down in §1.3, not zero.
 
 Then confirm it from the Mac:
 
@@ -365,144 +279,94 @@ That second call should return **404** if you left `AGENT_TOKEN` blank — the
 agent API is off, not open. See [API.md](API.md) for switching it on.
 
 Finally, open the site, sign in with a magic link, and **add a task**. That last
-step is the one that proves `ORIGIN` is right; everything else can look healthy
-while form actions are 403ing.
+step is the one that proves the origin handling is right; everything else can
+look healthy while form actions are 403ing. Then open the `dinner.` hostname
+and confirm it renders Dinner Table, not the board.
 
 ---
 
 ## Part 3 — The day-to-day loop
 
 ```sh
-git add -A
-git commit -m "feat(board): ..."
-git push
+git push origin main        # on the Mac: CI runs lint, check, tests, build
+ssh SERVER ~/table/deploy.sh
 ```
 
-That is the whole deployment process. Roughly two minutes later the change is
-live, or the run is red and nothing changed.
-
-Some things worth knowing:
-
-- **Only `main` deploys.** Push a branch and you get the checks without the
-  deploy — useful when you want CI's opinion before committing to it.
-- **Deploys queue, they do not overlap.** Two pushes in quick succession run one
-  after the other rather than fighting over the service.
-- **A red `test` job means the machine is never touched.** The Linux checks are
-  the gate; lint, typecheck, the full test suite and a production build all have
-  to pass first.
-- **Local development is unaffected.** `npm run dev` against your own
-  `data/table.sqlite` as always.
-
-### Schema changes
-
-```sh
-# after editing src/lib/server/db/schema.ts
-npm run db:generate       # writes drizzle/NNNN_*.sql
-npm run db:migrate        # applies it locally
-git add drizzle src/lib/server/db/schema.ts
-git commit -m "feat(db): ..."
-git push                  # the deploy applies it on the server
-```
-
-**Migrations are forward-only.** The deploy snapshots before migrating, but a
-rollback restores the previous _build_, not the previous _schema_. If a
-migration is what broke, restore the snapshot by hand — see below.
+Wait for CI to go green before deploying; the script does not check it. A
+broken build fails at the `docker compose build` step with the old container
+still running, so a bad push costs a rebuild, not an outage. A build that
+succeeds but then dies on start is caught by the health check, which prints the
+container log; the old image is gone by then, so fix forward or restore the
+snapshot.
 
 ---
 
 ## Part 4 — Operations
 
-### Roll back to an earlier build
-
-Automatic on a failed health check. To do it deliberately:
-
-```powershell
-Get-ChildItem C:\table\releases        # pick a timestamp
-Stop-Service Table
-robocopy C:\table\releases\<stamp>\build C:\table\app\build /E /PURGE
-Start-Service Table
-```
-
 ### Restore the database from a snapshot
 
-```powershell
-Stop-Service Table
-Copy-Item C:\table\snapshots\table-<stamp>.sqlite C:\table\data\table.sqlite -Force
+```sh
+cd ~/table
+docker compose stop table
+cp snapshots/table-<stamp>.sqlite data/table.sqlite
 # Delete the sidecars, or SQLite replays a stale WAL over the file you restored
 # and quietly undoes the restore.
-Remove-Item C:\table\data\table.sqlite-wal, C:\table\data\table.sqlite-shm -ErrorAction SilentlyContinue
-Start-Service Table
+rm -f data/table.sqlite-wal data/table.sqlite-shm
+docker compose start table
 ```
 
 ### Read the logs
 
-```powershell
-Get-Content C:\table\logs\table.err.log -Tail 50 -Wait
-Get-Content C:\table\logs\table.log -Tail 50 -Wait
+```sh
+cd ~/table && docker compose logs -f --tail=100 table
+docker compose logs -f --tail=50 cloudflared
 ```
 
 ### Change a secret
 
-Edit `C:\table\env\.env`, then `Restart-Service Table`. The process reads its
-environment once at startup, so nothing takes effect until it does.
+Edit `~/table/env/.env`, then `docker compose up -d` in `~/table`. Compose
+notices the env file changed and recreates the container; the process reads
+its environment once at startup.
 
-### Deploy by hand
+### Add someone who can log in
 
-When Actions is down or you want to watch it happen:
+Append their address to `ALLOWED_EMAILS` in `~/table/env/.env`, then
+`docker compose up -d`. Everyone shares one board; the list only controls who
+may sign in.
 
-```powershell
-cd C:\actions-runner\_work\table\table   # or any checkout
-git pull
-Copy-Item C:\table\personal\logo-overrides.local.ts src\lib\server\people\ -Force
-# checkout wipes gitignored paths, so the directory has to be recreated
-New-Item -ItemType Directory -Force -Path static\logos | Out-Null
-Copy-Item C:\table\personal\logos\* static\logos\ -Force -ErrorAction SilentlyContinue
-npm ci
-npm run build
-.\scripts\deploy.ps1
-```
+### Rotate the tunnel token
+
+Tunnel → **Edit** → **Refresh token** in Cloudflare, write the new value to
+`~/table/env/tunnel.env`, then `docker compose up -d cloudflared`.
 
 ### Backups
 
-The snapshots in `C:\table\snapshots\` exist for deploy rollback. They are on
+The snapshots in `~/table/snapshots/` exist for deploy rollback. They are on
 the same disk as the database, so they are not a backup — a dead drive takes
-both.
+both. `VACUUM INTO` is safe against the live database, so a cron entry like
+this needs no downtime:
 
-Your handwritten notes about people cannot be reconstructed from anywhere. A
-scheduled task copying a snapshot somewhere off the machine costs nothing:
-
-```powershell
-# Save as C:\table\backup.ps1
-Set-Location C:\table\app          # so `npx` finds the local tsx and better-sqlite3
-$dest = 'D:\backups\table'         # an absolute path, NOT $env:USERPROFILE
-New-Item -ItemType Directory -Force -Path $dest | Out-Null
-$stamp = Get-Date -Format 'yyyyMMdd-HHmm'   # minutes, so a same-day re-run does not collide
-npx tsx scripts\snapshot-db.ts C:\table\data\table.sqlite "$dest\table-$stamp.sqlite"
-Get-ChildItem $dest -File | Sort-Object Name -Descending | Select-Object -Skip 30 | Remove-Item
+```sh
+# crontab -e
+15 4 * * * cd ~/table && docker compose run --rm --no-deps -v "$HOME/table/backups:/backups" table npx tsx /app/scripts/snapshot-db.ts /data/table.sqlite "/backups/table-$(date +\%Y\%m\%d).sqlite" >/dev/null 2>&1
 ```
 
-Register it with Task Scheduler to run daily. Three things that make the
-obvious version of this fail: Task Scheduler starts in `C:\Windows\System32`
-where `npx` cannot find `tsx`; a task registered as `SYSTEM` resolves
-`$env:USERPROFILE` to a system profile no sync client ever looks at; and
-`snapshot-db.ts` refuses to overwrite, so a date-only stamp fails on the second
-run of the day. `VACUUM INTO` is safe against the live database, so the service
-does not need to stop.
+Then sync `~/table/backups/` somewhere off the machine.
 
 ---
 
 ## Troubleshooting
 
-| Symptom                                           | Cause                                                                                                      |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Pages load, but adding anything returns **403**   | `ORIGIN` is unset or does not exactly match the public URL. The most common failure                        |
-| Magic-link email never arrives                    | `DEV_LOG_TOKENS=true` (check `table.log` — the link is in there), or `RESEND_API_KEY` / `EMAIL_FROM` wrong |
-| Login link points at `localhost`                  | `PUBLIC_APP_URL` still holds the dev value                                                                 |
-| `/api/agent/*` returns **404** with a valid token | `AGENT_TOKEN` not set, or the service was not restarted after setting it                                   |
-| `/api/agent/*` returns **401**                    | Token mismatch, or the header is not `Authorization: Bearer <token>`                                       |
-| Deploy hangs in "Waiting for a runner"            | Runner offline, or its labels do not match `[self-hosted, windows, table]`                                 |
-| Deploy fails stopping the service                 | Runner service account lacks rights over `Table` — see [1.7](#17-install-the-github-actions-runner)        |
-| Service starts then exits immediately             | Read `table.err.log`. Usually a bad `DATABASE_PATH` or a malformed `.env` line                             |
-| Company logos vanished after a deploy             | `C:\table\personal\` is missing or empty; those files must exist _before_ the build                        |
-| Site unreachable, app healthy locally             | `cloudflared` service stopped, or DNS not routed to the tunnel                                             |
-| `npm ci` fails on `better-sqlite3`                | Node major does not match `.nvmrc` (24)                                                                    |
+| Symptom                                           | Cause                                                                                                        |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Pages load, but adding anything returns **403**   | `ORIGIN` is set. Remove it. See §1.4                                                                         |
+| Magic-link email never arrives                    | `DEV_LOG_TOKENS=true` (the link is in `docker compose logs table`), or `RESEND_API_KEY` / `EMAIL_FROM` wrong |
+| Login link points at `localhost`                  | `PUBLIC_APP_URL` still holds the dev value                                                                   |
+| `/api/agent/*` returns **404** with a valid token | `AGENT_TOKEN` not set, or the container was not recreated after setting it                                   |
+| `/api/agent/*` returns **401**                    | Token mismatch, or the header is not `Authorization: Bearer <token>`                                         |
+| `deploy.sh` says the database is **EMPTY**        | `DATABASE_PATH` is not `/data/table.sqlite`, or the file is not at `~/table/data/table.sqlite`               |
+| Container starts then exits                       | `docker compose logs table`. Usually a malformed `.env` line or a failed migration                           |
+| `npm ci` fails inside the build                   | Lockfile out of sync with the image's npm. Regenerate it inside `node:24-slim` and commit                    |
+| Company logos vanished after a deploy             | `static/logos/` or `logo-overrides.local.ts` missing from `~/table/app`; they must exist _before_ the build  |
+| Site unreachable, `curl 127.0.0.1:3100` healthy   | cloudflared container down, or the route in Cloudflare points somewhere other than `http://table:3000`       |
+| `Could not resolve host` right after setup        | Your own DNS cache remembers the pre-record lookup. `dig @1.1.1.1` shows the truth; wait a few minutes       |
