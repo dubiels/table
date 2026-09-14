@@ -15,9 +15,13 @@ cp app/deploy/compose.yaml compose.yaml
 
 echo "=== Snapshot database"
 if [ -f data/table.sqlite ]; then
-  # VACUUM INTO via the running image, so no Node is needed on the host.
-  docker compose run --rm --no-deps -v "$PWD/snapshots:/snapshots" table \
-    npx tsx /app/scripts/snapshot-db.ts /data/table.sqlite "/snapshots/table-$stamp.sqlite" \
+  # VACUUM INTO via the running image, so no Node is needed on the host. The
+  # image does not carry scripts/, so the script is mounted in from the checkout,
+  # beside /app/node_modules so its better-sqlite3 import resolves.
+  docker compose run --rm --no-deps -T \
+    -v "$PWD/snapshots:/snapshots" \
+    -v "$PWD/app/scripts/snapshot-db.ts:/app/snapshot-db.ts:ro" \
+    table npx tsx /app/snapshot-db.ts /data/table.sqlite "/snapshots/table-$stamp.sqlite" \
     || { echo "Snapshot failed; refusing to deploy."; exit 1; }
   ls snapshots | sort -r | tail -n +11 | xargs -r -I{} rm -f "snapshots/{}"
 else
