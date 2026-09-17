@@ -14,9 +14,10 @@ function event(overrides: Partial<GoogleEvent> = {}): GoogleEvent {
 
 describe('toAgendaEvents', () => {
 	it('maps a timed event to UTC ISO strings', () => {
-		const [mapped] = toAgendaEvents([event({ location: 'Room 5' })]);
+		const [mapped] = toAgendaEvents([event({ location: 'Room 5' })], 'work@example.com');
 		expect(mapped).toEqual({
 			id: 'e1',
+			calendarId: 'work@example.com',
 			title: 'Advising meeting',
 			start: '2026-08-11T14:00:00.000Z',
 			end: '2026-08-11T15:00:00.000Z',
@@ -88,5 +89,12 @@ describe('toAgendaEvents', () => {
 
 	it('skips an event with no usable start', () => {
 		expect(toAgendaEvents([event({ start: undefined })])).toEqual([]);
+	});
+});
+
+describe('calendar identity', () => {
+	it('names the calendar an event came from, and leaves it blank when none is given', () => {
+		expect(toAgendaEvents([event()], 'me@example.com')[0].calendarId).toBe('me@example.com');
+		expect(toAgendaEvents([event()])[0].calendarId).toBe('');
 	});
 });

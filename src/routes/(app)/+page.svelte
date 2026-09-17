@@ -6,6 +6,8 @@
 	import SidePanel from '$lib/components/SidePanel.svelte';
 	import TodayPanel from '$lib/components/TodayPanel.svelte';
 	import CanvasPanel from '$lib/components/CanvasPanel.svelte';
+	import WallView from '$lib/components/wall/WallView.svelte';
+	import { wallMode } from '$lib/wall.svelte';
 	import canvasLogo from '$lib/assets/canvas-logo.png';
 	import { eventsToday } from '$lib/agenda';
 	import { localDateString, CANVAS_SOURCE } from '$lib/listView';
@@ -73,6 +75,10 @@
 	//
 	// The saved-value check doubles as the migration off the retired freeform
 	// board: a browser still holding 'blob' matches nothing and keeps the default.
+	// The Samsung reboots into whatever it was last showing, which is the whole
+	// point of remembering this: nobody is there to press the button again.
+	$effect(() => wallMode.restore());
+
 	let view = $state<'list' | 'bento'>('bento');
 	$effect(() => {
 		const saved = readSetting(VIEW_KEY);
@@ -151,6 +157,18 @@
 		}
 	}
 </script>
+
+{#if wallMode.open}
+	<WallView
+		tasks={data.tasks}
+		zones={data.zones}
+		agenda={data.agenda}
+		calendars={data.calendars}
+		lmsConfigured={data.lmsConfigured}
+		gtasksConfigured={data.gtasksConfigured === true}
+		onexit={() => wallMode.set(false)}
+	/>
+{/if}
 
 <div class="page-toolbar">
 	<ViewSwitcher

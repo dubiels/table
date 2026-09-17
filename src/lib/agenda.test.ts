@@ -5,6 +5,7 @@ import type { AgendaEvent } from './server/gcal/agenda';
 function event(partial: Partial<AgendaEvent>): AgendaEvent {
 	return {
 		id: 'e1',
+		calendarId: 'me@example.com',
 		title: 'Standup',
 		start: '2026-08-11T09:00:00-04:00',
 		end: '2026-08-11T09:30:00-04:00',

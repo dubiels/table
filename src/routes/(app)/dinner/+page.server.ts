@@ -161,6 +161,27 @@ export const actions: Actions = {
 		return { logged: true };
 	},
 
+	updateTouchpoint: async ({ request }) => {
+		const data = Object.fromEntries(await request.formData());
+		const id = requireId(data);
+		if (!id) return fail(400, { error: 'Missing reach-out' });
+
+		const parsed = touchpointSchema.safeParse(data);
+		if (!parsed.success) return fail(400, { error: 'A reach-out needs a date' });
+
+		const updated = await touchpointsService.updateTouchpoint(id, parsed.data);
+		if (!updated) return fail(404, { error: 'That reach-out is gone' });
+		return { logged: true };
+	},
+
+	deleteTouchpoint: async ({ request }) => {
+		const data = Object.fromEntries(await request.formData());
+		const id = requireId(data);
+		if (!id) return fail(400, { error: 'Missing reach-out' });
+		await touchpointsService.deleteTouchpoint(id);
+		return { deleted: id };
+	},
+
 	createTaskForPerson: async ({ request }) => {
 		const data = Object.fromEntries(await request.formData());
 		const personId = requireId(data, 'personId');

@@ -1,5 +1,5 @@
 import { env } from '$env/dynamic/private';
-import { getAccessToken } from '../google/oauth';
+import { getAccessToken, hasGoogleAccount, type GoogleAccount } from '../google/oauth';
 import { listEvents } from './client';
 import { toAgendaEvents, type AgendaEvent } from './agenda';
 
@@ -8,15 +8,58 @@ const AGENDA_DAYS = 7;
 
 let cache: { at: number; events: AgendaEvent[] } | null = null;
 
-function calendarIds(): string[] {
-	const ids = (env.GCAL_CALENDAR_IDS ?? '')
+export interface ConfiguredCalendar {
+	id: string;
+	account: GoogleAccount;
+	/** What to call it on screen, e.g. "Chapter One". */
+	label: string;
+}
+
+function idsFor(value: string | undefined): string[] {
+	const ids = (value ?? '')
 		.split(',')
 		.map((s) => s.trim())
 		.filter(Boolean);
 	// Deduped: a primary calendar's id is the account's own email address, so
 	// naming both (or repeating an id) would otherwise fetch the same calendar
 	// twice.
-	return ids.length > 0 ? [...new Set(ids)] : ['primary'];
+	return [...new Set(ids)];
+}
+
+/** `id=Label` pairs, e.g. `GCAL_CALENDAR_LABELS="a@x.com=Chapter One,b@y.com=Personal"`. */
+function labels(): Map<string, string> {
+	const out = new Map<string, string>();
+	for (const pair of (env.GCAL_CALENDAR_LABELS ?? '').split(',')) {
+		const at = pair.indexOf('=');
+		if (at < 1) continue;
+		out.set(pair.slice(0, at).trim(), pair.slice(at + 1).trim());
+	}
+	return out;
+}
+
+/**
+ * Every calendar to read, in the order they were configured, across both
+ * accounts.
+ *
+ * The order is the one the wall's legend and colours follow, so it is a
+ * display decision as much as a fetch one — first configured, first coloured.
+ * The second account contributes nothing until it has a refresh token, so a
+ * half-finished setup reads exactly like the single-account one it replaced.
+ */
+export function configuredCalendars(): ConfiguredCalendar[] {
+	const named = labels();
+	const primary = idsFor(env.GCAL_CALENDAR_IDS);
+	const second = hasGoogleAccount('second') ? idsFor(env.GCAL_CALENDAR_IDS_2) : [];
+
+	const entries: Array<{ id: string; account: GoogleAccount }> = [
+		...(primary.length > 0 ? primary : ['primary']).map((id) => ({
+			id,
+			account: 'primary' as const
+		})),
+		...second.map((id) => ({ id, account: 'second' as const }))
+	];
+
+	return entries.map(({ id, account }) => ({ id, account, label: named.get(id) ?? id }));
 }
 
 /**
@@ -31,24 +74,36 @@ function calendarIds(): string[] {
  * immediately instead of waiting out the rest of the TTL.
  */
 async function fetchAndMerge(): Promise<{ ok: boolean; events: AgendaEvent[] }> {
-	let token: string;
-	try {
-		token = await getAccessToken();
-	} catch (err) {
-		// A dead or revoked refresh token fails every calendar at once, which is
-		// the same situation as "nothing succeeded" below.
-		console.error('gcal: access token refresh failed', err);
-		return { ok: false, events: cache?.events ?? [] };
-	}
+	// One token per account, fetched at most once per round. A dead or revoked
+	// refresh token fails every calendar on that account, but must not touch the
+	// other account's: Chapter One going down cannot blank Personal.
+	const tokens = new Map<GoogleAccount, string | null>();
+	const tokenFor = async (account: GoogleAccount) => {
+		if (tokens.has(account)) return tokens.get(account)!;
+		try {
+			const token = await getAccessToken(account);
+			tokens.set(account, token);
+			return token;
+		} catch (err) {
+			console.error(`gcal: access token refresh failed for ${account}`, err);
+			tokens.set(account, null);
+			return null;
+		}
+	};
 
+	// From midnight, not from now: a day view has to show the meeting that
+	// started an hour ago. TodayPanel filters with `eventsToday` either way.
 	const now = new Date();
-	const windowEnd = new Date(now.getTime() + AGENDA_DAYS * 86_400_000);
+	const windowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+	const windowEnd = new Date(windowStart.getTime() + AGENDA_DAYS * 86_400_000);
 	const all: AgendaEvent[] = [];
 	let anySucceeded = false;
 
-	for (const id of calendarIds()) {
+	for (const { id, account } of configuredCalendars()) {
+		const token = await tokenFor(account);
+		if (!token) continue;
 		try {
-			all.push(...toAgendaEvents(await listEvents(id, now, windowEnd, token)));
+			all.push(...toAgendaEvents(await listEvents(id, windowStart, windowEnd, token), id));
 			anySucceeded = true;
 		} catch (err) {
 			console.error(`gcal: calendar ${id} fetch failed, skipping`, err);

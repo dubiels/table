@@ -8,7 +8,7 @@ import * as tasksService from '$lib/server/tasks/service';
 import { newTaskSchema } from '$lib/server/tasks/forms';
 import { evictedTaskPoints } from '$lib/bento';
 import { ZONE_COLOR_KEYS, type ZoneColor } from '$lib/zones';
-import { getAgenda } from '$lib/server/gcal/service';
+import { getAgenda, configuredCalendars } from '$lib/server/gcal/service';
 import { syncGoogleTasks, isGoogleTasksEnabled, readSyncState } from '$lib/server/gtasks/sync';
 import { pushTaskNow, pushDeletionNow } from '$lib/server/gtasks/push';
 import { canSendToGoogle, NEEDS_PLANNED_DATE_MESSAGE } from '$lib/googleSync';
@@ -78,7 +78,10 @@ export const load: PageServerLoad = async () => {
 	// from "a quiet week", and those want different empty states.
 	const lmsConfigured = Boolean(env.LMS_ICAL_URL ?? env.CANVAS_ICAL_URL);
 	const gcalConfigured = Boolean(env.GCAL_REFRESH_TOKEN);
-	return { tasks, zones, agenda, lmsConfigured, gcalConfigured };
+	// Ids and display names only, in configured order — which is the order the
+	// wall colours them in. No tokens, and nothing the Today panel needs.
+	const calendars = configuredCalendars().map(({ id, label }) => ({ id, label }));
+	return { tasks, zones, agenda, calendars, lmsConfigured, gcalConfigured };
 };
 
 const zoneColor = z.enum(ZONE_COLOR_KEYS as [ZoneColor, ...ZoneColor[]]);

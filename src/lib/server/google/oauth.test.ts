@@ -88,3 +88,46 @@ describe('getAccessToken', () => {
 		await expect(getAccessToken()).rejects.toThrow('HTTP 400');
 	});
 });
+
+describe('two accounts', () => {
+	it('sends each account its own refresh token and caches them separately', async () => {
+		mockEnv.GCAL_REFRESH_TOKEN_2 = 'refresh-token-2';
+		fetchMock
+			.mockResolvedValueOnce(tokenResponse('access-1'))
+			.mockResolvedValueOnce(tokenResponse('access-2'));
+		const { getAccessToken } = await freshOauth();
+
+		expect(await getAccessToken('primary')).toBe('access-1');
+		expect(await getAccessToken('second')).toBe('access-2');
+		// Both are cached, so a second round asks Google nothing.
+		expect(await getAccessToken('primary')).toBe('access-1');
+		expect(await getAccessToken('second')).toBe('access-2');
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+
+		const sent = fetchMock.mock.calls.map(([, init]) =>
+			new URLSearchParams(init.body as string).get('refresh_token')
+		);
+		expect(sent).toEqual(['refresh-token', 'refresh-token-2']);
+	});
+
+	it('keeps the first account usable when the second one fails to refresh', async () => {
+		mockEnv.GCAL_REFRESH_TOKEN_2 = 'revoked';
+		fetchMock
+			.mockResolvedValueOnce(tokenResponse('access-1'))
+			.mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({}) });
+		const { getAccessToken } = await freshOauth();
+
+		await getAccessToken('primary');
+		await expect(getAccessToken('second')).rejects.toThrow('second');
+		expect(await getAccessToken('primary')).toBe('access-1');
+	});
+
+	it('reports which accounts are configured', async () => {
+		const { hasGoogleAccount } = await freshOauth();
+
+		expect(hasGoogleAccount('primary')).toBe(true);
+		expect(hasGoogleAccount('second')).toBe(false);
+		mockEnv.GCAL_REFRESH_TOKEN_2 = 'refresh-token-2';
+		expect(hasGoogleAccount('second')).toBe(true);
+	});
+});

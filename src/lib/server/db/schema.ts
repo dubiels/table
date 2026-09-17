@@ -230,9 +230,10 @@ export const people = sqliteTable('people', {
 /**
  * One recorded contact with someone — a coffee, a call, a reply to their email.
  *
- * Append-only in practice: the log is the history, and `people.lastSpokeAt` is a
- * denormalised copy of the most recent date so the grid can sort and filter on
- * it without reading every touchpoint on every render.
+ * The log is the history, and `people.lastSpokeAt` is a denormalised copy of the
+ * most recent date so the grid can sort and filter on it without reading every
+ * touchpoint on every render. Entries can be corrected or removed, so anything
+ * that edits them owes that column a recount — see `people/touchpoints.ts`.
  */
 export const touchpoints = sqliteTable('touchpoints', {
 	id: text('id').primaryKey(),

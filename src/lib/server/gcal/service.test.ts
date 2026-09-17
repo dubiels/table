@@ -7,7 +7,11 @@ const { mockEnv, getAccessToken, listEvents } = vi.hoisted(() => ({
 }));
 
 vi.mock('$env/dynamic/private', () => ({ env: mockEnv }));
-vi.mock('../google/oauth', () => ({ getAccessToken }));
+vi.mock('../google/oauth', () => ({
+	getAccessToken,
+	hasGoogleAccount: (account: string) =>
+		Boolean(mockEnv[account === 'second' ? 'GCAL_REFRESH_TOKEN_2' : 'GCAL_REFRESH_TOKEN'])
+}));
 vi.mock('./client', () => ({ listEvents }));
 
 function event(summary: string, dateTime: string) {
@@ -25,7 +29,11 @@ beforeEach(() => {
 	for (const key of Object.keys(mockEnv)) delete mockEnv[key];
 	mockEnv.GCAL_REFRESH_TOKEN = 'refresh-token';
 
-	getAccessToken.mockReset().mockResolvedValue('access-token');
+	getAccessToken
+		.mockReset()
+		.mockImplementation(async (account = 'primary') =>
+			account === 'second' ? 'access-token-2' : 'access-token'
+		);
 	listEvents.mockReset();
 
 	vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -187,5 +195,92 @@ describe('refreshAgenda', () => {
 
 		expect(await refreshAgenda()).toEqual({ ok: false, events: 0 });
 		expect(getAccessToken).not.toHaveBeenCalled();
+	});
+});
+
+describe('configuredCalendars', () => {
+	it("falls back to the account's primary calendar when none are named", async () => {
+		const { configuredCalendars } = await freshService();
+
+		expect(configuredCalendars()).toEqual([
+			{ id: 'primary', account: 'primary', label: 'primary' }
+		]);
+	});
+
+	it("lists the second account's calendars after the first account's", async () => {
+		mockEnv.GCAL_CALENDAR_IDS = 'me@example.com';
+		mockEnv.GCAL_REFRESH_TOKEN_2 = 'refresh-token-2';
+		mockEnv.GCAL_CALENDAR_IDS_2 = 'work@example.com';
+		mockEnv.GCAL_CALENDAR_LABELS = 'me@example.com=Personal,work@example.com=Chapter One';
+		const { configuredCalendars } = await freshService();
+
+		expect(configuredCalendars()).toEqual([
+			{ id: 'me@example.com', account: 'primary', label: 'Personal' },
+			{ id: 'work@example.com', account: 'second', label: 'Chapter One' }
+		]);
+	});
+
+	it('ignores the second account until it has a refresh token', async () => {
+		mockEnv.GCAL_CALENDAR_IDS_2 = 'work@example.com';
+		const { configuredCalendars } = await freshService();
+
+		expect(configuredCalendars().map((c) => c.id)).toEqual(['primary']);
+	});
+});
+
+describe('two accounts', () => {
+	it('reads each account with its own token and tags events with their calendar', async () => {
+		mockEnv.GCAL_CALENDAR_IDS = 'me@example.com';
+		mockEnv.GCAL_REFRESH_TOKEN_2 = 'refresh-token-2';
+		mockEnv.GCAL_CALENDAR_IDS_2 = 'work@example.com';
+		listEvents
+			.mockResolvedValueOnce([event('lunch', '2026-08-11T12:00:00Z')])
+			.mockResolvedValueOnce([event('standup', '2026-08-11T09:00:00Z')]);
+
+		const { getAgenda } = await freshService();
+		const agenda = await getAgenda();
+
+		expect(listEvents).toHaveBeenCalledWith(
+			'me@example.com',
+			expect.any(Date),
+			expect.any(Date),
+			'access-token'
+		);
+		expect(listEvents).toHaveBeenCalledWith(
+			'work@example.com',
+			expect.any(Date),
+			expect.any(Date),
+			'access-token-2'
+		);
+		expect(agenda.map((e) => [e.title, e.calendarId])).toEqual([
+			['standup', 'work@example.com'],
+			['lunch', 'me@example.com']
+		]);
+	});
+
+	it("keeps serving one account when the other account's token is dead", async () => {
+		mockEnv.GCAL_CALENDAR_IDS = 'me@example.com';
+		mockEnv.GCAL_REFRESH_TOKEN_2 = 'refresh-token-2';
+		mockEnv.GCAL_CALENDAR_IDS_2 = 'work@example.com';
+		getAccessToken.mockImplementation(async (account = 'primary') => {
+			if (account === 'second') throw new Error('HTTP 400');
+			return 'access-token';
+		});
+		listEvents.mockResolvedValue([event('lunch', '2026-08-11T12:00:00Z')]);
+
+		const { getAgenda } = await freshService();
+
+		expect((await getAgenda()).map((e) => e.title)).toEqual(['lunch']);
+		expect(listEvents).toHaveBeenCalledTimes(1);
+	});
+
+	it('fetches the whole of today, not just what is left of it', async () => {
+		vi.setSystemTime(new Date(2026, 7, 11, 16, 30));
+		listEvents.mockResolvedValue([]);
+		const { getAgenda } = await freshService();
+		await getAgenda();
+
+		const [, from] = listEvents.mock.calls[0];
+		expect(from).toEqual(new Date(2026, 7, 11, 0, 0, 0, 0));
 	});
 });

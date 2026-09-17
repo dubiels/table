@@ -8,6 +8,7 @@
 	import { env } from '$env/dynamic/public';
 	import { GOOGLE_SYNC_STATES } from '$lib/googleSync';
 	import GoogleSyncGlyph from './GoogleSyncGlyph.svelte';
+	import { wallMode } from '$lib/wall.svelte';
 
 	let {
 		user,
@@ -170,6 +171,36 @@
 		<a class="nav-link" class:current={page.url.pathname === '/history'} href={resolve('/history')}>
 			History
 		</a>
+
+		<!-- Only on the board: the wall draws the board, and offering it from
+		     Dinner or History would promise a view of the page you are on. -->
+		{#if page.url.pathname === '/'}
+			<button
+				type="button"
+				class="theme-toggle"
+				aria-label="Show the wall view"
+				title="Wall view"
+				onclick={() => wallMode.set(true)}
+			>
+				<!-- A panel on a stand: the thing it puts on the wall, drawn in the
+				     same weight as the sun and moon beside it. -->
+				<svg
+					viewBox="0 0 24 24"
+					width="16"
+					height="16"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
+				>
+					<rect x="2" y="4" width="20" height="13" rx="2" />
+					<line x1="9" y1="21" x2="15" y2="21" />
+					<line x1="12" y1="17" x2="12" y2="21" />
+				</svg>
+			</button>
+		{/if}
 
 		<button
 			type="button"

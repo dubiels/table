@@ -16,6 +16,11 @@
 
 	let adding = $state(false);
 	let noteEl = $state<HTMLInputElement | null>(null);
+
+	// The reach-out being corrected, by id. One at a time: these are two short
+	// fields, and an open edit elsewhere in the list is a change you have
+	// forgotten about by the time you submit this one.
+	let editingId = $state<string | null>(null);
 </script>
 
 <section class="reachouts">
@@ -25,11 +30,58 @@
 		<ul>
 			{#each touchpoints as point (point.id)}
 				<li>
-					<span class="when">
-						{point.occurredOn}
-						<span class="ago">{describeAge(point.occurredOn, today)}</span>
-					</span>
-					{#if point.note}<span class="note">{point.note}</span>{/if}
+					{#if editingId === point.id}
+						<!-- Delete rides the same form via formaction rather than a nested
+						     one — forms cannot nest, and the id it needs is already here.
+						     formnovalidate so a blank date cannot block removing the row. -->
+						<form
+							method="POST"
+							action="?/updateTouchpoint"
+							class="log"
+							use:enhance={() =>
+								async ({ result, update }) => {
+									await update();
+									if (result.type === 'success') editingId = null;
+								}}
+						>
+							<input type="hidden" name="id" value={point.id} />
+							<input
+								type="date"
+								name="occurredOn"
+								value={point.occurredOn}
+								aria-label="When"
+								required
+							/>
+							<input
+								name="note"
+								value={point.note ?? ''}
+								placeholder="Coffee, caught up on the Cadence launch"
+								aria-label="What happened"
+								autocomplete="off"
+							/>
+							<button type="submit" class="save">Save</button>
+							<button type="submit" class="delete" formaction="?/deleteTouchpoint" formnovalidate
+								>Delete</button
+							>
+							<button type="button" class="cancel" onclick={() => (editingId = null)}>Cancel</button
+							>
+						</form>
+					{:else}
+						<span class="when">
+							{point.occurredOn}
+							<span class="ago">{describeAge(point.occurredOn, today)}</span>
+						</span>
+						{#if point.note}<span class="note">{point.note}</span>{/if}
+						<button
+							type="button"
+							class="edit"
+							aria-label="Edit the reach-out on {point.occurredOn}"
+							onclick={() => {
+								adding = false;
+								editingId = point.id;
+							}}>Edit</button
+						>
+					{/if}
 				</li>
 			{/each}
 		</ul>
@@ -109,6 +161,27 @@
 		gap: 0.5rem;
 		font-size: 0.82rem;
 	}
+	.edit {
+		flex: none;
+		margin-left: auto;
+		border: none;
+		background: none;
+		padding: 0;
+		font: inherit;
+		font-size: 0.72rem;
+		color: var(--muted);
+		cursor: pointer;
+		/* Held back until the row is pointed at or tabbed to: a column of Edit
+		   links down the log reads louder than the log itself. */
+		opacity: 0;
+	}
+	li:hover .edit,
+	.edit:focus-visible {
+		opacity: 1;
+	}
+	li:has(.log) {
+		display: block;
+	}
 	.when {
 		flex: none;
 		font-size: 0.72rem;
@@ -158,6 +231,15 @@
 		font: inherit;
 		font-size: 0.78rem;
 		font-weight: 600;
+		cursor: pointer;
+	}
+	.delete {
+		border: none;
+		background: none;
+		padding: 0;
+		font: inherit;
+		font-size: 0.78rem;
+		color: var(--danger);
 		cursor: pointer;
 	}
 	.cancel {

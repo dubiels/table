@@ -2,6 +2,12 @@ import type { GoogleEvent, GoogleEventTime } from './client';
 
 export interface AgendaEvent {
 	id: string;
+	/**
+	 * Which calendar it came from. The wall colours events by calendar, and an
+	 * event carries no such marker of its own — only the call that fetched it
+	 * knows, so `service.ts` names it here.
+	 */
+	calendarId: string;
 	title: string;
 	start: string;
 	end: string | null;
@@ -43,7 +49,7 @@ function declinedBySelf(event: GoogleEvent): boolean {
  * occurrence with its own stable id. Sorting belongs to the caller, which is
  * the only place that sees more than one calendar.
  */
-export function toAgendaEvents(items: GoogleEvent[]): AgendaEvent[] {
+export function toAgendaEvents(items: GoogleEvent[], calendarId = ''): AgendaEvent[] {
 	const out: AgendaEvent[] = [];
 
 	for (const event of items) {
@@ -57,6 +63,7 @@ export function toAgendaEvents(items: GoogleEvent[]): AgendaEvent[] {
 
 		out.push({
 			id: event.id,
+			calendarId,
 			title: event.summary ?? '(untitled)',
 			start,
 			end: toIso(event.end),
